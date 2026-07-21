@@ -1,0 +1,92 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ product.name }} — {{ site.name }}{% endblock %}
+{% block content %}
+  {# Canonical + JSON-LD ALWAYS point at ShopUrlGenerator::product($slug) (storefront-rendering
+     spec §3) — never the linked enrichment entry's own path, even when one exists. #}
+  <link rel="canonical" href="{{ canonical }}">
+  {% set structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    'name': product.name,
+    'url': canonical,
+  } %}
+  {% if product.description %}{% set structuredData = structuredData|merge({description: product.description}) %}{% endif %}
+  {% if product.coverUrl %}{% set structuredData = structuredData|merge({image: product.coverUrl}) %}{% endif %}
+  {% if product.priceFormatted %}
+    {% set structuredData = structuredData|merge({offers: {
+      '@type': 'Offer',
+      price: product.priceFormatted,
+      priceCurrency: product.currency,
+    }}) %}
+  {% endif %}
+  <script type="application/ld+json">{{ structuredData|json_encode(constant('JSON_UNESCAPED_SLASHES'))|raw }}</script>
+
+  <article class="shop-product">
+    {% if product.coverUrl %}<img class="shop-product__cover" src="{{ product.coverUrl }}" alt="{{ product.name }}">{% endif %}
+    <h1>{{ product.name }}</h1>
+    {% if product.priceFormatted %}
+      <p class="shop-product__price">{{ product.priceFormatted }} {{ product.currency }}</p>
+    {% endif %}
+    {% if product.rating %}
+      <p class="shop-product__rating">{{ product.rating.average }} ({{ product.rating.count }})</p>
+    {% endif %}
+    {% if product.description %}
+      <div class="shop-product__description">{{ product.description }}</div>
+    {% endif %}
+
+    {# Server-rendered add-to-cart (Commerce-Slice-2 Fix A): a REAL `<form>` that posts to the
+       SAME `/_shop/cart/add` endpoint shop.js progressively enhances (matches shop.js's own
+       `form[action="/_shop/cart/add"]` selector — JS intercepts this exact markup, it never
+       replaces/reconstructs it). Simple/single-active-variant products get a hidden
+       `variant_uuid` — a direct, working no-JS add; multi-variant products get a native
+       `<select>` of real options the customer must resolve before submitting — never an
+       invalid cart line, mirroring the add-to-cart BLOCK's own closed direct/select decision
+       ({@see \Thallo\Commerce\Shop\ViewModels\AddToCartViewModel}). A product needing
+       unsupported complex selection (a required add-on, or zero purchasable variants) still
+       gets a visible, honest status message — never an inert JS-only shell.
+
+       Cache-safe by construction: NO session-specific cart data and NO CSRF token anywhere in
+       this markup — this page is shop-cached ({@see \Thallo\Commerce\Shop\ShopPageCache}), and
+       {@see \Thallo\Commerce\Http\Shop\ShopCsrfGuard}'s Origin/Referer check is the
+       REQUEST-level defense, so a cached copy of this exact form is safe for every visitor. #}
+    {% if product.addToCart.available and product.addToCart.mode in ['direct', 'select'] %}
+      <form class="shop-product__add-to-cart" method="post" action="/_shop/cart/add">
+        {% if product.addToCart.mode == 'direct' %}
+          <input type="hidden" name="variant_uuid" value="{{ product.addToCart.variantUuid }}">
+        {% else %}
+          <label class="shop-product__variant-label">
+            <span class="sr-only">Options</span>
+            <select name="variant_uuid" required>
+              {% for variant in product.addToCart.variants %}
+                <option value="{{ variant.uuid }}">{{ variant.label }} — {{ variant.price_formatted }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        {% endif %}
+        <label class="shop-product__quantity">
+          <span class="sr-only">Quantity</span>
+          <input type="number" name="quantity" min="1" step="1" value="1" inputmode="numeric">
+        </label>
+        <button type="submit">Add to cart</button>
+      </form>
+      {# The stable, deploy-invariant asset alias (see ShopAssetController/ShopUrlGenerator's own
+         docblock) — the SAME literal path every shop block template loads shop.js from. #}
+      <script src="/_shop/assets/shop.js" defer></script>
+    {% elseif product.addToCart.available %}
+      {# mode is 'link' here: a required add-on or zero purchasable variants — this pack has no
+         add-on picker UI, so there is nothing "elsewhere" to send the customer to (unlike the
+         add-to-cart BLOCK, which links back to THIS page). An honest, always-visible status
+         message — never JS-gated, never blank — is the closest available "never an inert shell"
+         answer without inventing an out-of-scope add-on UI. #}
+      <p class="shop-product__unavailable">This product is not available for online purchase right now.</p>
+    {% endif %}
+
+    {# Optional enrichment (Commerce-Slice-2 Fix B): the linked entry's blocks region, ALREADY
+       rendered server-side by Thallo\Render\EntryBlocksRenderer (a route-independent read —
+       resolves a route-less linked entry, unlike the old PublicRouteResolver::resolveEntry()
+       lookup) — commerce data alone when unlinked/unresolvable. #}
+    {% if enrichment_html is not empty %}
+      <div class="shop-product__enrichment">{{ enrichment_html|raw }}</div>
+    {% endif %}
+  </article>
+{% endblock %}

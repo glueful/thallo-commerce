@@ -1,0 +1,30 @@
+{% extends 'layout.twig' %}
+{% block title %}{{ category.name }} — {{ site.name }}{% endblock %}
+{% block content %}
+  <link rel="canonical" href="{{ canonical }}">
+  <section class="shop-category">
+    <h1>{{ category.name }}</h1>
+    <ul class="shop-grid">
+      {% for product in grid.items %}
+        <li class="shop-grid__item">
+          <a href="{{ product.url }}">
+            {% if product.coverUrl %}<img src="{{ product.coverUrl }}" alt="{{ product.name }}">{% endif %}
+            <span class="shop-grid__name">{{ product.name }}</span>
+            {% if product.priceFormatted %}
+              <span class="shop-grid__price">{{ product.priceFormatted }} {{ product.currency }}</span>
+            {% endif %}
+          </a>
+        </li>
+      {% else %}
+        <li class="empty">No products in this category yet.</li>
+      {% endfor %}
+    </ul>
+    {% set pagination = {
+      page: grid.page,
+      total_pages: grid.totalPages,
+      prev_path: grid.prevPath,
+      next_path: grid.nextPath,
+    } %}
+    {% include '_pagination.twig' %}
+  </section>
+{% endblock %}

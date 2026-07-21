@@ -1,0 +1,24 @@
+{# featured-product — storefront-rendering spec §5.2/§10: spotlights a single product. Explicit
+   `product_slug` wins; when blank, the block falls back to the CURRENT entry's linked commerce
+   product (the enrichment context — {@see \Thallo\Commerce\Links\ProductLinkService::resolveByEntry()}),
+   so dropping this block onto a linked "Product page" entry needs no configuration at all. The
+   shell carries both hints as data-* attributes; shop.js resolves and paints it via
+   `GET /_shop/blocks/featured-product` — every URL in the response comes from ShopUrlGenerator. #}
+<div class="thallo-block thallo-block-featured-product" data-shop-block="featured-product"
+     data-product-slug="{{ data.product_slug|default('') }}"
+     data-entry-uuid="{{ entry.uuid|default('') }}">
+  <div class="thallo-block-featured-product__body" data-shop-featured-body hidden></div>
+  <p class="thallo-block-featured-product__empty" data-shop-featured-empty>Loading…</p>
+  {# Commerce-Slice-2 Fix A: same reasoning as add-to-cart.twig — link straight to the product
+     page when the slug is explicitly known; otherwise degrade to plain text (never a dead link). #}
+  {% set noscript_url = shop_product_url(data.product_slug) %}
+  <noscript>
+    {% if noscript_url %}
+      <p class="thallo-block-featured-product__noscript"><a href="{{ noscript_url }}">View this product</a></p>
+    {% else %}
+      <p class="thallo-block-featured-product__noscript">Enable JavaScript to view the featured product.</p>
+    {% endif %}
+  </noscript>
+</div>
+<script src="/_shop/assets/shop.js" defer></script>
+

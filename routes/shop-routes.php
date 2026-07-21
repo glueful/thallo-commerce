@@ -1,0 +1,110 @@
+<?php
+
+declare(strict_types=1);
+
+use Glueful\Routing\Router;
+use Thallo\Commerce\Http\Shop\ShopAssetController;
+use Thallo\Commerce\Http\Shop\ShopBlockDataController;
+use Thallo\Commerce\Http\Shop\ShopCartController;
+use Thallo\Commerce\Http\Shop\ShopCatalogController;
+use Thallo\Commerce\Http\Shop\ShopCheckoutController;
+use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Shop\ShopPageCache;
+use Thallo\Commerce\Shop\ShopUrlGenerator;
+
+/** @var Router $router */
+
+/*
+ * The public catalog surface (storefront-rendering spec §3): shop index, product detail,
+ * category archive. Loaded only inside the `thallo.commerce` capability gate
+ * (CommerceIntegrationServiceProvider::boot()) — the prefix segment stays reserved
+ * unconditionally via ShopReservedPathContributor regardless of that gate.
+ *
+ * The prefix is resolved from the SAME ShopUrlGenerator the controller/templates use (never
+ * duplicated as a separate config read) — by the time route files load, the provider has
+ * already eagerly resolved it once (to validate config at boot), so this is a cheap, already-
+ * memoized container lookup, not a second construction.
+ *
+ * Ordering relative to Render's `/{path}` catch-all is structural, not file-load-order: `/shop`
+ * has no `{}` in its path, so the router stores it as a STATIC route (O(1) exact-match lookup,
+ * tried before any dynamic route); `/shop/products/{slug}` and `/shop/categories/{slug}` are
+ * dynamic but bucketed by their literal first segment ("shop"), which the router always tries
+ * before the parameter-first-segment ('*') bucket Render's `/{path}` lives in. Both routes win
+ * over the catch-all regardless of which provider's routes file happened to load first.
+ */
+$prefix = $router->getContext()->getContainer()->get(ShopUrlGenerator::class)->prefix;
+
+// Task 8 (storefront-rendering spec §9): ShopPageCache is the LAST middleware in the chain
+// (tenant context must already be resolved before the cache key can be built) — deliberately
+// NOT applied to any future /cart, /checkout, or /_shop route: those are private/no-store by
+// construction and must never enter this shared cache.
+$router->get('/' . $prefix, [ShopCatalogController::class, 'index'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+$router->get('/' . $prefix . '/products/{slug}', [ShopCatalogController::class, 'product'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+$router->get('/' . $prefix . '/categories/{slug}', [ShopCatalogController::class, 'category'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+
+/*
+ * Task 9 (storefront-rendering spec §3/§6/§9): cart page + `/_shop/cart` mini-cart JSON +
+ * `/_shop/cart/*` mutations. `cart`/`_shop` are reserved unconditionally by
+ * ShopReservedPathContributor regardless of this gate, exactly like `{prefix}` above.
+ * ShopCsrfGuard runs LAST (after tenant_bootstrap, mirroring ShopPageCache's own ordering
+ * comment above) so the canonical-origin resolver sees an already-resolved tenant under
+ * enforcement — it is applied ONLY to the four mutating POSTs below, never the two GETs.
+ * Never cached (ShopPageCache is deliberately absent here — see the comment above).
+ */
+$router->get('/cart', [ShopCartController::class, 'page'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->get('/_shop/cart', [ShopCartController::class, 'show'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+
+$router->post('/_shop/cart/add', [ShopCartController::class, 'add'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+$router->post('/_shop/cart/update', [ShopCartController::class, 'update'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+$router->post('/_shop/cart/remove', [ShopCartController::class, 'remove'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+$router->post('/_shop/cart/discount', [ShopCartController::class, 'discount'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+
+/*
+ * Task 10 (storefront-rendering spec §3/§7/§8): checkout page + placement + provider
+ * return/cancel + order confirmation. `checkout` is reserved unconditionally by
+ * ShopReservedPathContributor regardless of this gate, exactly like `{prefix}`/`cart`/`_shop`
+ * above. Never cached (ShopPageCache deliberately absent, mirrors the cart routes above) —
+ * every response here is private/no-store. ShopCsrfGuard applies only to the one mutating POST.
+ */
+$router->get('/checkout', [ShopCheckoutController::class, 'page'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->post('/_shop/checkout/quote', [ShopCheckoutController::class, 'quote'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+$router->post('/_shop/checkout/place', [ShopCheckoutController::class, 'place'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+$router->get('/checkout/return/{ref}', [ShopCheckoutController::class, 'paymentReturn'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->get('/checkout/cancel/{ref}', [ShopCheckoutController::class, 'paymentCancel'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->get('/checkout/confirmation/{ref}', [ShopCheckoutController::class, 'confirmation'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+
+/*
+ * Task 11 (storefront-rendering spec §5.2/§10): the JSON data source `shop.js` hydrates the
+ * 3 catalog-data block shells from, plus the fingerprinted static-asset route it (and the block
+ * templates, transitively) are served from. `_shop` is already reserved unconditionally by
+ * ShopReservedPathContributor, exactly like the cart/checkout endpoints above. Never cached by
+ * ShopPageCache (deliberately absent) — these are per-block reads, not the dimension-complete
+ * catalog page cache's concern.
+ */
+$router->get('/_shop/blocks/product-grid', [ShopBlockDataController::class, 'productGrid'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->get('/_shop/blocks/featured-product', [ShopBlockDataController::class, 'featuredProduct'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+$router->get('/_shop/blocks/add-to-cart', [ShopBlockDataController::class, 'addToCart'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+
+// Fingerprinted, immutable, tenant-agnostic static asset (shop.js) — the SAME
+// tenant_profile:public + tenant_bootstrap pairing every other route in this file uses, mirroring
+// thallo-render's own static-asset routes (e.g. /custom.css, /_preview.css) for consistency.
+$router->get('/_shop/assets/{file}', [ShopAssetController::class, 'serve'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);

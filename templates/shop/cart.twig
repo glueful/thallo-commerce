@@ -1,0 +1,82 @@
+{% extends 'layout.twig' %}
+{% block title %}Cart — {{ site.name }}{% endblock %}
+{% block content %}
+  <section class="shop-cart" aria-labelledby="shop-cart-heading">
+    <h1 id="shop-cart-heading">Your cart</h1>
+
+    {% if cart.items is empty %}
+      <p class="shop-cart__empty">Your cart is empty.</p>
+      <p class="shop-cart__actions">
+        <a class="shop-cart__continue" href="{{ shop_index_url }}">Continue shopping</a>
+      </p>
+    {% else %}
+      <ul class="shop-cart__lines">
+        {% for item in cart.items %}
+          <li class="shop-cart__line">
+            <span class="shop-cart__line-name">{{ item.product_name }}</span>
+            {% if item.sku %}<span class="shop-cart__line-sku">{{ item.sku }}</span>{% endif %}
+            <span class="shop-cart__line-price">{{ item.unit_price_formatted }} {{ item.currency }}</span>
+
+            <form class="shop-cart__update" method="post" action="/_shop/cart/update">
+              <input type="hidden" name="variant_uuid" value="{{ item.variant_uuid }}">
+              <label class="shop-cart__qty-label">
+                <span class="sr-only">Quantity for {{ item.product_name }}</span>
+                <input type="number" name="quantity" min="0" step="1" value="{{ item.quantity }}" inputmode="numeric">
+              </label>
+              <button type="submit">Update</button>
+            </form>
+
+            <form class="shop-cart__remove" method="post" action="/_shop/cart/remove">
+              <input type="hidden" name="variant_uuid" value="{{ item.variant_uuid }}">
+              <button type="submit">Remove</button>
+            </form>
+
+            <span class="shop-cart__line-total">{{ item.line_total_formatted }} {{ item.currency }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <form class="shop-cart__discount" method="post" action="/_shop/cart/discount">
+        {% if cart.discountCode %}
+          <p class="shop-cart__discount-active">Discount applied: {{ cart.discountCode }}</p>
+          <button type="submit" name="code" value="">Remove discount</button>
+        {% else %}
+          <label class="shop-cart__discount-label">
+            <span>Discount code</span>
+            <input type="text" name="code" autocomplete="off">
+          </label>
+          <button type="submit">Apply</button>
+        {% endif %}
+      </form>
+
+      <dl class="shop-cart__totals">
+        <div class="shop-cart__totals-row">
+          <dt>Subtotal</dt><dd>{{ cart.subtotalFormatted }} {{ cart.currency }}</dd>
+        </div>
+        {% if cart.discountTotal > 0 %}
+        <div class="shop-cart__totals-row shop-cart__totals-row--discount">
+          <dt>Discount</dt><dd>-{{ cart.discountTotalFormatted }} {{ cart.currency }}</dd>
+        </div>
+        {% endif %}
+        {% if cart.shippingTotal > 0 %}
+        <div class="shop-cart__totals-row">
+          <dt>Shipping</dt><dd>{{ cart.shippingTotalFormatted }} {{ cart.currency }}</dd>
+        </div>
+        {% endif %}
+        {% if cart.taxTotal > 0 %}
+        <div class="shop-cart__totals-row">
+          <dt>Tax</dt><dd>{{ cart.taxTotalFormatted }} {{ cart.currency }}</dd>
+        </div>
+        {% endif %}
+        <div class="shop-cart__totals-row shop-cart__totals-row--grand">
+          <dt>Total</dt><dd>{{ cart.grandTotalFormatted }} {{ cart.currency }}</dd>
+        </div>
+      </dl>
+
+      <p class="shop-cart__actions">
+        <a class="shop-cart__continue" href="{{ shop_index_url }}">Continue shopping</a>
+        <a class="shop-cart__checkout" href="{{ cart.checkoutUrl }}">Proceed to checkout</a>
+      </p>
+    {% endif %}
+  </section>
+{% endblock %}

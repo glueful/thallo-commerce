@@ -1,0 +1,46 @@
+{% extends 'layout.twig' %}
+{% block title %}Checkout — {{ site.name }}{% endblock %}
+{% block content %}
+  <section class="shop-checkout" aria-labelledby="shop-checkout-heading">
+    <h1 id="shop-checkout-heading">Checkout</h1>
+
+    {% if checkout.cart.items is empty %}
+      <p class="shop-checkout__empty">Your cart is empty.</p>
+    {% else %}
+      <ul class="shop-checkout__lines">
+        {% for item in checkout.cart.items %}
+          <li class="shop-checkout__line">
+            <span class="shop-checkout__line-name">{{ item.product_name }}</span>
+            <span class="shop-checkout__line-qty">× {{ item.quantity }}</span>
+            <span class="shop-checkout__line-total">{{ item.line_total_formatted }} {{ item.currency }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+
+      <dl class="shop-checkout__totals">
+        <div class="shop-checkout__totals-row shop-checkout__totals-row--grand">
+          <dt>Total</dt><dd>{{ checkout.cart.grandTotalFormatted }} {{ checkout.cart.currency }}</dd>
+        </div>
+      </dl>
+
+      <form class="shop-checkout__form" method="post" action="/_shop/checkout/place">
+        <input type="hidden" name="idempotency_key" value="{{ checkout.idempotencyKey }}">
+
+        <label class="shop-checkout__field">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+
+        <fieldset class="shop-checkout__address">
+          <legend>Shipping address</legend>
+          <label class="shop-checkout__field">
+            <span>Country</span>
+            <input type="text" name="addresses[shipping][country]" autocomplete="country" required>
+          </label>
+        </fieldset>
+
+        <button type="submit">Place order</button>
+      </form>
+    {% endif %}
+  </section>
+{% endblock %}

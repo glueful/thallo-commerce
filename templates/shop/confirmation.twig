@@ -1,0 +1,28 @@
+{% extends 'layout.twig' %}
+{% block title %}Order {{ confirmation.orderRef }} — {{ site.name }}{% endblock %}
+{% block content %}
+  <section class="shop-confirmation" aria-labelledby="shop-confirmation-heading">
+    <h1 id="shop-confirmation-heading">Order {{ confirmation.orderRef }}</h1>
+    <p class="shop-confirmation__status" data-status="{{ confirmation.status }}">{{ confirmation.statusLabel }}</p>
+    <dl class="shop-confirmation__summary">
+      <div class="shop-confirmation__row">
+        <dt>Total</dt><dd>{{ confirmation.grandTotalFormatted }} {{ confirmation.currency }}</dd>
+      </div>
+      <div class="shop-confirmation__row">
+        <dt>Email</dt><dd>{{ confirmation.email }}</dd>
+      </div>
+    </dl>
+
+    {% if payment is defined and payment %}
+      <div class="shop-confirmation__payment" data-action="{{ payment.action }}">
+        {% if payment.action == 'manual' %}
+          <p class="shop-confirmation__instructions">{{ payment.instructions }}</p>
+        {% elseif payment.action == 'reference' %}
+          <p class="shop-confirmation__reference">Reference: {{ payment.reference }}{% if payment.gateway %} ({{ payment.gateway }}){% endif %}</p>
+        {% elseif payment.action == 'unavailable' %}
+          <p class="shop-confirmation__unavailable">Payment could not be started automatically. We will follow up by email.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,25 @@
+{# mini-cart — storefront-rendering spec §5.2/§9/§10: "a stable, cacheable shell; contents
+   hydrate via GET /_shop/cart (JSON, no-store); a plain /cart link without JS." The count/lines/
+   total below are ALWAYS rendered empty/zero server-side (so this block never bypasses the page
+   cache with visitor-specific data) — shop.js fetches the real cart on every page load and
+   repaints them, and again after every cart mutation elsewhere on the page. #}
+<div class="thallo-block thallo-block-mini-cart" data-shop-mini-cart>
+  <button type="button" class="thallo-block-mini-cart__toggle" data-shop-cart-toggle
+          aria-expanded="false" aria-controls="thallo-mini-cart-panel">
+    <span class="thallo-block-mini-cart__label">Cart</span>
+    <span class="thallo-block-mini-cart__count" data-shop-cart-count>0</span>
+  </button>
+
+  <div id="thallo-mini-cart-panel" class="thallo-block-mini-cart__panel" data-shop-cart-drawer>
+    <p class="thallo-block-mini-cart__empty" data-shop-cart-empty>Your cart is empty.</p>
+    <ul class="thallo-block-mini-cart__lines" data-shop-cart-lines hidden></ul>
+    <p class="thallo-block-mini-cart__total" data-shop-cart-total hidden></p>
+    <a class="thallo-block-mini-cart__link" data-shop-cart-link href="/cart">View cart</a>
+  </div>
+
+  <noscript>
+    <p class="thallo-block-mini-cart__noscript"><a href="/cart">View cart</a></p>
+  </noscript>
+</div>
+<script src="/_shop/assets/shop.js" defer></script>
+

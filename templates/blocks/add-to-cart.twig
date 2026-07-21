@@ -1,0 +1,46 @@
+{# add-to-cart — storefront-rendering spec §5.2/§10: "simple products submit directly;
+   variant/add-on products render required controls or link to detail — never an invalid cart
+   line." `product_slug` is optional and falls back to the current entry's linked commerce
+   product (same enrichment-context rule as featured-product.twig). The form stays hidden until
+   shop.js resolves `GET /_shop/blocks/add-to-cart` and decides the mode:
+     - direct  → a single hidden variant_uuid is filled in and the form is revealed
+     - select  → a real <select> of active variants is built into the variant slot and revealed
+     - link    → the form stays hidden; a "View product" link is revealed instead
+     - unavailable → neither is revealed; only the status message is shown
+   This shell never submits a form on its own — nothing here can become an invalid cart line. #}
+<div class="thallo-block thallo-block-add-to-cart" data-shop-block="add-to-cart"
+     data-product-slug="{{ data.product_slug|default('') }}"
+     data-entry-uuid="{{ entry.uuid|default('') }}">
+  <p class="thallo-block-add-to-cart__status" data-shop-add-to-cart-status>Loading…</p>
+
+  <form class="thallo-block-add-to-cart__form" method="post" action="/_shop/cart/add"
+        data-shop-add-to-cart-form hidden>
+    <div class="thallo-block-add-to-cart__variant" data-shop-add-to-cart-variant-slot></div>
+    <label class="thallo-block-add-to-cart__qty">
+      <span class="sr-only">Quantity</span>
+      <input type="number" name="quantity" min="1" step="1" value="1" inputmode="numeric">
+    </label>
+    <button type="submit">Add to cart</button>
+  </form>
+
+  <a class="thallo-block-add-to-cart__link" data-shop-add-to-cart-link hidden href="#">View product</a>
+
+  {# Commerce-Slice-2 Fix A: the no-JS fallback must reach a WORKING add-to-cart surface, never
+     an inert shell — {@see \Thallo\Render\RenderContextExtension::shopProductUrl()} (soft-bound,
+     pure string composition, cache-safe even inside a general-purpose page cache) resolves the
+     canonical product page for an explicitly-configured slug. Without a resolvable slug (blank
+     `product_slug` + no commerce binding) there is nothing safe to link to, so the plain notice
+     stays — never a dead `href="#"`. #}
+  {% set noscript_url = shop_product_url(data.product_slug) %}
+  <noscript>
+    {% if noscript_url %}
+      <p class="thallo-block-add-to-cart__noscript">
+        <a href="{{ noscript_url }}">View this product to add it to your cart</a>
+      </p>
+    {% else %}
+      <p class="thallo-block-add-to-cart__noscript">Enable JavaScript to add this product to your cart.</p>
+    {% endif %}
+  </noscript>
+</div>
+<script src="/_shop/assets/shop.js" defer></script>
+

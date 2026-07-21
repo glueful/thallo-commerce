@@ -1,0 +1,874 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Thallo\Commerce;
+
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Cache\CacheStore;
+use Glueful\Database\Connection;
+use Glueful\Database\Migrations\MigrationPriority;
+use Glueful\Encryption\EncryptionService;
+use Glueful\Events\EventService;
+use Glueful\Extensions\Commerce\Catalog\CatalogReader;
+use Glueful\Extensions\Commerce\Catalog\SlugLifecycleAuthority;
+use Glueful\Extensions\Commerce\Events\ProductDeleted;
+use Glueful\Extensions\Commerce\Events\ProductSlugChanged;
+use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
+use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
+use Glueful\Extensions\Commerce\Tenancy\CommerceTenantPurge;
+use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
+use Glueful\Extensions\Commerce\Tenancy\TenantAdopter;
+use Glueful\Extensions\Contracts\Tenancy\TenantTableRegistry;
+use Glueful\Extensions\ServiceProvider;
+use Psr\Container\ContainerInterface;
+use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
+use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
+use Thallo\Commerce\Events\ProductLinkChanged;
+use Thallo\Commerce\Http\ProductLinkController;
+use Thallo\Commerce\Links\LinkReconciler;
+use Thallo\Commerce\Links\ProductLinkRepository;
+use Thallo\Commerce\Links\ProductLinkService;
+use Thallo\Commerce\Http\Shop\CartCookie;
+use Thallo\Commerce\Http\Shop\GuestOrderCookie;
+use Thallo\Commerce\Http\Shop\ShopAssetController;
+use Thallo\Commerce\Http\Shop\ShopBlockDataController;
+use Thallo\Commerce\Http\Shop\ShopCartController;
+use Thallo\Commerce\Http\Shop\ShopCatalogController;
+use Thallo\Commerce\Http\Shop\ShopCheckoutController;
+use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Listeners\EntryDeletedListener;
+use Thallo\Commerce\Listeners\ProductDeletedListener;
+use Thallo\Commerce\Purge\CommercePurgeHandler;
+use Thallo\Commerce\Shop\Contribution\ShopReservedPathContributor;
+use Thallo\Commerce\Shop\Contribution\ShopTemplatePathContributor;
+use Thallo\Commerce\Shop\ShopAssetMap;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnAppearanceChange;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnCatalogChange;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnLinkChange;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnSlugChange;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnThemeChange;
+use Thallo\Commerce\Shop\PackCheckoutAttemptAuthority;
+use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
+use Thallo\Commerce\Shop\ShopPageCache;
+use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
+use Thallo\Commerce\Shop\ShopUrlGenerator;
+use Thallo\Commerce\Starter\ProductPageContributor;
+use Thallo\Commerce\Starter\ShopBlockTypesContributor;
+use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
+use Thallo\Contracts\Capability\Capability;
+use Thallo\Contracts\Capability\CapabilityRegistry;
+use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
+use Thallo\Contracts\Delivery\StorefrontLinkResolver;
+use Thallo\Contracts\Events\ContentLifecycleEvent;
+use Thallo\Contracts\Settings\ThemeAppearanceChanged;
+use Thallo\Contracts\Settings\ThemeChanged;
+use Thallo\Contracts\Starter\StarterBlockTypeRegistry;
+use Thallo\Contracts\Starter\StarterContributorRegistry;
+use Thallo\Render\Contribution\RenderContributionRegistry;
+use Thallo\Render\ThemeAppearanceSource;
+use Thallo\Render\ThemeLocator;
+use Thallo\Tenancy\Adoption\AdoptionContributorRegistry;
+use Thallo\Tenancy\System\SystemFlags;
+
+use function config;
+
+final class CommerceIntegrationServiceProvider extends ServiceProvider
+{
+    /** The table this pack owns for product-to-entry enrichment links (spec §5.1). */
+    private const PRODUCT_LINK_TABLE = 'thallo_commerce_product_links';
+
+    /**
+     * Tenant resolution is infrastructure, not a user-facing surface: bound unconditionally
+     * (never inside the capability gate in boot() below), so Commerce's own
+     * `makeTenantResolver()` picks up the three-mode seam regardless of whether
+     * `thallo.commerce` is enabled. Guarded by `interface_exists` (CommerceTenantResolution is
+     * an interface, not a class -- `class_exists()` always returns false for it) so an install
+     * where glueful/commerce isn't present stays inert instead of fatal-erroring on the
+     * container compiling a reference to a missing type.
+     *
+     * @return array<string, mixed>
+     */
+    public static function services(): array
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return [];
+        }
+
+        return [
+            CommerceTenantResolution::class => [
+                'factory' => [self::class, 'makeCommerceTenantResolution'],
+                'shared' => true,
+            ],
+            ProductLinkRepository::class => [
+                'class'    => ProductLinkRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ProductLinkService::class => [
+                'class'    => ProductLinkService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ProductLinkController::class => [
+                'class'    => ProductLinkController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            LinkReconciler::class => [
+                'factory' => [self::class, 'makeLinkReconciler'],
+                'shared'  => true,
+            ],
+            EntryDeletedListener::class => [
+                'class'    => EntryDeletedListener::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ProductDeletedListener::class => [
+                'class'    => ProductDeletedListener::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            CommerceIntegrationDiagnostics::class => [
+                'factory' => [self::class, 'makeCommerceIntegrationDiagnostics'],
+                'shared'  => true,
+            ],
+            // Task 10: the pack's PurgeHandler + AdoptionContributor (design spec §8). Both
+            // factories soft-resolve their Commerce-side collaborator (CommerceTenantPurge /
+            // TenantAdopter) via a container `has()` check rather than autowiring the type
+            // directly -- autowiring would hard-fail when Commerce's own provider is inactive
+            // (the service simply isn't bound then), where these handlers must instead degrade
+            // per their own fail-closed/soft-skip rules. Mirrors `makeLinkReconciler`'s reasoning
+            // above. The purge handler is also aliased so
+            // `Thallo\Tenancy\TenancyServiceProvider::makePurgeResourceRegistry()` can pick it up
+            // -- the exact mechanism `thallo.collections.purge_handler` already establishes.
+            CommercePurgeHandler::class => [
+                'factory' => [self::class, 'makeCommercePurgeHandler'],
+                'shared'  => true,
+                'alias'   => ['thallo.commerce.purge_handler'],
+            ],
+            CommerceAdoptionContributor::class => [
+                'factory' => [self::class, 'makeCommerceAdoptionContributor'],
+                'shared'  => true,
+            ],
+            // Task 11 (storefront-rendering spec §5.2): the boot-built content-hash allowlist
+            // ShopUrlGenerator::assets() and ShopAssetController both depend on. Built
+            // unconditionally (like ShopUrlGenerator itself) — a cheap, side-effect-free
+            // directory scan, harmless when thallo.commerce is disabled since nothing ever
+            // reaches the (gated) asset route or a (gated) block template in that state.
+            ShopAssetMap::class => [
+                'factory' => [self::class, 'makeShopAssetMap'],
+                'shared'  => true,
+            ],
+            // Task 7 (storefront-rendering spec §3): the single source of every shop/cart/
+            // checkout URL. Eagerly resolved once from boot() (registerShopUrlContribution()
+            // below), OUTSIDE the capability gate, so a misconfigured shop_prefix fails AT BOOT
+            // rather than lazily on the first request.
+            ShopUrlGenerator::class => [
+                'factory' => [self::class, 'makeShopUrlGenerator'],
+                'shared'  => true,
+            ],
+            // Commerce-Slice-2 Fix A: the soft-bound seam thallo-render's RenderContextExtension
+            // consumes (`shop_product_url()`/`shop_category_url()`/`shop_index_url()`) so a block
+            // template's no-JS `<noscript>` fallback can link to the real catalog WITHOUT the
+            // render pack ever importing ShopUrlGenerator. Bound unconditionally alongside
+            // ShopUrlGenerator itself (not gated on thallo.commerce being enabled) — the render
+            // pack's own soft-bind (`$container->has(StorefrontLinkResolver::class)`) is the
+            // enablement gate, exactly like every other soft-bound RenderContextExtension seam.
+            StorefrontLinkResolver::class => [
+                'factory' => [self::class, 'makeStorefrontLinkResolver'],
+                'shared'  => true,
+            ],
+            ShopCatalogController::class => [
+                'class'    => ShopCatalogController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 11: the read-only JSON data source the 3 catalog-data block templates
+            // hydrate from client-side, plus the fingerprinted static-asset controller.
+            ShopBlockDataController::class => [
+                'class'    => ShopBlockDataController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ShopAssetController::class => [
+                'class'    => ShopAssetController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 9 (storefront-rendering spec §6): cart token custody + the `/_shop/cart/*`
+            // CSRF guard + the cart endpoints/page controller. `CartCookie` has no dependencies
+            // of its own; `ShopCartController` is autowired like `ShopCatalogController` above
+            // (same TwigFactory/RenderContextExtension render seam, plus CartService/CartCookie/
+            // ShopUrlGenerator/the origin resolver). `ShopCsrfGuard` gets an explicit factory —
+            // unlike autowiring elsewhere in this file, this makes the Task-6
+            // `CanonicalPublicOriginResolver` dependency it enforces origin checks against
+            // impossible to miss in a diff.
+            CartCookie::class => [
+                'class'    => CartCookie::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ShopCsrfGuard::class => [
+                'factory' => [self::class, 'makeShopCsrfGuard'],
+                'shared'  => true,
+            ],
+            ShopCartController::class => [
+                'class'    => ShopCartController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 8 (storefront-rendering spec §4): the pack's transactional slug-reservation
+            // authority, bound to Commerce's own SlugLifecycleAuthority seam OUTSIDE the
+            // thallo.commerce capability gate (registerShopCachePurgeListeners() below is the
+            // analogous boot()-side infrastructure; this is the compile-time equivalent) — slug
+            // integrity must hold even while the storefront capability itself is disabled.
+            // Aliased (not separately bound) so Commerce's write path and the controller's
+            // read-only ledger lookup (the old-slug 301) both resolve the SAME shared instance.
+            PackSlugLifecycleAuthority::class => self::packSlugLifecycleAuthorityDefinition(),
+            // Task 8 (storefront-rendering spec §9): the shop catalog page cache middleware
+            // (index/product/category routes).
+            ShopPageCache::class => [
+                'factory' => [self::class, 'makeShopPageCache'],
+                'shared'  => true,
+            ],
+            PurgeShopCacheOnCatalogChange::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnCatalogChange'],
+                'shared'  => true,
+            ],
+            PurgeShopCacheOnSlugChange::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnSlugChange'],
+                'shared'  => true,
+            ],
+            PurgeShopCacheOnLinkChange::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnLinkChange'],
+                'shared'  => true,
+            ],
+            PurgeShopCacheOnThemeChange::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnThemeChange'],
+                'shared'  => true,
+            ],
+            PurgeShopCacheOnAppearanceChange::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnAppearanceChange'],
+                'shared'  => true,
+            ],
+            // Task 10 (storefront-rendering spec §7): the pack's durable checkout-attempt
+            // authority, bound to Commerce's own CheckoutAttemptAuthority seam OUTSIDE the
+            // thallo.commerce capability gate — the SAME "compile-time equivalent of
+            // registerShopUrlContribution()" reasoning PackSlugLifecycleAuthority's own binding
+            // comment gives above: the durable-idempotency guarantee must hold even while the
+            // storefront capability itself is disabled (e.g. mid-incident), and Commerce
+            // soft-resolves this seam once at ITS OWN boot regardless of this pack's gate.
+            PackCheckoutAttemptAuthority::class => self::packCheckoutAttemptAuthorityDefinition(),
+            // Task 10: guest order-credential cookie custody + the checkout controller. Both
+            // autowired like CartCookie/ShopCartController above — GuestOrderCookie's only
+            // dependency is EncryptionService (framework core, always resolvable via
+            // ApplicationContext alone); ShopCheckoutController pulls CartService/CartCookie/
+            // GuestOrderCookie/CheckoutService/CheckoutPresentation/CommerceTenantResolution/
+            // OrderRepository/ShopUrlGenerator plus the same TwigFactory/RenderContextExtension
+            // render seam ShopCatalogController/ShopCartController already use.
+            GuestOrderCookie::class => [
+                'class'    => GuestOrderCookie::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ShopCheckoutController::class => [
+                'class'    => ShopCheckoutController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // ReconcileLinksCommand / CommerceDiagnoseCommand are NOT registered here: they take
+            // no constructor dependencies (getService() resolves LinkReconciler/
+            // CommerceIntegrationDiagnostics lazily inside execute()) and are picked up by
+            // discoverCommands() in boot() below, matching the thallo-tenancy pack's convention.
+        ];
+    }
+
+    public static function makeCommerceTenantResolution(ContainerInterface $container): CommerceTenantResolution
+    {
+        return new ThalloCommerceTenantResolution($container->get(SystemFlags::class), $container);
+    }
+
+    /**
+     * Reads + normalizes `thallo-commerce.shop_prefix` (default 'shop') and constructs the
+     * generator — {@see ShopUrlGenerator::normalizePrefix()} throws a loud \RuntimeException for
+     * an empty or multi-segment prefix. Lazy by container convention, but
+     * {@see self::registerShopUrlContribution()} resolves this EAGERLY during boot() so a bad
+     * config value surfaces as a boot failure, not a first-request 500.
+     */
+    public static function makeShopUrlGenerator(ContainerInterface $container): ShopUrlGenerator
+    {
+        $context = $container->get(ApplicationContext::class);
+
+        return new ShopUrlGenerator(
+            (string) config($context, 'thallo-commerce.shop_prefix', 'shop'),
+            $container->get(ShopAssetMap::class),
+        );
+    }
+
+    /** Task 11: scans the pack's own `assets/` directory — never request input. */
+    public static function makeShopAssetMap(ContainerInterface $container): ShopAssetMap
+    {
+        return new ShopAssetMap(dirname(__DIR__) . '/assets');
+    }
+
+    /** Commerce-Slice-2 Fix A: a thin {@see ShopUrlGenerator} adapter — see the class docblock. */
+    public static function makeStorefrontLinkResolver(ContainerInterface $container): ShopStorefrontLinkResolver
+    {
+        return new ShopStorefrontLinkResolver($container->get(ShopUrlGenerator::class));
+    }
+
+    /**
+     * Task 9 (storefront-rendering spec §6): injects the Task-6
+     * {@see CanonicalPublicOriginResolver} contract directly — the engine app's own binding of
+     * it (its ServiceProvider, outside this pack's namespace entirely) is the SAME single
+     * authority the engine's own tenant-owned-blob public-URL provider delegates to for media
+     * URLs, so storefront CSRF and media-URL generation can never disagree about what "the
+     * canonical origin" means. Bound unconditionally at the app level (not behind this pack's
+     * own Commerce guard), so no `has()` check is needed here.
+     */
+    public static function makeShopCsrfGuard(ContainerInterface $container): ShopCsrfGuard
+    {
+        return new ShopCsrfGuard(
+            $container->get(ApplicationContext::class),
+            $container->get(CanonicalPublicOriginResolver::class),
+        );
+    }
+
+    /**
+     * Task 8: `SlugLifecycleAuthority::class => ['alias' => X]` would NOT bind the interface —
+     * {@see \Glueful\Container\Loader\DefaultServicesLoader::collectAliases()}'s alias direction
+     * points AT the concrete entry, so the alias belongs on THIS (the concrete) definition,
+     * guarded so an install missing Commerce's Catalog\SlugLifecycleAuthority interface (a
+     * narrower check than the CommerceTenantResolution guard already wrapping the whole
+     * services() array) never registers an alias to a non-existent type.
+     *
+     * @return array<string,mixed>
+     */
+    private static function packSlugLifecycleAuthorityDefinition(): array
+    {
+        $definition = [
+            'factory' => [self::class, 'makePackSlugLifecycleAuthority'],
+            'shared'  => true,
+        ];
+        if (interface_exists(SlugLifecycleAuthority::class)) {
+            $definition['alias'] = [SlugLifecycleAuthority::class];
+        }
+
+        return $definition;
+    }
+
+    public static function makePackSlugLifecycleAuthority(ContainerInterface $container): PackSlugLifecycleAuthority
+    {
+        return new PackSlugLifecycleAuthority($container->get(Connection::class));
+    }
+
+    /**
+     * Task 10: mirrors {@see self::packSlugLifecycleAuthorityDefinition()}'s identical
+     * alias-on-the-concrete-definition reasoning — `CheckoutAttemptAuthority::class => ['alias'
+     * => X]` would not actually bind the interface, so the alias is attached to THIS (the
+     * concrete) definition instead, guarded so an install missing Commerce's
+     * `Orders\CheckoutAttemptAuthority` interface never registers an alias to a non-existent
+     * type.
+     *
+     * @return array<string,mixed>
+     */
+    private static function packCheckoutAttemptAuthorityDefinition(): array
+    {
+        $definition = [
+            'factory' => [self::class, 'makePackCheckoutAttemptAuthority'],
+            'shared'  => true,
+        ];
+        if (interface_exists(CheckoutAttemptAuthority::class)) {
+            $definition['alias'] = [CheckoutAttemptAuthority::class];
+        }
+
+        return $definition;
+    }
+
+    public static function makePackCheckoutAttemptAuthority(
+        ContainerInterface $container,
+    ): PackCheckoutAttemptAuthority {
+        return new PackCheckoutAttemptAuthority(
+            $container->get(Connection::class),
+            $container->get(EncryptionService::class),
+        );
+    }
+
+    /**
+     * Task 8 (storefront-rendering spec §9): mirrors thallo-render's own
+     * `RenderServiceProvider::makeRenderPageCache()` sourcing exactly (the SAME CacheStore
+     * binding, the SAME ThemeLocator/ThemeAppearanceSource identities) — the shop cache and the
+     * render page cache must never disagree about what the "current" theme/appearance is.
+     */
+    public static function makeShopPageCache(ContainerInterface $container): ShopPageCache
+    {
+        $context = $container->get(ApplicationContext::class);
+        $appearance = $container->get(ThemeAppearanceSource::class);
+
+        return new ShopPageCache(
+            $container->get(CacheStore::class),
+            $container->get(CommerceTenantResolution::class),
+            $container->get(ThemeLocator::class)->activePaths()['name'],
+            $appearance->accent() . '-' . $appearance->neutral(),
+            (bool) config($context, 'thallo-commerce.shop_cache.enabled', true),
+            (int) config($context, 'thallo-commerce.shop_cache.ttl', 3600),
+            $context,
+        );
+    }
+
+    public static function makePurgeShopCacheOnCatalogChange(
+        ContainerInterface $container,
+    ): PurgeShopCacheOnCatalogChange {
+        return new PurgeShopCacheOnCatalogChange($container);
+    }
+
+    public static function makePurgeShopCacheOnSlugChange(ContainerInterface $container): PurgeShopCacheOnSlugChange
+    {
+        return new PurgeShopCacheOnSlugChange($container);
+    }
+
+    public static function makePurgeShopCacheOnLinkChange(ContainerInterface $container): PurgeShopCacheOnLinkChange
+    {
+        return new PurgeShopCacheOnLinkChange($container);
+    }
+
+    public static function makePurgeShopCacheOnThemeChange(
+        ContainerInterface $container,
+    ): PurgeShopCacheOnThemeChange {
+        return new PurgeShopCacheOnThemeChange($container);
+    }
+
+    public static function makePurgeShopCacheOnAppearanceChange(
+        ContainerInterface $container,
+    ): PurgeShopCacheOnAppearanceChange {
+        return new PurgeShopCacheOnAppearanceChange($container);
+    }
+
+    /**
+     * Deliberately NOT autowired: {@see LinkReconciler} takes the raw container (to lazily,
+     * defensively resolve Commerce's CatalogReader/EntryExistenceReader only when actually
+     * scanning -- see its own docblock for why a hard constructor dependency on them is unsafe).
+     */
+    public static function makeLinkReconciler(ContainerInterface $container): LinkReconciler
+    {
+        return new LinkReconciler(
+            $container->get(ProductLinkRepository::class),
+            $container,
+            $container->get(SystemFlags::class),
+            $container->has(EventService::class) ? $container->get(EventService::class) : null,
+        );
+    }
+
+    public static function makeCommerceIntegrationDiagnostics(
+        ContainerInterface $container,
+    ): CommerceIntegrationDiagnostics {
+        return new CommerceIntegrationDiagnostics(
+            $container->get(ApplicationContext::class),
+            $container->get(LinkReconciler::class),
+        );
+    }
+
+    /**
+     * Soft-resolves {@see CommerceTenantPurge} (see {@see CommercePurgeHandler}'s own docblock
+     * for the fail-closed rule this feeds).
+     */
+    public static function makeCommercePurgeHandler(ContainerInterface $container): CommercePurgeHandler
+    {
+        return new CommercePurgeHandler(
+            $container->get(Connection::class),
+            $container->has(CommerceTenantPurge::class) ? $container->get(CommerceTenantPurge::class) : null,
+        );
+    }
+
+    /** Soft-resolves {@see TenantAdopter} (Commerce's provider may be inactive, design spec §3). */
+    public static function makeCommerceAdoptionContributor(
+        ContainerInterface $container,
+    ): CommerceAdoptionContributor {
+        return new CommerceAdoptionContributor(
+            $container->get(Connection::class),
+            $container->has(TenantAdopter::class) ? $container->get(TenantAdopter::class) : null,
+        );
+    }
+
+    public function register(ApplicationContext $context): void
+    {
+        // Package configs are NOT auto-loaded — merge the pack's own tree under 'thallo-commerce'.
+        $this->mergeConfig('thallo-commerce', require __DIR__ . '/../config/thallo-commerce.php');
+    }
+
+    public function boot(ApplicationContext $context): void
+    {
+        $registry = app($context, CapabilityRegistry::class);
+
+        $registry->register(new Capability(
+            'thallo.commerce',
+            label: 'Commerce',
+            description: 'Adopts glueful/commerce and links Commerce products to Thallo entries.',
+        ));
+
+        // Migrations register on INSTALL, not enable (outside the gate below), so disabling
+        // the capability still preserves the link table.
+        $this->loadMigrationsFrom(
+            __DIR__ . '/../migrations',
+            MigrationPriority::DEPENDENT,
+            'thallo-commerce',
+        );
+
+        // The pack owns thallo_commerce_product_links (design spec §8): register it directly
+        // whenever TenantTableRegistry is bound — independent of the capability gate below, and
+        // independent of Commerce's own table registration (Commerce registers its OWN tables
+        // in its own boot(); this pack must not, and does not, register those again).
+        $this->registerProductLinkTable($context);
+
+        // Task 10: register this pack's AdoptionContributor with the shared
+        // AdoptionContributorRegistry — a PUSH registration ("packs register in their
+        // providers", design spec §8.1), outside the capability gate below for the same reason
+        // as the purge handler (see registerAdoptionContributor()'s own docblock).
+        $this->registerAdoptionContributor($context);
+
+        // Cleanup listeners are maintenance infrastructure, not user-facing capability behavior
+        // (design spec §6.2): registered OUTSIDE the gate below so disabling thallo.commerce can
+        // never let previously-created links drift.
+        $this->registerLifecycleListeners($context);
+
+        // Task 7 (storefront-rendering spec §3/§5.1/§5.2): the shop prefix reservation + pack
+        // template dir contribution are infrastructure, not user-facing behavior — OUTSIDE the
+        // gate below, exactly like the purge handler/adoption contributor/lifecycle listeners
+        // above, so Render's catch-all can never serve a builder page at the shop prefix path
+        // even while thallo.commerce itself is disabled (see the method's own docblock).
+        $this->registerShopUrlContribution($context);
+
+        // Task 8 (storefront-rendering spec §9): the shop cache purge listeners are the exact
+        // same maintenance-infrastructure category as the lifecycle listeners above — outside
+        // the capability gate below, so a slug/link/catalog mutation made just after disabling
+        // thallo.commerce can never leave a stale entry for the NEXT time it's re-enabled.
+        $this->registerShopCachePurgeListeners($context);
+
+        // Gated by ENABLED state (spec §3): the user-facing surface only, mirroring pack
+        // conventions. Disabling thallo.commerce leaves migrations/tables/registration intact.
+        if ($registry->isEnabled('thallo.commerce')) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/shop-routes.php');
+
+            // Task 11: the starter "Product page" content-type contribution (design spec §9) is
+            // user-facing batteries-included content, unlike the maintenance infrastructure
+            // above -- it registers ONLY while the capability is on. Contributor discovery alone
+            // never mutates existing tenants (it only makes the type PARTICIPATE in fresh
+            // provisioning and normal syncs); adopting it into pre-existing tenants is the
+            // explicit, retryable `php glueful thallo:tenant:sync --all --kind=content_type` step
+            // documented in this pack's README, run once after enabling the capability.
+            $this->registerStarterContributor($context);
+
+            // Slice-2 Task 11 (storefront-rendering spec §5.2/§10): the 4 starter shop block
+            // types (product-grid/featured-product/add-to-cart/mini-cart) are equally
+            // user-facing batteries-included content — registered ONLY while the capability is
+            // on, mirroring registerStarterContributor() immediately above exactly. Adopting
+            // them into pre-existing tenants is the same explicit, retryable
+            // `php glueful thallo:tenant:sync --all --kind=block_type` step.
+            $this->registerShopBlockTypeContributor($context);
+        }
+
+        // The reconcile sweep + diagnostics commands are maintenance/read-only surfaces too, for
+        // the identical reason as the listeners above — outside the capability gate. Discovered
+        // (not eagerly resolved via services()+commands()) so `php glueful <anything>` is safe
+        // even when Commerce's own provider is inactive — mirrors thallo-tenancy's own
+        // discoverCommands() convention.
+        $this->discoverCommands('Thallo\\Commerce\\Console', __DIR__ . '/Console');
+    }
+
+    /**
+     * Design spec §6.2: cleanup listeners register OUTSIDE the `thallo.commerce` capability
+     * gate, whenever their source provider is available.
+     *
+     *  - `entry.deleted` (via the neutral {@see ContentLifecycleEvent} contract — never the
+     *    engine's concrete entry-deleted event class directly, packs may not reference the
+     *    engine app's namespace) registers unconditionally, once this pack's own base services
+     *    exist (guarded above by
+     *    `interface_exists(CommerceTenantResolution::class)` in {@see services()}) —
+     *    {@see EntryDeletedListener}'s own dependencies never touch a Commerce container
+     *    binding, so it is safe to construct even when Commerce's provider is inactive.
+     *  - Commerce's `ProductDeleted` registers ONLY when the event class exists (composer
+     *    presence) AND Commerce's own provider is active (`CatalogReader` bound) — that event
+     *    can only ever fire when Commerce is active in the first place.
+     */
+    private function registerLifecycleListeners(ApplicationContext $context): void
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        $container = $context->getContainer();
+        if (!$container->has(EventService::class)) {
+            return;
+        }
+        /** @var EventService $events */
+        $events = $container->get(EventService::class);
+
+        $events->addListener(ContentLifecycleEvent::class, [
+            app($context, EntryDeletedListener::class),
+            'onContentChanged',
+        ]);
+
+        if (class_exists(ProductDeleted::class) && $container->has(CatalogReader::class)) {
+            $events->addListener(ProductDeleted::class, app($context, ProductDeletedListener::class));
+        }
+    }
+
+    /**
+     * Task 8 (storefront-rendering spec §9): the shop catalog cache's five purge listeners.
+     * {@see StorefrontCatalogChanged} covers all 11 of its closed reasons through ONE
+     * registration — the reason lives on the event INSTANCE, not the event class, so this
+     * pack never needs (or could construct) a per-reason listener list.
+     * {@see ProductSlugChanged}/{@see StorefrontCatalogChanged} are Commerce classes, guarded
+     * by `class_exists()` (composer presence) exactly like {@see self::registerLifecycleListeners()}'s
+     * `ProductDeleted` guard above; {@see ProductLinkChanged} is this pack's own class and
+     * {@see ThemeChanged}/{@see ThemeAppearanceChanged} live in the hard-dependency
+     * thallo-contracts package, so neither needs a class_exists() guard.
+     */
+    private function registerShopCachePurgeListeners(ApplicationContext $context): void
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        $container = $context->getContainer();
+        if (!$container->has(EventService::class)) {
+            return;
+        }
+        /** @var EventService $events */
+        $events = $container->get(EventService::class);
+
+        if (class_exists(StorefrontCatalogChanged::class)) {
+            $events->addListener(StorefrontCatalogChanged::class, [
+                app($context, PurgeShopCacheOnCatalogChange::class),
+                'onCatalogChanged',
+            ]);
+        }
+        if (class_exists(ProductSlugChanged::class)) {
+            $events->addListener(ProductSlugChanged::class, [
+                app($context, PurgeShopCacheOnSlugChange::class),
+                'onSlugChanged',
+            ]);
+        }
+        $events->addListener(ProductLinkChanged::class, [
+            app($context, PurgeShopCacheOnLinkChange::class),
+            'onLinkChanged',
+        ]);
+        $events->addListener(ThemeChanged::class, [
+            app($context, PurgeShopCacheOnThemeChange::class),
+            'onThemeChanged',
+        ]);
+        $events->addListener(ThemeAppearanceChanged::class, [
+            app($context, PurgeShopCacheOnAppearanceChange::class),
+            'onAppearanceChanged',
+        ]);
+    }
+
+    /**
+     * Register {@see self::PRODUCT_LINK_TABLE} into the tenancy backstop — but only when
+     * TenantTableRegistry is bound (the glueful/tenancy extension is active). Unlike
+     * {@see \Thallo\Tenancy\TenancyServiceProvider::registerTenantTables()}, this does NOT also
+     * gate on tenancy-enforcement flags: the pack's own table is always declared tenant-owned
+     * once the registry exists, matching design spec §8 ("whenever TenantTableRegistry is
+     * bound, its provider registers that table exactly once").
+     *
+     * register() is documented as idempotent (re-registering a table is a no-op), so calling
+     * this on every boot() is safe even if boot() runs more than once in a process — "exactly
+     * once" is a property of any conformant registry, not of extra state kept here.
+     *
+     * The registry is an injectable seam (defaults to a container lookup) so this is
+     * unit-testable without a full tenancy-enabled boot.
+     */
+    public function registerProductLinkTable(
+        ApplicationContext $context,
+        ?TenantTableRegistry $registry = null,
+    ): bool {
+        if ($registry === null) {
+            $container = $context->getContainer();
+            if (!$container->has(TenantTableRegistry::class)) {
+                return false;
+            }
+            /** @var TenantTableRegistry $registry */
+            $registry = $container->get(TenantTableRegistry::class);
+        }
+
+        $registry->register([self::PRODUCT_LINK_TABLE]);
+
+        return true;
+    }
+
+    /**
+     * Push {@see CommerceAdoptionContributor} into the shared {@see AdoptionContributorRegistry}
+     * — unlike `PurgeResourceRegistry` (a factory-built registry that pulls sibling handlers via
+     * an aliased container lookup, see `Thallo\Tenancy\TenancyServiceProvider::
+     * makePurgeResourceRegistry()`), `AdoptionContributorRegistry` is bound as a plain shared
+     * instance with NO aggregating factory — its own binding docblock in
+     * `Thallo\Tenancy\TenancyServiceProvider::services()` and design spec §8.1 both describe
+     * "packs register in their providers" as the intended mechanism, so this pack's provider
+     * calls `register()` directly here, exactly like the well-established
+     * `CapabilityRegistry::register(new Capability(...))` idiom used throughout every pack.
+     *
+     * Outside the `thallo.commerce` capability gate (design spec §8.1: adoption is enablement-time
+     * infrastructure, not user-facing behavior — a workspace enabling tenancy must adopt this
+     * pack's data regardless of whether the capability happens to be on or off at that moment,
+     * exactly like the purge handler and lifecycle listeners above).
+     *
+     * `AdoptionContributorRegistry::register()` throws on a duplicate id (unlike
+     * `TenantTableRegistry::register()`'s idempotent "set" semantics), so this method guards
+     * against a re-registration explicitly rather than relying on the registry to no-op it —
+     * safe even if `boot()` were ever invoked twice against the same container/registry instance.
+     *
+     * The registry is an injectable seam (defaults to a container lookup) so this is
+     * unit-testable without a full tenancy-enabled boot, mirroring registerProductLinkTable().
+     */
+    public function registerAdoptionContributor(
+        ApplicationContext $context,
+        ?AdoptionContributorRegistry $registry = null,
+    ): bool {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return false; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        if ($registry === null) {
+            $container = $context->getContainer();
+            if (!$container->has(AdoptionContributorRegistry::class)) {
+                return false;
+            }
+            /** @var AdoptionContributorRegistry $registry */
+            $registry = $container->get(AdoptionContributorRegistry::class);
+        }
+
+        foreach ($registry->all() as $existing) {
+            if ($existing->id() === CommerceAdoptionContributor::ID) {
+                return true; // already registered — idempotent no-op.
+            }
+        }
+
+        $registry->register(app($context, CommerceAdoptionContributor::class));
+
+        return true;
+    }
+
+    /**
+     * Task 11: register {@see ProductPageContributor} with the shared
+     * {@see StarterContributorRegistry} — the design spec §9 seam that lets an installed pack
+     * participate in the fixed pages/category/post starter set without the app-owned
+     * `ContentTypeKind` referencing this pack's namespace. Called ONLY from inside the
+     * `thallo.commerce` capability-enabled branch of {@see boot()} (unlike
+     * {@see registerProductLinkTable()}/{@see registerAdoptionContributor()}, which are
+     * maintenance infrastructure and stay unconditional) -- the Product page type is
+     * user-facing batteries-included content, design spec §9.
+     *
+     * Registering merely makes the definition ELIGIBLE for the next fresh-tenant provisioning
+     * run or `thallo:tenant:sync` sweep -- it is a pure in-memory registry mutation (no
+     * `Connection`/query-builder dependency reaches this method at all) and therefore performs
+     * zero tenant-data writes by construction; it never touches an existing tenant's
+     * `content_types` table itself.
+     *
+     * The registry is an injectable seam (defaults to a container lookup) so this is
+     * unit-testable without a full capability-enabled boot, mirroring
+     * registerProductLinkTable()/registerAdoptionContributor() above.
+     */
+    public function registerStarterContributor(
+        ApplicationContext $context,
+        ?StarterContributorRegistry $registry = null,
+    ): bool {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return false; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        if ($registry === null) {
+            $container = $context->getContainer();
+            if (!$container->has(StarterContributorRegistry::class)) {
+                return false;
+            }
+            /** @var StarterContributorRegistry $registry */
+            $registry = $container->get(StarterContributorRegistry::class);
+        }
+
+        foreach ($registry->all() as $existing) {
+            if ($existing instanceof ProductPageContributor) {
+                return true; // already registered — idempotent no-op.
+            }
+        }
+
+        $registry->register(new ProductPageContributor());
+
+        return true;
+    }
+
+    /**
+     * Slice-2 Task 11 (storefront-rendering spec §5.2/§10): register
+     * {@see ShopBlockTypesContributor} with the shared {@see StarterBlockTypeRegistry} — the
+     * exact {@see self::registerStarterContributor()} pattern immediately above, applied to
+     * block types instead of content types. Called ONLY from inside the `thallo.commerce`
+     * capability-enabled branch of {@see boot()} — the 4 shop blocks are user-facing
+     * batteries-included content, not maintenance infrastructure.
+     *
+     * A pure in-memory registry mutation (no `Connection`/query-builder dependency reaches this
+     * method): it makes the 4 definitions ELIGIBLE for the next fresh-tenant provisioning run or
+     * `thallo:tenant:sync --kind=block_type` sweep, and never itself writes a `block_types` row.
+     *
+     * The registry is an injectable seam (defaults to a container lookup) so this is
+     * unit-testable without a full capability-enabled boot, mirroring
+     * registerStarterContributor() above.
+     */
+    public function registerShopBlockTypeContributor(
+        ApplicationContext $context,
+        ?StarterBlockTypeRegistry $registry = null,
+    ): bool {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return false; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        if ($registry === null) {
+            $container = $context->getContainer();
+            if (!$container->has(StarterBlockTypeRegistry::class)) {
+                return false;
+            }
+            /** @var StarterBlockTypeRegistry $registry */
+            $registry = $container->get(StarterBlockTypeRegistry::class);
+        }
+
+        foreach ($registry->all() as $existing) {
+            if ($existing instanceof ShopBlockTypesContributor) {
+                return true; // already registered — idempotent no-op.
+            }
+        }
+
+        $registry->register(new ShopBlockTypesContributor());
+
+        return true;
+    }
+
+    /**
+     * Task 7 (storefront-rendering spec §3/§5.1/§5.2): eagerly resolves {@see ShopUrlGenerator}
+     * — validating/normalizing `thallo-commerce.shop_prefix` NOW, at boot, rather than lazily on
+     * the first request that happens to need it — then registers the reserved-path
+     * ({@see ShopReservedPathContributor}: `{prefix}`, `cart`, `_shop` as of task 9; `checkout`
+     * is still a later task's own contribution once that route exists) and template-path
+     * contributions with the shared {@see RenderContributionRegistry}.
+     *
+     * Called UNCONDITIONALLY from {@see boot()} (outside the `thallo.commerce` capability gate):
+     * the whole point of the reserved-path contribution is that Render's `/{path}` catch-all must
+     * never serve a builder page at the shop prefix path EVEN WHILE the capability is disabled
+     * (disabling it only removes this pack's OWN routes, registered separately inside the gate).
+     *
+     * Soft-resolves {@see RenderContributionRegistry} (thallo-render may be absent/inactive) —
+     * but the ShopUrlGenerator resolution above always runs first and always throws loudly on a
+     * bad prefix, regardless of whether render's registry is even bound.
+     */
+    private function registerShopUrlContribution(ApplicationContext $context): void
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        $container = $context->getContainer();
+        // Eager resolution is the boot-time validation: a misconfigured shop_prefix throws here.
+        $urls = $container->get(ShopUrlGenerator::class);
+
+        if (!$container->has(RenderContributionRegistry::class)) {
+            return; // thallo-render absent/inactive — nothing to contribute to.
+        }
+        /** @var RenderContributionRegistry $registry */
+        $registry = $container->get(RenderContributionRegistry::class);
+        $registry->registerReservedPaths(new ShopReservedPathContributor($urls->prefix));
+        $registry->registerTemplatePaths(new ShopTemplatePathContributor());
+    }
+}
