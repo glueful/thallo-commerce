@@ -10,9 +10,8 @@ namespace Thallo\Commerce\Http;
  * empty list, and `AdminRouteCatalog::mount()` throws on any key it doesn't recognise — so
  * this list is the ONLY thing standing between a newly added Commerce admin endpoint and it
  * silently becoming reachable at `/v1/admin/commerce` the moment `glueful/commerce` is
- * upgraded. Every key is written out by hand, grouped by the catalog's own `domain`, in the
- * SAME declaration order as {@see \Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog::entries()}
- * — no wildcard, no programmatic derivation from the catalog itself.
+ * upgraded. Every key is written out by hand, grouped by the catalog's own `domain` —
+ * no wildcard, no programmatic derivation from the catalog itself.
  *
  * `AdminMountParityTest` is the enforcement mechanism: it fails loudly (naming the new key)
  * the moment the vendored catalog grows a key this list — and the checked-in
