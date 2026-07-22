@@ -25,6 +25,7 @@ use Psr\Container\ContainerInterface;
 use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Events\ProductLinkChanged;
+use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
@@ -123,6 +124,18 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             ],
             ProductLinkController::class => [
                 'class'    => ProductLinkController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 8 (admin-commerce-area plan, slice 3): the `/meta` settings/entitlement
+            // probe. Autowired -- ApplicationContext/StorefrontPreviewUrlBuilder are plain
+            // container-bound services; the neutral Thallo\Contracts\Authorization\
+            // PermissionRequirementAuthority contract resolves to the SAME shared instance the
+            // `content_permission` route middleware evaluates against (the engine app's own
+            // provider aliases the contract to its concrete authority), so the endpoint's
+            // can_view/can_manage flags and the route's own gate can never disagree.
+            CommerceMetaController::class => [
+                'class'    => CommerceMetaController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

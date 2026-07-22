@@ -7,6 +7,7 @@ namespace Thallo\Commerce\Http;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Http\Exceptions\Client\NotFoundException;
 use Glueful\Http\Response;
+use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Request;
 use Thallo\Commerce\Links\EntryLinkSearch;
@@ -40,6 +41,7 @@ final class ProductLinkController
     ) {
     }
 
+    #[ApiOperation(summary: 'Link a product to a content entry', tags: ['Thallo Commerce'])]
     public function link(Request $request, string $productUuid): Response
     {
         /** @var array<string,mixed> $body */
@@ -65,6 +67,7 @@ final class ProductLinkController
         );
     }
 
+    #[ApiOperation(summary: 'Unlink a product from its content entry', tags: ['Thallo Commerce'])]
     public function unlink(Request $request, string $productUuid): Response
     {
         try {
@@ -84,6 +87,7 @@ final class ProductLinkController
      * unknown/cross-tenant/tombstoned check {@see self::link()} uses), and `storefront_url` is
      * always present for an accessible product regardless of link state.
      */
+    #[ApiOperation(summary: 'Product link projection (by product uuid)', tags: ['Thallo Commerce'])]
     public function showByProduct(Request $request, string $productUuid): Response
     {
         $slug = $this->links->resolveProductSlug($this->context, $productUuid);
@@ -100,6 +104,7 @@ final class ProductLinkController
         ]);
     }
 
+    #[ApiOperation(summary: 'Product link lookup (by entry uuid)', tags: ['Thallo Commerce'])]
     public function showByEntry(Request $request, string $entryUuid): Response
     {
         $row = $this->links->resolveByEntry($this->context, $entryUuid);
@@ -121,6 +126,7 @@ final class ProductLinkController
      *
      * @throws ValidationException (422) `q` is missing or shorter than 2 characters
      */
+    #[ApiOperation(summary: 'Search content entries for the linkage picker', tags: ['Thallo Commerce'])]
     public function searchEntries(Request $request): Response
     {
         $q = trim((string) $request->query->get('q', ''));
