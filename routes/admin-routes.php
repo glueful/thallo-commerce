@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\ProductLinkController;
+use Glueful\Extensions\Commerce\Http\Routing\AdminMountProfile;
+use Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog;
 use Glueful\Routing\Router;
 
 /** @var Router $router */
@@ -32,3 +35,30 @@ $router->group(
             ->middleware('content_permission:commerce.manage');
     },
 );
+
+/*
+ * Task 6 (admin-commerce-area plan, slice 3): mounts glueful/commerce's own admin catalog
+ * (products, orders, discounts, shipping, tax, reports, …) at the SAME `/v1/admin/commerce`
+ * prefix, behind the SAME `auth`/`tenant_profile`/`tenant_bootstrap`/`admin_tenant_binding`
+ * stack as the link routes above — but each mounted route additionally carries its own
+ * per-mode `content_permission` middleware (`commerce.view,commerce.manage` for reads,
+ * `commerce.manage` for writes), resolved once here rather than duplicated per entry.
+ *
+ * Deliberately OUTSIDE the `$router->group()` above: `AdminRouteCatalog::mount()` opens its
+ * OWN `prefix`/`middleware` group internally (see its source), so nesting this call inside
+ * the existing group would apply `/v1/admin/commerce` and the base middleware stack twice.
+ *
+ * Fail-closed by construction: `AdminMountProfile::restricted()` refuses an empty allowlist,
+ * and `AdminRouteCatalog::mount()` throws on any allowlist key the catalog doesn't recognise
+ * — so `AdminMountAllowlist::keys()` is the single, explicit, hand-maintained inventory of
+ * every Commerce admin endpoint this host chooses to expose (enforced by
+ * `AdminMountParityTest`'s catalog-drift assertion; see that class + the allowlist's own
+ * docblock).
+ */
+AdminRouteCatalog::mount($router, AdminMountProfile::restricted(
+    '/v1/admin/commerce',
+    'thallo.commerce.admin.',
+    ['auth', 'tenant_profile:admin', 'tenant_bootstrap', 'admin_tenant_binding'],
+    ['view' => 'content_permission:commerce.view,commerce.manage', 'manage' => 'content_permission:commerce.manage'],
+    AdminMountAllowlist::keys(),
+));
