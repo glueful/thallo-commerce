@@ -53,6 +53,7 @@ use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
 use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
+use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
 use Thallo\Commerce\Starter\ProductPageContributor;
 use Thallo\Commerce\Starter\ShopBlockTypesContributor;
 use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
@@ -166,6 +167,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             // rather than lazily on the first request.
             ShopUrlGenerator::class => [
                 'factory' => [self::class, 'makeShopUrlGenerator'],
+                'shared'  => true,
+            ],
+            // Task 5 (admin-commerce-area plan, slice 3): the sole absolute-storefront-URL
+            // composer — origin (Task 6's CanonicalPublicOriginResolver, bound unconditionally at
+            // the app level) + relative path (ShopUrlGenerator, immediately above). Bound
+            // unconditionally alongside ShopUrlGenerator itself for the same reason: pure,
+            // side-effect-free composition with no capability-gated behavior of its own.
+            StorefrontPreviewUrlBuilder::class => [
+                'factory' => [self::class, 'makeStorefrontPreviewUrlBuilder'],
                 'shared'  => true,
             ],
             // Commerce-Slice-2 Fix A: the soft-bound seam thallo-render's RenderContextExtension
@@ -310,6 +320,22 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
     public static function makeShopAssetMap(ContainerInterface $container): ShopAssetMap
     {
         return new ShopAssetMap(dirname(__DIR__) . '/assets');
+    }
+
+    /**
+     * Task 5 (admin-commerce-area plan, slice 3): injects the Task-6
+     * {@see CanonicalPublicOriginResolver} contract directly — the SAME app-level binding
+     * {@see self::makeShopCsrfGuard()} already sources its origin authority from, so an admin
+     * preview link and a CSRF-checked origin can never disagree about what "the canonical origin"
+     * means.
+     */
+    public static function makeStorefrontPreviewUrlBuilder(
+        ContainerInterface $container,
+    ): StorefrontPreviewUrlBuilder {
+        return new StorefrontPreviewUrlBuilder(
+            $container->get(CanonicalPublicOriginResolver::class),
+            $container->get(ShopUrlGenerator::class),
+        );
     }
 
     /** Commerce-Slice-2 Fix A: a thin {@see ShopUrlGenerator} adapter — see the class docblock. */
