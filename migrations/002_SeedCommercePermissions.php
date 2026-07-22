@@ -10,7 +10,8 @@ use Glueful\Helpers\Utils;
 final class SeedCommercePermissions implements MigrationInterface
 {
     private const PERMISSIONS = [
-        'commerce.manage' => 'Manage commerce product-content links',
+        'commerce.view' => 'View commerce',
+        'commerce.manage' => 'Manage commerce',
     ];
 
     public function up(SchemaBuilderInterface $schema): void
@@ -18,24 +19,29 @@ final class SeedCommercePermissions implements MigrationInterface
         $db = new Connection();
         $existing = [];
         foreach (
-            $db->table('permissions')->select(['slug'])
+            $db->table('permissions')->select(['slug', 'name'])
                 ->whereIn('slug', array_keys(self::PERMISSIONS))->get() as $row
         ) {
-            $existing[$row['slug']] = true;
+            $existing[$row['slug']] = $row['name'];
         }
         $insert = [];
         foreach (self::PERMISSIONS as $slug => $label) {
-            if (isset($existing[$slug])) {
+            if (!isset($existing[$slug])) {
+                $insert[] = [
+                    'uuid' => Utils::generateNanoID(),
+                    'slug' => $slug,
+                    'name' => $label,
+                    'category' => 'commerce',
+                    'description' => $label,
+                    'is_system' => true,
+                ];
                 continue;
             }
-            $insert[] = [
-                'uuid' => Utils::generateNanoID(),
-                'slug' => $slug,
-                'name' => $label,
-                'category' => 'commerce',
-                'description' => $label,
-                'is_system' => true,
-            ];
+            // Already-migrated DBs: converge a drifted name onto the current catalog
+            // label (e.g. commerce.manage's pre-commerce.view name).
+            if ($existing[$slug] !== $label) {
+                $db->table('permissions')->where('slug', '=', $slug)->update(['name' => $label]);
+            }
         }
         if ($insert !== []) {
             $db->table('permissions')->insertBatch($insert);
@@ -49,6 +55,6 @@ final class SeedCommercePermissions implements MigrationInterface
 
     public function getDescription(): string
     {
-        return 'Declare the commerce.manage permission.';
+        return 'Declare the commerce.view and commerce.manage permissions.';
     }
 }
