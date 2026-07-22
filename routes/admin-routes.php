@@ -14,7 +14,8 @@ use Glueful\Routing\Router;
  * Admin product<->entry linkage API (design spec §5.3). Triple-gated like the other packs:
  *   1. capability       — this file loads only when thallo.commerce is enabled (else 404).
  *   2. auth             — group middleware.
- *   3. content_permission — commerce.manage on every route.
+ *   3. content_permission — commerce.manage on every write; the two link GETs plus the
+ *      entry-search GET below are graded per task 7 (see each route's own comment).
  *   4. admin_tenant_binding — binds the operator's selected workspace, so tenant resolution
  *      (CommerceTenantResolution) and the pack's own link table both scope to it (mirrors
  *      routes/admin.php); inert until full resolution, tenant_bootstrap handles bootstrap.
@@ -29,9 +30,18 @@ $router->group(
             ->middleware('content_permission:commerce.manage');
         $router->delete('/products/{productUuid}/link', [ProductLinkController::class, 'unlink'])
             ->middleware('content_permission:commerce.manage');
+        // Task 7: regraded from commerce.manage-only — a view-only operator can look up an
+        // existing link (or confirm a product has none) without also holding manage rights.
         $router->get('/products/{productUuid}/link', [ProductLinkController::class, 'showByProduct'])
-            ->middleware('content_permission:commerce.manage');
+            ->middleware('content_permission:commerce.view,commerce.manage');
         $router->get('/entries/{entryUuid}/link', [ProductLinkController::class, 'showByEntry'])
+            ->middleware('content_permission:commerce.view,commerce.manage');
+        // Task 7: the linkage picker's entry search stays manage-only (it exists to support
+        // CREATING/CHANGING a link, unlike the two read-only lookups above). Registered here
+        // (not as a `/entries/{entryUuid}/link` sibling) so its static `/entries` path and that
+        // route's dynamic `/entries/{entryUuid}/link` path never shadow one another — proven by
+        // AdminAuthorizationMatrixTest/ProductLinkApiTest driving both through the real router.
+        $router->get('/entries', [ProductLinkController::class, 'searchEntries'])
             ->middleware('content_permission:commerce.manage');
     },
 );

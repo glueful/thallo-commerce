@@ -201,6 +201,21 @@ final class ProductLinkService
         return $this->liveOrNull($context, $tenant, $this->links->findByProduct($tenant, $productUuid));
     }
 
+    /**
+     * Resolve a product's slug for the admin link-lookup projection (design spec §5.3, task 7),
+     * or null when the product is unknown/cross-tenant/tombstoned -- the 404 mapping. Deliberately
+     * independent of {@see self::resolveByProduct()}: a perfectly valid, accessible product may
+     * carry no active link at all, and the admin lookup must still resolve it (200, `link: null`)
+     * rather than folding "no link" and "no product" into the same absent-row signal.
+     */
+    public function resolveProductSlug(ApplicationContext $context, string $productUuid): ?string
+    {
+        $tenant = $this->tenants->tenantUuid($context);
+        $product = $this->catalog->findLiveProduct($context, $tenant, $productUuid);
+
+        return $product === null ? null : (string) $product['slug'];
+    }
+
     /** @return array<string,mixed>|null the link row, or null when absent or fail-closed */
     public function resolveByEntry(ApplicationContext $context, string $entryUuid): ?array
     {

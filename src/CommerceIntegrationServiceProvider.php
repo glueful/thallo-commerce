@@ -26,6 +26,7 @@ use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\ProductLinkController;
+use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
 use Thallo\Commerce\Links\ProductLinkRepository;
 use Thallo\Commerce\Links\ProductLinkService;
@@ -108,6 +109,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             ],
             ProductLinkService::class => [
                 'class'    => ProductLinkService::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 7 (admin-commerce-area plan, slice 3): the linkage picker's tenant-scoped
+            // entry search. Autowired -- Connection/CommerceTenantResolution/LocaleManagerInterface
+            // are all plain container-bound services (i18n is a hard-dependency extension for this
+            // pack's admin surface, unlike the soft-resolved seams elsewhere in this file).
+            EntryLinkSearch::class => [
+                'class'    => EntryLinkSearch::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
