@@ -32,11 +32,13 @@ final class AdminMountAllowlist
             'products.update',
             'products.variants.store',
             'variants.update',
+            'products.children.index',
             'products.children.set',
             'products.destroy',
             'products.bulk_status',
             'variants.bulk_price',
             // — Product media —
+            'products.media.index',
             'products.media.attach',
             'products.media.reorder',
             'media.update',
@@ -67,6 +69,7 @@ final class AdminMountAllowlist
             'categories.store',
             'categories.update',
             'categories.destroy',
+            'products.categories.index',
             'products.categories.set',
             // — Tags —
             'tags.index',
@@ -74,6 +77,7 @@ final class AdminMountAllowlist
             'tags.store',
             'tags.update',
             'tags.destroy',
+            'products.tags.index',
             'products.tags.set',
             // — Attributes —
             'attributes.index',
@@ -84,9 +88,11 @@ final class AdminMountAllowlist
             'attributes.values.store',
             'attribute_values.update',
             'attribute_values.destroy',
+            'products.attributes.index',
             'products.attributes.set',
 
             // — Inventory —
+            'products.stock.index',
             'stock.adjust',
 
             // — Discounts —
