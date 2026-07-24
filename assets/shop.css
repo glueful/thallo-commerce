@@ -105,6 +105,30 @@
   margin-bottom: 1.5rem;
   color: color-mix(in srgb, currentColor 80%, transparent);
 }
+/* Rich-text prose basics (descriptions are sanitized HTML from the admin editor). */
+.shop-product__description p {
+  margin: 0 0 0.75rem;
+}
+.shop-product__description p:last-child {
+  margin-bottom: 0;
+}
+.shop-product__description ul,
+.shop-product__description ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+.shop-product__description blockquote {
+  margin: 0 0 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+.shop-product__description img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+}
+.shop-product__description a {
+  color: inherit;
+}
 
 .shop-product__add-to-cart {
   display: flex;
