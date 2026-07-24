@@ -37,12 +37,28 @@
        exist. Every URL here came pre-resolved through the anonymous-media authority — a product
        with no publicly servable image simply renders no gallery block. #}
     {% if product.coverUrl %}
-      <div class="shop-product__gallery">
-        <img class="shop-product__cover" src="{{ product.coverUrl }}" alt="{{ product.name }}">
+      <div class="shop-product__gallery" data-shop-gallery>
+        <img
+          class="shop-product__cover"
+          src="{{ product.coverUrl }}"
+          alt="{{ product.name }}"
+          data-shop-cover
+        >
         {% if product.gallery|length > 1 %}
+          {# Real buttons in the server markup; shop.js swaps [data-shop-cover] on click.
+             Without JS they are inert — every image is still visible right here. #}
           <div class="shop-product__thumbs">
             {% for item in product.gallery %}
-              <img src="{{ item.url }}" alt="{{ item.alt ?? '' }}" loading="lazy">
+              <button
+                type="button"
+                data-shop-thumb
+                data-src="{{ item.url }}"
+                data-alt="{{ item.alt ?? product.name }}"
+                aria-current="{{ loop.first ? 'true' : 'false' }}"
+                aria-label="Show image {{ loop.index }} of {{ product.gallery|length }}"
+              >
+                <img src="{{ item.url }}" alt="" loading="lazy">
+              </button>
             {% endfor %}
           </div>
         {% endif %}
@@ -100,9 +116,6 @@
         </label>
         <button type="submit">Add to cart</button>
       </form>
-      {# The stable, deploy-invariant asset alias (see ShopAssetController/ShopUrlGenerator's own
-         docblock) — the SAME literal path every shop block template loads shop.js from. #}
-      <script src="/_shop/assets/shop.js" defer></script>
     {% elseif product.addToCart.available %}
       {# mode is 'link' here: a required add-on or zero purchasable variants — this pack has no
          add-on picker UI, so there is nothing "elsewhere" to send the customer to (unlike the
@@ -119,5 +132,12 @@
     {% if enrichment_html is not empty %}
       <div class="shop-product__enrichment">{{ enrichment_html|raw }}</div>
     {% endif %}
+
+    {# The stable, deploy-invariant asset alias (see ShopAssetController/ShopUrlGenerator's own
+       docblock) — the SAME literal path every shop block template loads shop.js from. Rendered
+       ONCE, unconditionally: the add-to-cart interception AND the gallery swap both need it
+       (previously it only rendered inside the purchasable branch, so a link-mode product's
+       page shipped no JS at all). #}
+    <script src="/_shop/assets/shop.js" defer></script>
   </article>
 {% endblock %}

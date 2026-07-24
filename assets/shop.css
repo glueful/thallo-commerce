@@ -40,7 +40,10 @@
 .shop-product__cover {
   width: 100%;
   aspect-ratio: 4 / 3;
-  object-fit: cover;
+  /* contain, never cover: product photography must show the WHOLE product, not a crop. */
+  object-fit: contain;
+  padding: 1rem;
+  box-sizing: border-box;
   border-radius: 0.75rem;
   background: color-mix(in srgb, currentColor 6%, transparent);
 }
@@ -50,10 +53,22 @@
   margin-top: 0.5rem;
   overflow-x: auto;
 }
+.shop-product__thumbs button {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 0.625rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  cursor: pointer;
+  flex: none;
+  line-height: 0;
+}
+.shop-product__thumbs button[aria-current="true"] {
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
+}
 .shop-product__thumbs img {
   width: 3.5rem;
   height: 3.5rem;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 0.5rem;
   flex: none;
 }
@@ -179,7 +194,10 @@
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
-  object-fit: cover;
+  /* contain, never cover — same whole-product rule as the detail page's gallery. */
+  object-fit: contain;
+  padding: 0.75rem;
+  box-sizing: border-box;
   border-radius: 0.75rem;
   background: color-mix(in srgb, currentColor 6%, transparent);
   margin-bottom: 0.5rem;

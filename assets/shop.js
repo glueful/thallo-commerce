@@ -661,12 +661,47 @@
     );
   }
 
+  // ---- product gallery: thumbnail -> main image swap ------------------------------
+  // Pure enhancement (product-editor mock parity, 2026-07-24): the thumbnails are real
+  // <button data-shop-thumb data-src> elements in the server markup; without JS they are
+  // inert (every image is still visible in the thumb strip), with JS a click swaps the
+  // main [data-shop-cover] image. No fetch, no state — nothing here can affect PRG.
+
+  function bindGallery(gallery) {
+    if (gallery.getAttribute('data-shop-gallery-bound') === '1') {
+      return;
+    }
+    gallery.setAttribute('data-shop-gallery-bound', '1');
+    gallery.addEventListener('click', function (evt) {
+      var target = evt.target;
+      var thumb = target && typeof target.closest === 'function' ? target.closest('[data-shop-thumb]') : null;
+      if (!thumb) {
+        return;
+      }
+      var cover = qs(gallery, '[data-shop-cover]');
+      var src = thumb.getAttribute('data-src');
+      if (!cover || !src) {
+        return;
+      }
+      cover.src = src;
+      cover.alt = thumb.getAttribute('data-alt') || cover.alt;
+      var thumbs = qsa(gallery, '[data-shop-thumb]');
+      for (var i = 0; i < thumbs.length; i++) {
+        thumbs[i].setAttribute('aria-current', thumbs[i] === thumb ? 'true' : 'false');
+      }
+    });
+  }
+
   // ---- init -----------------------------------------------------------------------
 
   function init() {
     var forms = qsa(document, FORM_SELECTOR);
     for (var i = 0; i < forms.length; i++) {
       bindForm(forms[i]);
+    }
+    var galleries = qsa(document, '[data-shop-gallery]');
+    for (var g = 0; g < galleries.length; g++) {
+      bindGallery(galleries[g]);
     }
     hydrateMiniCarts();
     hydrateProductGrids();
