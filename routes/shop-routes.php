@@ -9,6 +9,7 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Shop\ShopFrameEmbedding;
 use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 
@@ -40,8 +41,11 @@ $prefix = $router->getContext()->getContainer()->get(ShopUrlGenerator::class)->p
 // construction and must never enter this shared cache.
 $router->get('/' . $prefix, [ShopCatalogController::class, 'index'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+// ShopFrameEmbedding sits BEFORE ShopPageCache so the frame-ancestors policy post-processes
+// BOTH the cache-miss render and the cache-hit short-circuit (composed-editor spec §5.4b,
+// phase 3 — the admin's Live Mirror embeds this page; product route ONLY).
 $router->get('/' . $prefix . '/products/{slug}', [ShopCatalogController::class, 'product'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopFrameEmbedding::class, ShopPageCache::class]);
 $router->get('/' . $prefix . '/categories/{slug}', [ShopCatalogController::class, 'category'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
 

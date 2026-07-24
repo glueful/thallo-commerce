@@ -52,6 +52,7 @@ use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnSlugChange;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnThemeChange;
 use Thallo\Commerce\Shop\PackCheckoutAttemptAuthority;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
+use Thallo\Commerce\Shop\ShopFrameEmbedding;
 use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
@@ -265,6 +266,10 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
                 'factory' => [self::class, 'makeShopPageCache'],
                 'shared'  => true,
             ],
+            ShopFrameEmbedding::class => [
+                'factory' => [self::class, 'makeShopFrameEmbedding'],
+                'shared'  => true,
+            ],
             PurgeShopCacheOnCatalogChange::class => [
                 'factory' => [self::class, 'makePurgeShopCacheOnCatalogChange'],
                 'shared'  => true,
@@ -450,6 +455,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
      * binding, the SAME ThemeLocator/ThemeAppearanceSource identities) — the shop cache and the
      * render page cache must never disagree about what the "current" theme/appearance is.
      */
+    public static function makeShopFrameEmbedding(ContainerInterface $container): ShopFrameEmbedding
+    {
+        $context = $container->get(ApplicationContext::class);
+
+        return new ShopFrameEmbedding((string) config($context, 'render.admin_url', ''));
+    }
+
     public static function makeShopPageCache(ContainerInterface $container): ShopPageCache
     {
         $context = $container->get(ApplicationContext::class);
