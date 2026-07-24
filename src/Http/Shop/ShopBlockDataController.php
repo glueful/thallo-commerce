@@ -21,6 +21,7 @@ use Thallo\Commerce\Shop\ManualProductListNormalizer;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\ProductViewModel;
+use Thallo\Contracts\Delivery\MediaUrlResolver;
 
 use function config;
 
@@ -55,7 +56,28 @@ final class ShopBlockDataController
         private readonly AddonRepository $addons,
         private readonly ProductLinkService $links,
         private readonly ShopUrlGenerator $urls,
+        // Same anonymous-media URL authority ShopCatalogController uses — see its ctor note.
+        private readonly ?MediaUrlResolver $mediaUrls = null,
     ) {
+    }
+
+    /** Resolved anonymous URL for a media row's blob, or null (private/missing/unbound). */
+    private function mediaUrl(?array $row): ?string
+    {
+        if ($row === null || !isset($row['blob_uuid'])) {
+            return null;
+        }
+        return $this->mediaUrls?->url((string) $row['blob_uuid']);
+    }
+
+    /** Cover-role row first, first gallery row as fallback (mirrors ShopCatalogController). */
+    private function coverUrlFor(string $tenant, string $productUuid, ?array $coverRow): ?string
+    {
+        if ($coverRow === null) {
+            $rows = $this->media->forProduct($this->context, $tenant, $productUuid);
+            $coverRow = $rows[0] ?? null;
+        }
+        return $this->mediaUrl($coverRow);
     }
 
     /** `GET /_shop/blocks/product-grid` — page 1 only (spec §9: never query-paginated here). */
@@ -109,7 +131,7 @@ final class ShopBlockDataController
         $uuid = (string) $product['uuid'];
         $variants = $this->variants->forProduct($this->context, $tenant, $uuid);
         $cover = $this->media->coverFor($this->context, $tenant, $uuid);
-        $vm = ProductViewModel::fromRow($product, $variants, $cover, $this->urls);
+        $vm = ProductViewModel::fromRow($product, $variants, $this->coverUrlFor($tenant, $uuid, $cover), $this->urls);
 
         return $this->noStore(new JsonResponse(['product' => $vm->toArray()]));
     }
@@ -216,7 +238,7 @@ final class ShopBlockDataController
             fn (array $product): ProductViewModel => ProductViewModel::fromRow(
                 $product,
                 $variantsByProduct[(string) $product['uuid']] ?? [],
-                $covers[(string) $product['uuid']] ?? null,
+                $this->coverUrlFor($tenant, (string) $product['uuid'], $covers[(string) $product['uuid']] ?? null),
                 $this->urls,
             ),
             $rows,

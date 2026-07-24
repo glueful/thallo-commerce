@@ -18,6 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
+use Thallo\Contracts\Delivery\MediaUrlResolver;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\CategoryViewModel;
 use Thallo\Commerce\Shop\ViewModels\GridViewModel;
@@ -62,7 +63,20 @@ final class ShopCatalogController
         private readonly TwigFactory $twigFactory,
         private readonly RenderContextExtension $extension,
         private readonly EntryBlocksRenderer $blocksRenderer,
+        // The ONE anonymous-media URL authority rendered pages already use (visibility-checked,
+        // API-prefix-correct) — the app binds it; autowiring injects it. Nullable so the pack
+        // never hard-requires an app-only binding: without it, pages honestly render imageless.
+        private readonly ?MediaUrlResolver $mediaUrls = null,
     ) {
+    }
+
+    /** Resolved anonymous URL for a media row's blob, or null (private/missing/unbound). */
+    private function mediaUrl(?array $row): ?string
+    {
+        if ($row === null || !isset($row['blob_uuid'])) {
+            return null;
+        }
+        return $this->mediaUrls?->url((string) $row['blob_uuid']);
     }
 
     public function index(Request $request): Response
@@ -118,9 +132,37 @@ final class ShopCatalogController
 
         $uuid = (string) $product['uuid'];
         $variants = $this->variants->forProduct($this->context, $tenant, $uuid);
-        $cover = $this->media->coverFor($this->context, $tenant, $uuid);
+
+        // The full gallery (product-editor mock parity, 2026-07-24), cover-role rows first, then
+        // position order. A cover row is OPTIONAL by design: the admin attaches images with role
+        // 'gallery' by default, so the first gallery image leads when no explicit cover exists —
+        // previously only a role='cover' row ever rendered, leaving admin-managed products
+        // imageless in the store. URLs resolve through the anonymous-media authority; rows whose
+        // blobs aren't publicly servable are skipped (never a broken <img>).
+        $mediaRows = $this->media->forProduct($this->context, $tenant, $uuid);
+        $coverRows = array_filter($mediaRows, static fn (array $r): bool => ($r['role'] ?? null) === 'cover');
+        $galleryRows = array_filter($mediaRows, static fn (array $r): bool => ($r['role'] ?? null) !== 'cover');
+        $gallery = [];
+        foreach ([...$coverRows, ...$galleryRows] as $row) {
+            $url = $this->mediaUrl($row);
+            if ($url === null) {
+                continue;
+            }
+            $gallery[] = [
+                'url' => $url,
+                'alt' => isset($row['alt']) && is_string($row['alt']) && $row['alt'] !== '' ? $row['alt'] : null,
+            ];
+        }
+
         $addToCart = $this->buildAddToCart($product, $variants, $uuid, $tenant);
-        $vm = ProductViewModel::fromRow($product, $variants, $cover, $this->urls, $addToCart);
+        $vm = ProductViewModel::fromRow(
+            $product,
+            $variants,
+            $gallery[0]['url'] ?? null,
+            $this->urls,
+            $addToCart,
+            $gallery,
+        );
 
         $enrichment = $this->resolveEnrichment($tenant, $uuid);
 
@@ -128,6 +170,7 @@ final class ShopCatalogController
             'product' => $vm,
             'enrichment_html' => $enrichment['html'] ?? null,
             'canonical' => $this->urls->product($slug),
+            'shop_index' => $this->urls->shopIndex(),
         ]);
         if ($enrichment !== null) {
             // Commerce-Slice-2 Fix B (storefront-rendering spec §9 extension): tag the
@@ -236,11 +279,24 @@ final class ShopCatalogController
         $variantsByProduct = $this->variants->forProducts($this->context, $tenant, $productUuids);
         $covers = $this->media->coversForProducts($this->context, $tenant, $productUuids);
 
+        // Cover-role first, first gallery image as the fallback (the admin attaches with role
+        // 'gallery' by default — cover-only grids rendered admin-managed products imageless).
+        // The fallback read + per-item resolver lookups run on cache FILL only (shop-cached page).
+        $coverUrls = [];
+        foreach ($productUuids as $productUuid) {
+            $row = $covers[$productUuid] ?? null;
+            if ($row === null) {
+                $rows = $this->media->forProduct($this->context, $tenant, $productUuid);
+                $row = $rows[0] ?? null;
+            }
+            $coverUrls[$productUuid] = $this->mediaUrl($row);
+        }
+
         $items = array_map(
             fn (array $product): ProductViewModel => ProductViewModel::fromRow(
                 $product,
                 $variantsByProduct[(string) $product['uuid']] ?? [],
-                $covers[(string) $product['uuid']] ?? null,
+                $coverUrls[(string) $product['uuid']] ?? null,
                 $this->urls,
             ),
             $result['items'],

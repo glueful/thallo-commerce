@@ -4,6 +4,10 @@
   {# Canonical + JSON-LD ALWAYS point at ShopUrlGenerator::product($slug) (storefront-rendering
      spec §3) — never the linked enrichment entry's own path, even when one exists. #}
   <link rel="canonical" href="{{ canonical }}">
+  {# Baseline shop styling shipped by this pack (product-editor mock parity, 2026-07-24) — the
+     stable logical alias 302s to the fingerprinted immutable file, exactly like shop.js below.
+     Themes layer their own rules over these `.shop-*` classes. #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
   {% set structuredData = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -12,20 +16,47 @@
   } %}
   {% if product.description %}{% set structuredData = structuredData|merge({description: product.description}) %}{% endif %}
   {% if product.coverUrl %}{% set structuredData = structuredData|merge({image: product.coverUrl}) %}{% endif %}
-  {% if product.priceFormatted %}
+  {% if product.priceDecimal %}
+    {# schema.org wants the plain decimal number — never the symbol/display form. #}
     {% set structuredData = structuredData|merge({offers: {
       '@type': 'Offer',
-      price: product.priceFormatted,
+      price: product.priceDecimal,
       priceCurrency: product.currency,
     }}) %}
   {% endif %}
   <script type="application/ld+json">{{ structuredData|json_encode(constant('JSON_UNESCAPED_SLASHES'))|raw }}</script>
 
   <article class="shop-product">
-    {% if product.coverUrl %}<img class="shop-product__cover" src="{{ product.coverUrl }}" alt="{{ product.name }}">{% endif %}
-    <h1>{{ product.name }}</h1>
+    <nav class="shop-product__breadcrumb" aria-label="Breadcrumb">
+      <a href="{{ shop_index }}">Shop</a>
+      <span aria-hidden="true">/</span>
+      <span>{{ product.name }}</span>
+    </nav>
+
+    {# The gallery leads (the composed-editor mock): cover image first, thumbnail strip when more
+       exist. Every URL here came pre-resolved through the anonymous-media authority — a product
+       with no publicly servable image simply renders no gallery block. #}
+    {% if product.coverUrl %}
+      <div class="shop-product__gallery">
+        <img class="shop-product__cover" src="{{ product.coverUrl }}" alt="{{ product.name }}">
+        {% if product.gallery|length > 1 %}
+          <div class="shop-product__thumbs">
+            {% for item in product.gallery %}
+              <img src="{{ item.url }}" alt="{{ item.alt ?? '' }}" loading="lazy">
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <h1 class="shop-product__name">{{ product.name }}</h1>
     {% if product.priceFormatted %}
-      <p class="shop-product__price">{{ product.priceFormatted }} {{ product.currency }}</p>
+      <p class="shop-product__price">
+        <span class="shop-product__price-current">{{ product.priceFormatted }}</span>
+        {% if product.compareAtFormatted %}
+          <s class="shop-product__price-compare">{{ product.compareAtFormatted }}</s>
+        {% endif %}
+      </p>
     {% endif %}
     {% if product.rating %}
       <p class="shop-product__rating">{{ product.rating.average }} ({{ product.rating.count }})</p>

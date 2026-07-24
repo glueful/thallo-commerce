@@ -17,7 +17,10 @@ use Thallo\Commerce\Shop\ShopUrlGenerator;
  */
 final class ProductViewModel
 {
-    /** @param array{average: float, count: int}|null $rating */
+    /**
+     * @param array{average: float, count: int}|null $rating
+     * @param list<array{url: string, alt: ?string}> $gallery
+     */
     public function __construct(
         public readonly string $uuid,
         public readonly string $slug,
@@ -26,8 +29,14 @@ final class ProductViewModel
         public readonly string $type,
         public readonly ?int $priceFrom,
         public readonly ?string $priceFormatted,
+        /** Plain decimal ("89.00") for machine consumers (JSON-LD offers) — never the symbol form. */
+        public readonly ?string $priceDecimal,
+        /** Formatted compare-at ("was" price; single-active-variant products only) — null otherwise. */
+        public readonly ?string $compareAtFormatted,
         public readonly ?string $currency,
         public readonly ?string $coverUrl,
+        /** Resolved, anonymously-servable image URLs (cover-role first) — [] when none resolve. */
+        public readonly array $gallery,
         public readonly ?array $rating,
         public readonly string $url,
         /**
@@ -46,15 +55,21 @@ final class ProductViewModel
     /**
      * @param array<string,mixed> $product a live/buyer-available commerce_products row
      * @param list<array<string,mixed>> $variants that product's variants (any subset is fine;
-     *     only `status`/`price`/`currency` are read)
-     * @param array<string,mixed>|null $cover that product's cover media row, if any
+     *     only `status`/`price`/`compare_at_price`/`currency` are read)
+     * @param ?string $coverUrl the product's RESOLVED cover image URL (built by the caller
+     *     through the {@see \Thallo\Contracts\Delivery\MediaUrlResolver} authority — never a
+     *     hand-concatenated `/blobs/…` path, which missed the API prefix and ignored blob
+     *     visibility), null when no image resolves
+     * @param list<array{url: string, alt: ?string}> $gallery resolved gallery image URLs,
+     *     cover-role rows first — only the product detail page passes a non-empty list
      */
     public static function fromRow(
         array $product,
         array $variants,
-        ?array $cover,
+        ?string $coverUrl,
         ShopUrlGenerator $urls,
         ?AddToCartViewModel $addToCart = null,
+        array $gallery = [],
     ): self {
         [$priceFrom, $currency] = self::cheapestActivePrice($variants);
         $count = (int) ($product['rating_count'] ?? 0);
@@ -69,13 +84,46 @@ final class ProductViewModel
             description: isset($product['description']) ? (string) $product['description'] : null,
             type: (string) ($product['type'] ?? 'physical'),
             priceFrom: $priceFrom,
-            priceFormatted: $priceFrom !== null && $currency !== null ? Money::format($priceFrom, $currency) : null,
+            priceFormatted: $priceFrom !== null && $currency !== null
+                ? ShopMoney::display($priceFrom, $currency)
+                : null,
+            priceDecimal: $priceFrom !== null && $currency !== null
+                ? Money::format($priceFrom, $currency)
+                : null,
+            compareAtFormatted: self::compareAtDisplay($variants),
             currency: $currency,
-            coverUrl: $cover !== null ? '/blobs/' . $cover['blob_uuid'] : null,
+            coverUrl: $coverUrl,
+            gallery: $gallery,
             rating: $rating,
             url: $urls->product((string) $product['slug']),
             addToCart: $addToCart,
         );
+    }
+
+    /**
+     * The "was" price, shown struck through beside the current price — only for a product with
+     * exactly ONE active variant whose `compare_at_price` exceeds its price (multi-variant
+     * products have per-variant sale prices; a single struck number would be a lie).
+     *
+     * @param list<array<string,mixed>> $variants
+     */
+    private static function compareAtDisplay(array $variants): ?string
+    {
+        $active = array_values(array_filter(
+            $variants,
+            static fn (array $variant): bool => ($variant['status'] ?? null) === 'active',
+        ));
+        if (count($active) !== 1) {
+            return null;
+        }
+        $compareAt = $active[0]['compare_at_price'] ?? null;
+        $currency = $active[0]['currency'] ?? null;
+        if (!is_numeric($compareAt) || !is_string($currency)) {
+            return null;
+        }
+        return (int) $compareAt > (int) ($active[0]['price'] ?? 0)
+            ? ShopMoney::display((int) $compareAt, $currency)
+            : null;
     }
 
     /**
@@ -111,8 +159,11 @@ final class ProductViewModel
             'type' => $this->type,
             'price_from' => $this->priceFrom,
             'price_formatted' => $this->priceFormatted,
+            'price_decimal' => $this->priceDecimal,
+            'compare_at_formatted' => $this->compareAtFormatted,
             'currency' => $this->currency,
             'cover_url' => $this->coverUrl,
+            'gallery' => $this->gallery,
             'rating' => $this->rating,
             'url' => $this->url,
             'add_to_cart' => $this->addToCart?->toArray(),

@@ -1,0 +1,157 @@
+/*
+ * Baseline shop styling shipped by the thallo-commerce pack (product-editor mock parity,
+ * 2026-07-24). Deliberately theme-neutral: system font stack, currentColor-derived neutrals,
+ * one accent drawn from the page's own text color — themes layer their own rules over these
+ * `.shop-*` classes (this file loses any specificity fight on equal selectors by loading first).
+ * Served via the fingerprinted immutable asset pipeline (ShopAssetMap / ShopAssetController).
+ */
+
+.shop-product {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+.shop-product__breadcrumb {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+}
+.shop-product__breadcrumb a {
+  color: inherit;
+  text-decoration: none;
+}
+.shop-product__breadcrumb a:hover {
+  text-decoration: underline;
+}
+.shop-product__breadcrumb span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shop-product__gallery {
+  margin-bottom: 1.25rem;
+}
+.shop-product__cover {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.shop-product__thumbs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  overflow-x: auto;
+}
+.shop-product__thumbs img {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  flex: none;
+}
+
+.shop-product__name {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.shop-product__price {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+.shop-product__price-current {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.shop-product__price-compare {
+  font-size: 1rem;
+  color: color-mix(in srgb, currentColor 45%, transparent);
+}
+
+.shop-product__rating {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: color-mix(in srgb, currentColor 65%, transparent);
+}
+
+.shop-product__description {
+  margin-bottom: 1.5rem;
+  color: color-mix(in srgb, currentColor 80%, transparent);
+}
+
+.shop-product__add-to-cart {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  align-items: stretch;
+  margin-bottom: 1.5rem;
+}
+.shop-product__add-to-cart select,
+.shop-product__add-to-cart input[type="number"] {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.shop-product__variant-label {
+  flex: 1 1 12rem;
+  display: flex;
+}
+.shop-product__variant-label select {
+  width: 100%;
+}
+.shop-product__quantity input {
+  width: 5rem;
+}
+.shop-product__add-to-cart button[type="submit"] {
+  flex: 1 1 100%;
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  /* Themes override --shop-accent (and the label color) to brand this. */
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.shop-product__add-to-cart button[type="submit"]:hover {
+  filter: brightness(1.15);
+}
+
+.shop-product__unavailable {
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.5rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.shop-product__enrichment {
+  margin-top: 2rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
