@@ -103,6 +103,7 @@ final class AdminMountAllowlist
             'discounts.destroy',
 
             // — Orders —
+            'products.orders.index',
             'orders.index',
             'orders.show',
             'orders.cancel',
