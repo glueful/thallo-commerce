@@ -2,16 +2,25 @@
 {% block title %}{{ category.name }} — {{ site.name }}{% endblock %}
 {% block content %}
   <link rel="canonical" href="{{ canonical }}">
+  {# Baseline shop styling (same fingerprinted asset the product page loads). #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
   <section class="shop-category">
     <h1>{{ category.name }}</h1>
     <ul class="shop-grid">
       {% for product in grid.items %}
         <li class="shop-grid__item">
           <a href="{{ product.url }}">
-            {% if product.coverUrl %}<img src="{{ product.coverUrl }}" alt="{{ product.name }}">{% endif %}
+            {% if product.coverUrl %}
+              <img class="shop-grid__image" src="{{ product.coverUrl }}" alt="{{ product.name }}" loading="lazy">
+            {% else %}
+              <span class="shop-grid__image shop-grid__image--empty" aria-hidden="true"></span>
+            {% endif %}
             <span class="shop-grid__name">{{ product.name }}</span>
             {% if product.priceFormatted %}
-              <span class="shop-grid__price">{{ product.priceFormatted }} {{ product.currency }}</span>
+              <span class="shop-grid__price">
+                {{ product.priceFormatted }}
+                {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
+              </span>
             {% endif %}
           </a>
         </li>
