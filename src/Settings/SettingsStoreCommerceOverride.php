@@ -32,6 +32,10 @@ final class SettingsStoreCommerceOverride implements CommerceSettingsOverride
         'commerce.orders.expiry_minutes',
         'commerce.cart.ttl_days',
         'commerce.reports.low_stock_threshold',
+        // Store identity (spec §3.6): the invoice header — name, address, tax id.
+        'commerce.seller.name',
+        'commerce.seller.address',
+        'commerce.seller.tax_id',
     ];
 
     public function value(ApplicationContext $context, string $key): ?string

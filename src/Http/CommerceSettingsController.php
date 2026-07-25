@@ -67,6 +67,7 @@ final class CommerceSettingsController
 
         return Response::success([
             'settings' => $settings,
+            'payments' => $this->paymentsStatus(),
             'currency_locked' => $this->currencyLocked(),
             // For the UI's honesty note: an UNLOCKED change with priced products reinterprets
             // their numbers ($700.00 becomes GH₵700.00) — worth a warning, not a lock.
@@ -155,6 +156,18 @@ final class CommerceSettingsController
             return $value;
         }
 
+        if (in_array($key, ['commerce.seller.name', 'commerce.seller.address', 'commerce.seller.tax_id'], true)) {
+            $max = match ($key) {
+                'commerce.seller.name' => 200,
+                'commerce.seller.address' => 500,
+                default => 64,
+            };
+            if (mb_strlen($value) > $max) {
+                throw ValidationException::forField($key, "Must be {$max} characters or fewer.");
+            }
+            return $value;
+        }
+
         if ($key === 'commerce.orders.number_format') {
             if ($value === '' || !str_contains($value, '{seq}')) {
                 throw ValidationException::forField($key, 'Order number format must contain {seq}.');
@@ -181,6 +194,46 @@ final class CommerceSettingsController
         return (string) $int;
     }
 
+    /**
+     * Read-only payment posture (spec §3.6): which gateways the payment extension configures
+     * and whether their secrets are PRESENT — booleans only, NEVER key material. Reads the
+     * `payvia.*` config namespace softly (config keys, no class references): with no payment
+     * extension installed the mode is honestly `manual` — Commerce's ManualPaymentCollector
+     * collects nothing and an operator marks orders paid.
+     *
+     * @return array{mode: string, default_gateway: ?string, gateways: list<array<string,mixed>>}
+     */
+    private function paymentsStatus(): array
+    {
+        $gateways = (array) config($this->context, 'payvia.gateways', []);
+        if ($gateways === []) {
+            return ['mode' => 'manual', 'default_gateway' => null, 'gateways' => []];
+        }
+
+        $default = (string) config($this->context, 'payvia.default_gateway', '');
+        $rows = [];
+        foreach ($gateways as $id => $gateway) {
+            if (!is_array($gateway)) {
+                continue;
+            }
+            $secret = $gateway['secret_key'] ?? null;
+            $webhook = $gateway['webhook_secret'] ?? null;
+            $rows[] = [
+                'id' => (string) $id,
+                'enabled' => (bool) ($gateway['enabled'] ?? false),
+                'configured' => is_string($secret) && trim($secret) !== '',
+                'webhook_configured' => is_string($webhook) && trim($webhook) !== '',
+                'default' => (string) $id === $default,
+            ];
+        }
+
+        return [
+            'mode' => 'gateway',
+            'default_gateway' => $default !== '' ? $default : null,
+            'gateways' => $rows,
+        ];
+    }
+
     private function currencyLocked(): bool
     {
         return ($this->orders ?? new OrderRepository())->anyExistsForTenant(
@@ -198,6 +251,10 @@ final class CommerceSettingsController
             'commerce.orders.expiry_minutes' => CommerceSettings::orderExpiryMinutes($this->context),
             'commerce.cart.ttl_days' => CommerceSettings::cartTtlDays($this->context),
             'commerce.reports.low_stock_threshold' => CommerceSettings::lowStockThreshold($this->context),
+            // Null-tolerant identity keys serialize as '' on the wire (JSON-friendly).
+            'commerce.seller.name' => CommerceSettings::sellerName($this->context) ?? '',
+            'commerce.seller.address' => CommerceSettings::sellerAddress($this->context) ?? '',
+            'commerce.seller.tax_id' => CommerceSettings::sellerTaxId($this->context) ?? '',
             default => '',
         };
     }
@@ -211,6 +268,9 @@ final class CommerceSettingsController
             'commerce.orders.expiry_minutes' => (int) config($this->context, $key, 60),
             'commerce.cart.ttl_days' => (int) config($this->context, $key, 30),
             'commerce.reports.low_stock_threshold' => (int) config($this->context, $key, 2),
+            'commerce.seller.name',
+            'commerce.seller.address',
+            'commerce.seller.tax_id' => (string) (config($this->context, $key) ?? ''),
             default => '',
         };
     }
