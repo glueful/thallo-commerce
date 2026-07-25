@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Thallo\Commerce\Http;
 
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Support\Money;
 use Glueful\Http\Response;
 use Glueful\Routing\Attributes\ApiOperation;
@@ -67,7 +68,7 @@ final class CommerceMetaController
     )]
     public function meta(Request $request): Response
     {
-        $currency = (string) config($this->context, 'commerce.currency', 'USD');
+        $currency = CommerceSettings::currency($this->context);
         $exponent = Money::exponentFor($currency);
         if ($exponent === null) {
             throw new CommerceConfigurationException(
@@ -80,7 +81,7 @@ final class CommerceMetaController
             'currency' => $currency,
             'currency_exponent' => $exponent,
             'shop_index_url' => $this->previewUrls->shopIndexUrl($this->context),
-            'low_stock_threshold' => (int) config($this->context, 'commerce.reports.low_stock_threshold', 2),
+            'low_stock_threshold' => CommerceSettings::lowStockThreshold($this->context),
             'can_view' => $this->authority->allows($request, ['commerce.view']),
             'can_manage' => $this->authority->allows($request, ['commerce.manage']),
         ]);

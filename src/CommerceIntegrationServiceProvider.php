@@ -18,14 +18,19 @@ use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
 use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantPurge;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
+use Glueful\Extensions\Commerce\Support\CommerceSettingsOverride;
+use Thallo\Commerce\Settings\SettingsStoreCommerceOverride;
 use Glueful\Extensions\Commerce\Tenancy\TenantAdopter;
 use Glueful\Extensions\Contracts\Tenancy\TenantTableRegistry;
 use Glueful\Extensions\ServiceProvider;
 use Psr\Container\ContainerInterface;
 use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
+use Thallo\Commerce\Email\CommerceEmailTemplates;
+use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\CommerceMetaController;
+use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
@@ -104,6 +109,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
                 'factory' => [self::class, 'makeCommerceTenantResolution'],
                 'shared' => true,
             ],
+            // Store-settings spec §3.3: Commerce's runtime-settings seam, backed by thallo's own
+            // `settings` table through the app's SettingsStore. The capability gate lives INSIDE
+            // value() (compiled services can't bind conditionally) — disabled ⇒ pure config.
+            CommerceSettingsOverride::class => [
+                'factory' => [self::class, 'makeCommerceSettingsOverride'],
+                'shared' => true,
+            ],
             ProductLinkRepository::class => [
                 'class'    => ProductLinkRepository::class,
                 'shared'   => true,
@@ -137,6 +149,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             // can_view/can_manage flags and the route's own gate can never disagree.
             CommerceMetaController::class => [
                 'class'    => CommerceMetaController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Store-settings spec §3.4: GET/PUT /settings. Autowired — storage resolves through
+            // the pack-owned CommerceSettingsStore contract the host app binds.
+            CommerceSettingsController::class => [
+                'class'    => CommerceSettingsController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -455,6 +474,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
      * binding, the SAME ThemeLocator/ThemeAppearanceSource identities) — the shop cache and the
      * render page cache must never disagree about what the "current" theme/appearance is.
      */
+    /** Store-settings spec §3.3: storage flows through the pack-owned CommerceSettingsStore
+     * contract, which the HOST app binds — this package never names an app class. */
+    public static function makeCommerceSettingsOverride(ContainerInterface $container): CommerceSettingsOverride
+    {
+        return new SettingsStoreCommerceOverride();
+    }
+
     public static function makeShopFrameEmbedding(ContainerInterface $container): ShopFrameEmbedding
     {
         $context = $container->get(ApplicationContext::class);
@@ -628,6 +654,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             // them into pre-existing tenants is the same explicit, retryable
             // `php glueful thallo:tenant:sync --all --kind=block_type` step.
             $this->registerShopBlockTypeContributor($context);
+
+            // Store-settings spec §4: transactional order emails are USER-FACING capability
+            // behavior — definitions register into the email extension's registry (they then
+            // appear, editable, in Settings › Email) and the listener sends through the
+            // notification pipeline. Both are soft-gated on the email/notification services
+            // actually being bound, so an install without glueful/email-notification boots clean.
+            $this->registerOrderEmails($context);
         }
 
         // The reconcile sweep + diagnostics commands are maintenance/read-only surfaces too, for
@@ -653,6 +686,55 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
      *    presence) AND Commerce's own provider is active (`CatalogReader` bound) — that event
      *    can only ever fire when Commerce is active in the first place.
      */
+    /**
+     * Store-settings spec §4.1/§4.2. Every guard is a SOFT dependency check: the email
+     * extension's registry contract, Commerce's event classes, EventService, and
+     * NotificationService must all be present — any absence means "no order emails", never a
+     * boot failure. Registration is per-request-idempotent: DefinitionRegistry allows
+     * re-registering a key under the SAME owner.
+     */
+    private function registerOrderEmails(ApplicationContext $context): void
+    {
+        if (
+            !interface_exists(\Glueful\Extensions\Contracts\Email\EmailTemplateRegistry::class)
+            || !class_exists(\Glueful\Extensions\Commerce\Events\OrderPlaced::class)
+        ) {
+            return;
+        }
+        $container = $context->getContainer();
+        if (
+            !$container->has(\Glueful\Extensions\Contracts\Email\EmailTemplateRegistry::class)
+            || !$container->has(EventService::class)
+            || !$container->has(\Glueful\Notifications\Services\NotificationService::class)
+        ) {
+            return;
+        }
+
+        $container->get(\Glueful\Extensions\Contracts\Email\EmailTemplateRegistry::class)
+            ->register(...CommerceEmailTemplates::definitions());
+
+        $listener = new SendOrderEmails(
+            $context,
+            $container->get(\Glueful\Notifications\Services\NotificationService::class),
+            $container->has(\Psr\Log\LoggerInterface::class)
+                ? $container->get(\Psr\Log\LoggerInterface::class)
+                : null,
+        );
+
+        /** @var EventService $events */
+        $events = $container->get(EventService::class);
+        $events->addListener(\Glueful\Extensions\Commerce\Events\OrderPlaced::class, [$listener, 'onOrderPlaced']);
+        $events->addListener(\Glueful\Extensions\Commerce\Events\OrderPaid::class, [$listener, 'onOrderPaid']);
+        $events->addListener(
+            \Glueful\Extensions\Commerce\Events\OrderFulfilled::class,
+            [$listener, 'onOrderFulfilled']
+        );
+        $events->addListener(
+            \Glueful\Extensions\Commerce\Events\OrderCanceled::class,
+            [$listener, 'onOrderCanceled']
+        );
+    }
+
     private function registerLifecycleListeners(ApplicationContext $context): void
     {
         if (!interface_exists(CommerceTenantResolution::class)) {

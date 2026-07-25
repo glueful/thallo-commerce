@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Thallo\Commerce\Http\Shop;
 
 use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,7 +36,7 @@ final class CartCookie
 
     public function write(Response $response, string $rawToken, ApplicationContext $context): void
     {
-        $days = max(1, (int) config($context, 'commerce.cart.ttl_days', 30));
+        $days = max(1, CommerceSettings::cartTtlDays($context));
 
         $response->headers->setCookie(new Cookie(
             self::NAME,

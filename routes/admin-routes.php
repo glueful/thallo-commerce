@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\CommerceMetaController;
+use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Glueful\Extensions\Commerce\Http\Routing\AdminMountProfile;
 use Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog;
@@ -67,6 +68,13 @@ $router->group(
         $router->get('/meta', [CommerceMetaController::class, 'meta'])
             ->middleware('content_permission:commerce.view,commerce.manage')
             ->name('thallo.commerce.admin.meta');
+        // Store settings (store-settings spec §3.4): read graded like /meta; writes manage-only.
+        $router->get('/settings', [CommerceSettingsController::class, 'show'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.settings.show');
+        $router->put('/settings', [CommerceSettingsController::class, 'update'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.settings.update');
     },
 );
 

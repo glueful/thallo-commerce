@@ -7,6 +7,7 @@ namespace Thallo\Commerce\Shop\ViewModels;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Cart\AddonSnapshot;
 use Glueful\Extensions\Commerce\Pricing\Totals;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Support\Money;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 
@@ -156,6 +157,6 @@ final class CartViewModel
     /** Single-store currency (design spec: "every variant price must match it"). */
     private static function currency(ApplicationContext $context): string
     {
-        return (string) config($context, 'commerce.currency', 'USD');
+        return CommerceSettings::currency($context);
     }
 }

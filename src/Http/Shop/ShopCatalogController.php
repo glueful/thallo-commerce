@@ -11,6 +11,7 @@ use Glueful\Extensions\Commerce\Catalog\ProductMediaRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductRepository;
 use Glueful\Extensions\Commerce\Catalog\ResolvedProductFilters;
 use Glueful\Extensions\Commerce\Catalog\VariantRepository;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -209,7 +210,7 @@ final class ShopCatalogController
             static fn (bool $carry, array $addon): bool => $carry || (bool) ($addon['required'] ?? false),
             false,
         );
-        $currency = (string) config($this->context, 'commerce.currency', 'USD');
+        $currency = CommerceSettings::currency($this->context);
 
         return AddToCartViewModel::build($product, $activeVariants, $hasRequiredAddons, $this->urls, $currency);
     }
