@@ -67,7 +67,6 @@ final class CommerceSettingsController
 
         return Response::success([
             'settings' => $settings,
-            'payments' => $this->paymentsStatus(),
             'currency_locked' => $this->currencyLocked(),
             // For the UI's honesty note: an UNLOCKED change with priced products reinterprets
             // their numbers ($700.00 becomes GH₵700.00) — worth a warning, not a lock.
@@ -192,46 +191,6 @@ final class CommerceSettingsController
         }
 
         return (string) $int;
-    }
-
-    /**
-     * Read-only payment posture (spec §3.6): which gateways the payment extension configures
-     * and whether their secrets are PRESENT — booleans only, NEVER key material. Reads the
-     * `payvia.*` config namespace softly (config keys, no class references): with no payment
-     * extension installed the mode is honestly `manual` — Commerce's ManualPaymentCollector
-     * collects nothing and an operator marks orders paid.
-     *
-     * @return array{mode: string, default_gateway: ?string, gateways: list<array<string,mixed>>}
-     */
-    private function paymentsStatus(): array
-    {
-        $gateways = (array) config($this->context, 'payvia.gateways', []);
-        if ($gateways === []) {
-            return ['mode' => 'manual', 'default_gateway' => null, 'gateways' => []];
-        }
-
-        $default = (string) config($this->context, 'payvia.default_gateway', '');
-        $rows = [];
-        foreach ($gateways as $id => $gateway) {
-            if (!is_array($gateway)) {
-                continue;
-            }
-            $secret = $gateway['secret_key'] ?? null;
-            $webhook = $gateway['webhook_secret'] ?? null;
-            $rows[] = [
-                'id' => (string) $id,
-                'enabled' => (bool) ($gateway['enabled'] ?? false),
-                'configured' => is_string($secret) && trim($secret) !== '',
-                'webhook_configured' => is_string($webhook) && trim($webhook) !== '',
-                'default' => (string) $id === $default,
-            ];
-        }
-
-        return [
-            'mode' => 'gateway',
-            'default_gateway' => $default !== '' ? $default : null,
-            'gateways' => $rows,
-        ];
     }
 
     private function currencyLocked(): bool

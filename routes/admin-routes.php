@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
+use Thallo\Commerce\Http\PaymentsSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Glueful\Extensions\Commerce\Http\Routing\AdminMountProfile;
 use Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog;
@@ -75,6 +76,14 @@ $router->group(
         $router->put('/settings', [CommerceSettingsController::class, 'update'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.settings.update');
+        // Payments settings (store-settings spec §3.6): same read/write grading as /settings.
+        // Secrets are write-only — GET reports booleans, PUT accepts values (encrypted at rest).
+        $router->get('/payments', [PaymentsSettingsController::class, 'show'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.payments.show');
+        $router->put('/payments', [PaymentsSettingsController::class, 'update'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.payments.update');
     },
 );
 
