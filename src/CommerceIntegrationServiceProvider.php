@@ -713,6 +713,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
         $container->get(\Glueful\Extensions\Contracts\Email\EmailTemplateRegistry::class)
             ->register(...CommerceEmailTemplates::definitions());
 
+        // ONE sender at a time: Commerce ships its OWN (dormant-by-default) order mailer —
+        // OrderMailListener behind `commerce.email.enabled`. If an operator turned that on,
+        // registering this listener too would DOUBLE-EMAIL every buyer, so Commerce's own
+        // switch wins and thallo's registry-templated sender stands down (definitions still
+        // register above — the templates stay visible/editable either way).
+        if ((bool) config($context, 'commerce.email.enabled', false)) {
+            return;
+        }
+
         $listener = new SendOrderEmails(
             $context,
             $container->get(\Glueful\Notifications\Services\NotificationService::class),
