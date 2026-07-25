@@ -7,6 +7,7 @@ use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\PaymentsSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
+use Thallo\Commerce\Http\MarketplaceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Glueful\Extensions\Commerce\Http\Routing\AdminMountProfile;
 use Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog;
@@ -92,6 +93,21 @@ $router->group(
         $router->put('/emails', [EmailSettingsController::class, 'update'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.emails.update');
+        // Marketplace settings (store-settings spec §3.6): reads view-graded, writes manage-only.
+        // Thin front over commerce's marketplace services; writes 409 while the boot-time master
+        // flag (COMMERCE_MARKETPLACE_ENABLED) is off.
+        $router->get('/marketplace', [MarketplaceSettingsController::class, 'show'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.marketplace.show');
+        $router->post('/marketplace/activate', [MarketplaceSettingsController::class, 'activate'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.marketplace.activate');
+        $router->post('/marketplace/deactivate', [MarketplaceSettingsController::class, 'deactivate'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.marketplace.deactivate');
+        $router->put('/marketplace/commission', [MarketplaceSettingsController::class, 'updateCommission'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.marketplace.commission');
     },
 );
 

@@ -35,6 +35,7 @@ use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\PaymentsSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
+use Thallo\Commerce\Http\MarketplaceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
@@ -175,6 +176,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             // Spec §4.2 follow-up: GET/PUT /emails — the per-template order-email switches.
             EmailSettingsController::class => [
                 'class'    => EmailSettingsController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Spec §3.6 Marketplace group: thin front over commerce's marketplace services.
+            MarketplaceSettingsController::class => [
+                'class'    => MarketplaceSettingsController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
