@@ -11,6 +11,7 @@ use Glueful\Extensions\Commerce\Marketplace\MarketplaceMode;
 use Glueful\Extensions\Commerce\Marketplace\SellerService;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Http\Response;
+use Thallo\Commerce\Settings\CommerceSettingsStore;
 use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Request;
@@ -40,7 +41,8 @@ final class MarketplaceSettingsController
         private readonly ?CommissionPolicyService $commissionPolicy = null,
         private readonly ?MarketplaceMode $mode = null,
         private readonly ?SellerService $sellers = null,
-        /** Test seam only — `commerce.marketplace.enabled` is boot-time env in production. */
+        private readonly ?CommerceSettingsStore $store = null,
+        /** Test seam — forces the master state regardless of settings/config. */
         private readonly ?bool $masterEnabled = null,
     ) {
     }
@@ -70,6 +72,7 @@ final class MarketplaceSettingsController
 
         return Response::success([
             'master_enabled' => $master,
+            'master_overridden' => $this->masterStored() !== null,
             'settings' => $this->projectedSettings($tenant),
             'sellers' => $sellers,
         ], 'Marketplace settings retrieved');
@@ -136,6 +139,31 @@ final class MarketplaceSettingsController
         return $this->show($request);
     }
 
+    #[ApiOperation(
+        summary: 'Switch marketplace mode on or off for this install (null clears to the env default)',
+        tags: ['Thallo Commerce'],
+    )]
+    public function setMaster(Request $request): Response
+    {
+        $body = (array) json_decode((string) $request->getContent(), true);
+        $enabled = $body['enabled'] ?? null;
+        if ($enabled !== null && !is_bool($enabled)) {
+            throw ValidationException::forField('enabled', 'Must be true, false, or null.');
+        }
+
+        $store = $this->store;
+        if ($store === null) {
+            throw new \RuntimeException('Settings store is not available.');
+        }
+        if ($enabled === null) {
+            $store->forget('commerce.marketplace.enabled');
+        } else {
+            $store->putMany(['commerce.marketplace.enabled' => $enabled ? '1' : '0']);
+        }
+
+        return $this->show($request);
+    }
+
     /**
      * The `commerce_marketplace_settings` row, projected through a whitelist (never the raw
      * row — `tenant_uuid`/actor columns stay internal, matching every projection in this pack).
@@ -168,18 +196,46 @@ final class MarketplaceSettingsController
         ];
     }
 
+    /**
+     * Effective master state: the stored settings row wins (the tab's runtime switch, spec
+     * §3.6 — commerce's MarketplaceMode::installEnabled() reads the SAME key through the seam
+     * since 1.7.0), else the env/config default. Self-computed so this endpoint stays correct
+     * on commerce 1.6.x too.
+     */
     private function master(): bool
     {
-        return $this->masterEnabled
+        if ($this->masterEnabled !== null) {
+            return $this->masterEnabled;
+        }
+
+        return $this->masterStored()
             ?? (bool) config($this->context, 'commerce.marketplace.enabled', false);
+    }
+
+    /** The stored master row when well-formed — null means "env default in effect". */
+    private function masterStored(): ?bool
+    {
+        try {
+            $stored = $this->store?->get('commerce.marketplace.enabled');
+            if (is_string($stored)) {
+                $flag = strtolower(trim($stored));
+                if (in_array($flag, ['1', 'true', '0', 'false'], true)) {
+                    return in_array($flag, ['1', 'true'], true);
+                }
+            }
+        } catch (\Throwable) {
+            // no stored override
+        }
+
+        return null;
     }
 
     private function requireMaster(): void
     {
         if (!$this->master()) {
-            // 409, not 422: the request is well-formed — the INSTALL isn't wired for it.
+            // 409, not 422: the request is well-formed — marketplace mode is switched off.
             throw new \Glueful\Http\Exceptions\Client\ConflictException(
-                'Marketplace is not enabled on this install — set COMMERCE_MARKETPLACE_ENABLED and restart.',
+                'Marketplace mode is switched off — enable it first.',
             );
         }
     }

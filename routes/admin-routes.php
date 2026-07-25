@@ -108,6 +108,9 @@ $router->group(
         $router->put('/marketplace/commission', [MarketplaceSettingsController::class, 'updateCommission'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.marketplace.commission');
+        $router->put('/marketplace/master', [MarketplaceSettingsController::class, 'setMaster'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.marketplace.master');
     },
 );
 

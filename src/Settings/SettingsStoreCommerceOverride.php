@@ -35,6 +35,9 @@ final class SettingsStoreCommerceOverride implements CommerceSettingsOverride
         // Download link lifetime (spec §3.6, Downloads group): consulted by both signed-URL
         // producers via CommerceSettings::downloadsUrlTtl (commerce ≥ 1.7.0).
         'commerce.downloads.url_ttl',
+        // Marketplace master switch (spec §3.6): backs MarketplaceMode::installEnabled()
+        // (commerce ≥ 1.7.0) — the Marketplace tab's runtime on/off; env stays the default.
+        'commerce.marketplace.enabled',
         // Store identity (spec §3.6): the invoice header — name, address, tax id.
         'commerce.seller.name',
         'commerce.seller.address',
