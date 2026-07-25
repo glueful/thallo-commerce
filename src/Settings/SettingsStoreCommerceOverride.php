@@ -32,6 +32,9 @@ final class SettingsStoreCommerceOverride implements CommerceSettingsOverride
         'commerce.orders.expiry_minutes',
         'commerce.cart.ttl_days',
         'commerce.reports.low_stock_threshold',
+        // Download link lifetime (spec §3.6, Downloads group): consulted by both signed-URL
+        // producers via CommerceSettings::downloadsUrlTtl (commerce ≥ 1.7.0).
+        'commerce.downloads.url_ttl',
         // Store identity (spec §3.6): the invoice header — name, address, tax id.
         'commerce.seller.name',
         'commerce.seller.address',

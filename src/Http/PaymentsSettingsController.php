@@ -11,6 +11,7 @@ use Glueful\Routing\Attributes\ApiOperation;
 use Glueful\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Request;
 use Thallo\Commerce\Settings\CommerceSettingsStore;
+use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
 
 /**
  * Payments settings admin API (store-settings spec §3.6, Payments tab):
@@ -38,6 +39,7 @@ final class PaymentsSettingsController
         private readonly ApplicationContext $context,
         private readonly ?CommerceSettingsStore $store = null,
         private readonly ?EncryptionService $encryption = null,
+        private readonly ?CanonicalPublicOriginResolver $origins = null,
     ) {
     }
 
@@ -69,6 +71,7 @@ final class PaymentsSettingsController
                 'secret_key' => $this->secretState($id, $config, 'secret_key'),
                 'webhook_secret' => $this->secretState($id, $config, 'webhook_secret'),
                 'default' => $id === $default,
+                'webhook_url' => $this->webhookUrl($id),
             ];
         }
 
@@ -221,6 +224,25 @@ final class PaymentsSettingsController
         }
 
         return ['set' => false, 'source' => null];
+    }
+
+    /**
+     * The absolute URL the merchant pastes into the gateway dashboard. Payvia's webhook route
+     * is root-mounted (`POST /webhooks/{gateway}`); the origin half comes from the ONE trusted
+     * origin authority ({@see CanonicalPublicOriginResolver} — never the request Host header).
+     * Null when no resolver is bound: the UI simply omits the row rather than guessing.
+     */
+    private function webhookUrl(string $id): ?string
+    {
+        if ($this->origins === null) {
+            return null;
+        }
+
+        try {
+            return $this->origins->currentOrigin($this->context) . '/webhooks/' . rawurlencode($id);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function storedValue(string $key): ?string

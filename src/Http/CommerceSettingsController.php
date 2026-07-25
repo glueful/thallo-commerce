@@ -174,7 +174,7 @@ final class CommerceSettingsController
             return $value;
         }
 
-        // The four integer fields share shape; bounds differ (spec §3.1).
+        // The integer fields share shape; bounds differ (spec §3.1).
         if (preg_match('/^\d+$/', $value) !== 1) {
             throw ValidationException::forField($key, 'Must be a whole number.');
         }
@@ -184,6 +184,9 @@ final class CommerceSettingsController
             'commerce.orders.expiry_minutes' => [5, 10080],
             'commerce.cart.ttl_days' => [1, 365],
             'commerce.reports.low_stock_threshold' => [0, 1000],
+            // Download links: 1 minute to 1 week — long enough for email delivery, short
+            // enough that a leaked URL ages out.
+            'commerce.downloads.url_ttl' => [60, 604800],
             default => throw ValidationException::forField($key, 'Unknown setting.'),
         };
         if ($int < $min || $int > $max) {
@@ -210,6 +213,9 @@ final class CommerceSettingsController
             'commerce.orders.expiry_minutes' => CommerceSettings::orderExpiryMinutes($this->context),
             'commerce.cart.ttl_days' => CommerceSettings::cartTtlDays($this->context),
             'commerce.reports.low_stock_threshold' => CommerceSettings::lowStockThreshold($this->context),
+            // Self-computed (stored-valid ?? config) rather than CommerceSettings::downloadsUrlTtl —
+            // that reader ships in commerce 1.7.0; this stays correct on 1.6.x too.
+            'commerce.downloads.url_ttl' => $this->intEffective('commerce.downloads.url_ttl', 300),
             // Null-tolerant identity keys serialize as '' on the wire (JSON-friendly).
             'commerce.seller.name' => CommerceSettings::sellerName($this->context) ?? '',
             'commerce.seller.address' => CommerceSettings::sellerAddress($this->context) ?? '',
@@ -227,11 +233,23 @@ final class CommerceSettingsController
             'commerce.orders.expiry_minutes' => (int) config($this->context, $key, 60),
             'commerce.cart.ttl_days' => (int) config($this->context, $key, 30),
             'commerce.reports.low_stock_threshold' => (int) config($this->context, $key, 2),
+            'commerce.downloads.url_ttl' => (int) config($this->context, $key, 300),
             'commerce.seller.name',
             'commerce.seller.address',
             'commerce.seller.tax_id' => (string) (config($this->context, $key) ?? ''),
             default => '',
         };
+    }
+
+    /** Stored row when it parses as an int, else the config default — seam-equivalent math. */
+    private function intEffective(string $key, int $default): int
+    {
+        $stored = $this->storedValue($key);
+        if ($stored !== null && preg_match('/^\d+$/', trim($stored)) === 1) {
+            return (int) trim($stored);
+        }
+
+        return (int) config($this->context, $key, $default);
     }
 
     private function storedValue(string $key): ?string
