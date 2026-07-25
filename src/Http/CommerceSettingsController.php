@@ -6,6 +6,7 @@ namespace Thallo\Commerce\Http;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Catalog\VariantRepository;
+use Glueful\Extensions\Commerce\Orders\OrderRepository;
 use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Http\Response;
@@ -22,11 +23,15 @@ use Thallo\Commerce\Settings\SettingsStoreCommerceOverride;
  * enforcement), and clearing a field DELETES its row so the config/env default shows through
  * (never an empty-string shadow).
  *
- * The currency lock (spec §3.4): every variant price is an integer in the store currency, so
- * changing `commerce.currency` once ANY variant exists would silently reinterpret every stored
- * amount. The lock's predicate is {@see VariantRepository::anyExistsForTenant} — the LIMIT-1
- * probe added for exactly this — and only an actual CHANGE trips it: idempotent saves of the
- * current value must never 422.
+ * The currency lock (spec §3.4, revised — user feedback 2026-07-25: "I'm still setting my
+ * store up, why lock?"): the harm is RECORDED money, not draft prices — orders/refunds/reports
+ * store amounts as integers in the order's currency, so the lock's predicate is
+ * {@see OrderRepository::anyExistsForTenant} (any durable order history), not catalog contents.
+ * While UNLOCKED, a currency change also rewrites every variant's currency CODE
+ * ({@see VariantRepository::reassignCurrencyForTenant} — amounts kept exactly as typed:
+ * reinterpretation, never conversion), because checkout hard-rejects variants whose currency
+ * doesn't match the store; without the rewrite a setup-time change would brick every existing
+ * product. Only an actual CHANGE trips the lock — idempotent saves never 422.
  *
  * Storage flows through the pack-owned {@see CommerceSettingsStore} contract the host app
  * binds — this package never names an app class (InertnessTest's rule).
@@ -34,12 +39,13 @@ use Thallo\Commerce\Settings\SettingsStoreCommerceOverride;
 final class CommerceSettingsController
 {
     private const CURRENCY_LOCK_MESSAGE =
-        'Currency is locked once priced products exist — every variant price is an integer in the store currency.';
+        'Currency is locked once orders exist — recorded order amounts are integers in the order’s currency.';
 
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,
         private readonly VariantRepository $variants,
+        private readonly ?OrderRepository $orders = null,
         private readonly ?CommerceSettingsStore $store = null,
     ) {
     }
@@ -62,6 +68,12 @@ final class CommerceSettingsController
         return Response::success([
             'settings' => $settings,
             'currency_locked' => $this->currencyLocked(),
+            // For the UI's honesty note: an UNLOCKED change with priced products reinterprets
+            // their numbers ($700.00 becomes GH₵700.00) — worth a warning, not a lock.
+            'has_priced_products' => $this->variants->anyExistsForTenant(
+                $this->context,
+                $this->tenants->tenantUuid($this->context),
+            ),
         ], 'Store settings retrieved');
     }
 
@@ -102,12 +114,26 @@ final class CommerceSettingsController
             }
         }
 
+        $currencyBefore = CommerceSettings::currency($this->context);
+
         $store = $this->store();
         foreach ($forgets as $key) {
             $store->forget($key);
         }
         if ($puts !== []) {
             $store->putMany($puts);
+        }
+
+        // Setup-time currency change (unlocked by definition — a locked change threw above):
+        // rewrite every variant's currency code so checkout's store-vs-variant currency guard
+        // keeps accepting existing products. Amounts stay exactly as typed.
+        $currencyAfter = CommerceSettings::currency($this->context);
+        if ($currencyAfter !== $currencyBefore) {
+            $this->variants->reassignCurrencyForTenant(
+                $this->context,
+                $this->tenants->tenantUuid($this->context),
+                $currencyAfter,
+            );
         }
 
         return $this->show($request);
@@ -157,7 +183,7 @@ final class CommerceSettingsController
 
     private function currencyLocked(): bool
     {
-        return $this->variants->anyExistsForTenant(
+        return ($this->orders ?? new OrderRepository())->anyExistsForTenant(
             $this->context,
             $this->tenants->tenantUuid($this->context),
         );
