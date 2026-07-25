@@ -34,6 +34,7 @@ use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\PaymentsSettingsController;
+use Thallo\Commerce\Http\EmailSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
@@ -168,6 +169,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider
             // honestly reports mode `manual`) without the extension installed.
             PaymentsSettingsController::class => [
                 'class'    => PaymentsSettingsController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Spec §4.2 follow-up: GET/PUT /emails — the per-template order-email switches.
+            EmailSettingsController::class => [
+                'class'    => EmailSettingsController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

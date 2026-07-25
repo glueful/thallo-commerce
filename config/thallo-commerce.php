@@ -17,6 +17,16 @@ return [
     // never silently falls back.
     'shop_prefix' => env('THALLO_COMMERCE_SHOP_PREFIX', 'shop'),
 
+    // Order-email per-template switches (store-settings spec §4.2 follow-up): defaults ON. The
+    // Emails tab stores a '0' settings row (key EQUALS config key) to turn one off; clearing
+    // deletes the row and these defaults show through. SendOrderEmails consults them per send.
+    'email' => [
+        'order_confirmation' => ['enabled' => true],
+        'order_paid' => ['enabled' => true],
+        'order_fulfilled' => ['enabled' => true],
+        'order_canceled' => ['enabled' => true],
+    ],
+
     // Task 8 (storefront-rendering spec §9): the dimension-complete shop catalog page cache
     // (index/product/category). false = exactly the uncached behavior. TTL is defense-in-depth
     // only — surrogate tags (thallo:shop:catalog:{tenant} / thallo:shop:catalog) do the real

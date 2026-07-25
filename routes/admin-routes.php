@@ -6,6 +6,7 @@ use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\PaymentsSettingsController;
+use Thallo\Commerce\Http\EmailSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
 use Glueful\Extensions\Commerce\Http\Routing\AdminMountProfile;
 use Glueful\Extensions\Commerce\Http\Routing\AdminRouteCatalog;
@@ -84,6 +85,13 @@ $router->group(
         $router->put('/payments', [PaymentsSettingsController::class, 'update'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.payments.update');
+        // Order-email switches (store-settings spec §4.2 follow-up): same grading again.
+        $router->get('/emails', [EmailSettingsController::class, 'show'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.emails.show');
+        $router->put('/emails', [EmailSettingsController::class, 'update'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.emails.update');
     },
 );
 

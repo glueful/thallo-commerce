@@ -66,6 +66,10 @@ final class SendOrderEmails
     /** @param array<string,mixed> $order */
     private function send(string $templateKey, array $order): void
     {
+        if (!$this->templateEnabled($templateKey)) {
+            return; // Switched off in the Emails tab — deliberate merchant choice, not an error.
+        }
+
         try {
             $email = trim((string) ($order['email'] ?? ''));
             if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
@@ -131,6 +135,35 @@ final class SendOrderEmails
         };
 
         return trim("{$label} {$data['order_number']} — {$data['store_name']}");
+    }
+
+    /**
+     * The per-template switch (spec §4.2 follow-up): a stored
+     * `thallo-commerce.email.{name}.enabled` row wins ('0' disables), else the pack config
+     * default (ON). Same discipline as every read near the mail path: a settings problem can
+     * only ever fall back to the default, never block or break a send decision.
+     */
+    private function templateEnabled(string $templateKey): bool
+    {
+        $name = str_starts_with($templateKey, 'commerce.') ? substr($templateKey, 9) : $templateKey;
+
+        try {
+            $container = $this->context->getContainer();
+            if ($container->has(CommerceSettingsStore::class)) {
+                $stored = $container->get(CommerceSettingsStore::class)
+                    ->get("thallo-commerce.email.{$name}.enabled");
+                if (is_string($stored)) {
+                    $flag = strtolower(trim($stored));
+                    if (in_array($flag, ['1', 'true', '0', 'false'], true)) {
+                        return in_array($flag, ['1', 'true'], true);
+                    }
+                }
+            }
+        } catch (\Throwable) {
+            // fall through to the config default
+        }
+
+        return (bool) config($this->context, "thallo-commerce.email.{$name}.enabled", true);
     }
 
     private function storeName(): string
