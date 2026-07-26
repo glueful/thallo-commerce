@@ -68,7 +68,7 @@ use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
-use Thallo\Commerce\Starter\ProductPageContributor;
+use Thallo\Commerce\Starter\ProductStoryContributor;
 use Thallo\Commerce\Starter\ShopBlockTypesContributor;
 use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
 use Thallo\Contracts\Capability\Capability;
@@ -706,7 +706,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/shop-routes.php');
 
-            // Task 11: the starter "Product page" content-type contribution (design spec §9) is
+            // Task 11: the starter "Product story" content-type contribution (design spec §9) is
             // user-facing batteries-included content, unlike the maintenance infrastructure
             // above -- it registers ONLY while the capability is on. Contributor discovery alone
             // never mutates existing tenants (it only makes the type PARTICIPATE in fresh
@@ -968,13 +968,13 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     }
 
     /**
-     * Task 11: register {@see ProductPageContributor} with the shared
+     * Task 11: register {@see ProductStoryContributor} with the shared
      * {@see StarterContributorRegistry} — the design spec §9 seam that lets an installed pack
      * participate in the fixed pages/category/post starter set without the app-owned
      * `ContentTypeKind` referencing this pack's namespace. Called ONLY from inside the
      * `thallo.commerce` capability-enabled branch of {@see boot()} (unlike
      * {@see registerProductLinkTable()}/{@see registerAdoptionContributor()}, which are
-     * maintenance infrastructure and stay unconditional) -- the Product page type is
+     * maintenance infrastructure and stay unconditional) -- the Product story type is
      * user-facing batteries-included content, design spec §9.
      *
      * Registering merely makes the definition ELIGIBLE for the next fresh-tenant provisioning
@@ -1004,12 +1004,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         }
 
         foreach ($registry->all() as $existing) {
-            if ($existing instanceof ProductPageContributor) {
+            if ($existing instanceof ProductStoryContributor) {
                 return true; // already registered — idempotent no-op.
             }
         }
 
-        $registry->register(new ProductPageContributor());
+        $registry->register(new ProductStoryContributor());
 
         return true;
     }

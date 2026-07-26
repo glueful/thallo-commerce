@@ -9,9 +9,12 @@ use Thallo\Contracts\Starter\StarterContentTypeDefinition;
 
 /**
  * Commerce-Slice-1 Task 11: this pack's contribution to the starter content-type set (design
- * spec §9) — a batteries-included "Product page" content type editors can link to a Commerce
+ * spec §9) — a batteries-included "Product story" content type editors can link to a Commerce
  * product via {@see \Thallo\Commerce\Links\ProductLinkService}. Any suitable content type
- * remains linkable; this is the default, not a requirement.
+ * remains linkable; this is the default, not a requirement. (Named "Product page" until
+ * 2026-07-26 — renamed pre-launch because that read as the storefront page the product
+ * displays on; slug, name, AND sourceId were all aligned while no published install existed.
+ * Post-distribution, a rename would keep the sourceId frozen — see below.)
  *
  * Field-shape mirrors the engine's fixed content-type definitions (the ContentTypeKind starter
  * kind's payloads()) as closely as an editorial-detail type allows: `headline` copies the
@@ -34,10 +37,10 @@ use Thallo\Contracts\Starter\StarterContentTypeDefinition;
  * requires it to survive a future slug rename (unlike the fixed types, whose sourceId is
  * `content_type:{slug}` precisely because they are never renamed).
  */
-final class ProductPageContributor implements StarterContentTypeContributor
+final class ProductStoryContributor implements StarterContentTypeContributor
 {
-    public const SOURCE_ID = 'thallo-commerce:product-page';
-    public const SLUG = 'product_page';
+    public const SOURCE_ID = 'thallo-commerce:product-story';
+    public const SLUG = 'product-story';
 
     /** @return list<StarterContentTypeDefinition> */
     public function contentTypeDefinitions(): array
@@ -45,8 +48,8 @@ final class ProductPageContributor implements StarterContentTypeContributor
         return [new StarterContentTypeDefinition(
             sourceId: self::SOURCE_ID,
             slug: self::SLUG,
-            name: 'Product page',
-            description: 'Editorial detail page for a linked commerce product.',
+            name: 'Product story',
+            description: 'Editorial content for a linked commerce product.',
             cacheTtl: null,
             publicDelivery: true,
             mountAtRoot: false,

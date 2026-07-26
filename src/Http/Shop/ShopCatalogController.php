@@ -43,7 +43,7 @@ use function config;
  * {@see EntryBlocksRenderer::renderPublishedBlocks()} — a route-INDEPENDENT read, unlike
  * {@see \Thallo\Contracts\Delivery\PublicRouteResolver::resolveEntry()} (which this
  * controller no longer calls for enrichment: that method requires a live `entry_routes` row
- * and returns `not_found` for the route-less "Product page" starter type, silently dropping
+ * and returns `not_found` for the route-less "Product story" starter type, silently dropping
  * the enrichment). Nothing here reaches into `RenderController`'s private render pipeline.
  */
 final class ShopCatalogController

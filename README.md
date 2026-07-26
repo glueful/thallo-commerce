@@ -22,7 +22,7 @@ entry still renders from Commerce data alone.
 - **Tenancy adoption + purge** — registers this pack's link table (and delegates to Commerce's own
   tables) with the tenancy adoption and purge seams, so enabling/purging a workspace carries
   Commerce data along correctly.
-- **Starter "Product page" content type** — a batteries-included content type (`product_page`:
+- **Starter "Product story" content type** — a batteries-included content type (`product-story`:
   localized `headline` + `summary`, a blocks region, no SEO fields — thallo-seo owns SEO) that
   participates in fresh-tenant provisioning like any fixed content type. See below.
 - **Diagnostics** (`thallo:commerce:diagnose`) — stale/cross-tenant link counts, an unsupported
@@ -43,7 +43,7 @@ disabled.
 
 ## Starter content type: install/enable step
 
-Registering the `product_page` starter contributor only makes it *eligible* — it never mutates an
+Registering the `product-story` starter contributor only makes it *eligible* — it never mutates an
 existing tenant on its own. Two provisioning paths follow from that:
 
 - **Fresh and future tenants** pick it up automatically the next time they're provisioned; no
@@ -55,7 +55,7 @@ existing tenant on its own. Two provisioning paths follow from that:
   php glueful thallo:tenant:sync --all --kind=content_type
   ```
 
-  Safe to re-run (a second run is a no-op for tenants that already have `product_page`). Treat a
+  Safe to re-run (a second run is a no-op for tenants that already have `product-story`). Treat a
   failed run as an incomplete activation step — it's retryable.
 
 ## Storefront
@@ -153,7 +153,7 @@ content types, generalized to block types:
 - **`product-grid`** — a category, tag, manual list (newline-delimited product slugs, deduped and
   capped at 50), or "newest" grid with server-side pagination.
 - **`featured-product`** — spotlights one product by slug, or falls back to the current entry's
-  linked product on a Product page.
+  linked product on a Product story.
 - **`add-to-cart`** — submits directly for a simple product; renders required variant/add-on
   controls (or a link to the full product page) rather than ever building an invalid cart line.
 - **`mini-cart`** — a stable, cacheable shell whose contents hydrate client-side via

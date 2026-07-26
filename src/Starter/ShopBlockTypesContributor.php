@@ -10,10 +10,10 @@ use Thallo\Contracts\Starter\StarterBlockTypeDefinition;
 /**
  * Task 11 (storefront-rendering spec §5.2/§10): this pack's contribution to the starter
  * block-type library — the 4 batteries-included shop blocks, mirroring
- * {@see \Thallo\Commerce\Starter\ProductPageContributor}'s Slice-1 pattern exactly but for
+ * {@see \Thallo\Commerce\Starter\ProductStoryContributor}'s Slice-1 pattern exactly but for
  * {@see \Thallo\Contracts\Starter\StarterBlockTypeRegistry} instead of the content-type registry.
  * `sourceId`s are stable `thallo-commerce:{slug}` identifiers (survive a future slug rename,
- * same reasoning as ProductPageContributor's own sourceId doc).
+ * same reasoning as ProductStoryContributor's own sourceId doc).
  *
  * Field-shape mirrors the engine's fixed block-type vocabulary (slug/label/icon/category/
  * description/schema; field types string/text/enum/boolean/blocks) — the engine-side conversion
@@ -73,7 +73,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 icon: 'i-lucide-shopping-cart',
                 category: self::CATEGORY,
                 description: 'An add-to-cart control for a product — falls back to the enriched '
-                    . 'product on a linked Product page.',
+                    . 'product on a linked Product story.',
                 schema: [
                     // Deliberately not `required`: the block falls back to the enriched product
                     // context (the current entry's linked commerce product) when left blank.
