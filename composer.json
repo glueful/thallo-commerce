@@ -1,7 +1,7 @@
 {
   "name": "glueful/thallo-commerce",
   "description": "Commerce adoption + product-to-entry content linkage for Thallo, as a removable capability pack.",
-  "type": "glueful-extension",
+  "type": "library",
   "license": "MIT",
   "authors": [
     {

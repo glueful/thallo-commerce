@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Thallo\Commerce;
 
+use Glueful\Extensions\DeclaresLoadOrder;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
 use Glueful\Database\Connection;
@@ -87,8 +88,29 @@ use Thallo\Tenancy\System\SystemFlags;
 
 use function config;
 
-final class CommerceIntegrationServiceProvider extends ServiceProvider
+final class CommerceIntegrationServiceProvider extends ServiceProvider implements DeclaresLoadOrder
 {
+    /**
+     * Source-verified edge (modules-not-extensions spec §5.2): this pack mounts commerce's
+     * admin route catalog and binds its host seams — commerce's own routes and boot state
+     * must exist first, preserving the pre-conversion route registration order.
+     */
+    public static function loadAfter(): array
+    {
+        return [\Glueful\Extensions\Commerce\CommerceServiceProvider::class];
+    }
+
+    /**
+     * Post-extension tier (modules-not-extensions spec §5.2): app-integrated modules load
+     * AFTER the extension universe, reproducing the pre-conversion order in which they lived
+     * at the tail of config/extensions.php. Inter-module order comes from the
+     * serviceproviders.php list (the orderer's stable tie-break).
+     */
+    public static function loadPriority(): int
+    {
+        return 100;
+    }
+
     /** The table this pack owns for product-to-entry enrichment links (spec §5.1). */
     private const PRODUCT_LINK_TABLE = 'thallo_commerce_product_links';
 
