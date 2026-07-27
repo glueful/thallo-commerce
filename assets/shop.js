@@ -259,6 +259,10 @@
     var counts = qsa(document, '[data-shop-cart-count]');
     for (var i = 0; i < counts.length; i++) {
       counts[i].textContent = String(cart.item_count);
+      // The badge only shows with items in the cart: the shell ships it hidden (the
+      // cacheable markup is always zero), this paint reveals it — an empty cart never
+      // renders a noisy "0" badge, before OR after hydration.
+      counts[i].hidden = !(cart.item_count > 0);
     }
 
     var drawers = qsa(document, '[data-shop-cart-drawer]');

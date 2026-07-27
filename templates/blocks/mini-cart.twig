@@ -16,7 +16,9 @@
       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
     </svg>
     <span class="sr-only">Cart</span>
-    <span class="thallo-block-mini-cart__count" data-shop-cart-count>0</span>
+    {# Ships hidden: the cacheable shell is always zero, and a zero badge is noise —
+       shop.js's cart paint reveals it only when the cart has items. #}
+    <span class="thallo-block-mini-cart__count" data-shop-cart-count hidden>0</span>
   </button>
 
   <div id="thallo-mini-cart-panel" class="thallo-block-mini-cart__panel" data-shop-cart-drawer>
