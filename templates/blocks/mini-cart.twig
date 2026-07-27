@@ -5,15 +5,18 @@
    repaints them, and again after every cart mutation elsewhere on the page. #}
 <div class="thallo-block thallo-block-mini-cart" data-shop-mini-cart>
   {# Icon button with a corner count badge (the standard storefront pattern). The SVG is
-     commerce-owned inline (Lucide shopping-cart, currentColor) — no cross-pack icon
-     dependency — and aria-hidden; the sr-only span keeps the accessible name. #}
+     commerce-owned inline (shopping bag, fill: currentColor so it follows the theme) —
+     no cross-pack icon dependency — and aria-hidden; the sr-only span keeps the
+     accessible name. No id attribute: this block may render more than once per page. #}
   <button type="button" class="thallo-block-mini-cart__toggle" data-shop-cart-toggle
           aria-expanded="false" aria-controls="thallo-mini-cart-panel">
-    <svg class="thallo-block-mini-cart__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-      <circle cx="8" cy="21" r="1"/>
-      <circle cx="19" cy="21" r="1"/>
-      <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
+    <svg class="thallo-block-mini-cart__icon" viewBox="0 0 24 24" fill="none"
+         aria-hidden="true" focusable="false">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M10.2257 4.11475C9.00726 4.11475 8.01953 5.10247 8.01953 6.3209V8.94835C8.01953 9.36257 7.68374 9.69835 7.26953 9.69835C6.85532 9.69835 6.51953 9.36257 6.51953 8.94835V6.3209C6.51953 4.27405 8.17883 2.61475 10.2257 2.61475C12.2725 2.61475 13.9318 4.27405 13.9318 6.3209V8.94835C13.9318 9.36257 13.596 9.69835 13.1818 9.69835C12.7676 9.69835 12.4318 9.36257 12.4318 8.94835V6.3209C12.4318 5.10247 11.4441 4.11475 10.2257 4.11475Z" fill="currentColor"></path>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M13.6212 4.11475C13.1495 4.11475 12.7144 4.26196 12.3564 4.51298C12.0173 4.75082 11.5496 4.6687 11.3117 4.32958C11.0739 3.99045 11.156 3.52273 11.4951 3.28489C12.0972 2.86266 12.8314 2.61475 13.6212 2.61475C15.668 2.61475 17.3274 4.27405 17.3274 6.3209V7.01644C17.3274 7.43066 16.9916 7.76644 16.5774 7.76644C16.1631 7.76644 15.8274 7.43066 15.8274 7.01644V6.3209C15.8274 5.10247 14.8396 4.11475 13.6212 4.11475Z" fill="currentColor"></path>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M3.67976 8.3691C3.76792 7.19513 4.74616 6.2876 5.92344 6.2876H17.7034C18.8536 6.2876 19.8187 7.15517 19.9407 8.29894L21.2023 20.126C21.2075 20.1746 21.2132 20.2258 21.2191 20.2787C21.2439 20.499 21.272 20.7497 21.2778 20.9729C21.2847 21.2395 21.2689 21.6206 21.0739 21.9595C20.919 22.2285 20.6721 22.4185 20.3699 22.4875C20.0958 22.5501 19.8438 22.4984 19.6608 22.4328C19.3315 22.3146 19.0382 22.0855 18.8321 21.8534C18.3272 22.3356 17.6496 22.6147 16.9326 22.6147H5.03524C3.72621 22.6147 2.69353 21.5016 2.79156 20.1962L3.67976 8.3691ZM5.92344 7.7876C5.53101 7.7876 5.20493 8.09011 5.17554 8.48143L4.28734 20.3085C4.25467 20.7437 4.5989 21.1147 5.03524 21.1147H16.9326C17.3744 21.1147 17.7834 20.8815 18.0084 20.5013L18.1555 20.2527C18.2801 20.042 18.4998 19.9054 18.7439 19.8868C18.988 19.8682 19.2259 19.9699 19.3811 20.1593L19.7459 20.6044C19.7416 20.5653 19.7371 20.5246 19.7323 20.482C19.7255 20.4205 19.7182 20.3552 19.7108 20.2852L18.4491 8.45804C18.4085 8.07679 18.0868 7.7876 17.7034 7.7876H5.92344ZM20.1714 21.0222C20.1715 21.0222 20.1705 21.022 20.1685 21.0213C20.1704 21.0218 20.1713 21.0221 20.1714 21.0222Z" fill="currentColor"></path>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M11.6035 7.0376C11.6035 6.62338 11.9393 6.2876 12.3535 6.2876H14.4819C15.6592 6.2876 16.6374 7.19513 16.7256 8.3691L17.6138 20.1962C17.7118 21.5016 16.6792 22.6147 15.3701 22.6147H12.3535C11.9393 22.6147 11.6035 22.2789 11.6035 21.8647C11.6035 21.4505 11.9393 21.1147 12.3535 21.1147H15.3701C15.8065 21.1147 16.1507 20.7437 16.118 20.3085L15.2298 8.48143C15.2004 8.09011 14.8744 7.7876 14.4819 7.7876H12.3535C11.9393 7.7876 11.6035 7.45181 11.6035 7.0376Z" fill="currentColor"></path>
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M7.08398 16.9912C7.08398 16.577 7.41977 16.2412 7.83398 16.2412H11.9434C12.3576 16.2412 12.6934 16.577 12.6934 16.9912C12.6934 17.4054 12.3576 17.7412 11.9434 17.7412H7.83398C7.41977 17.7412 7.08398 17.4054 7.08398 16.9912Z" fill="currentColor"></path>
     </svg>
     <span class="sr-only">Cart</span>
     {# Ships hidden: the cacheable shell is always zero, and a zero badge is noise —
