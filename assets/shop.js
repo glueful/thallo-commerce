@@ -8,6 +8,11 @@
  * `/_shop/blocks/*` and `/_shop/cart` JSON endpoints, so a block placed on ANY page shows
  * live catalog/cart data without the page's own render pipeline knowing about commerce.
  *
+ * On runtime pages (window.ThalloRuntime present) the theme-runtime core drives all of this
+ * through six registered `shop-*` modules — shop.js attaches no load hook of its own there.
+ * On runtime-absent pages (a copied pre-runtime layout) shop.js self-drives via its own
+ * init() exactly as before adoption.
+ *
  * Hard rule (spec §10): PRG is the no-JS path, not an AJAX retry strategy. Once fetch() has
  * been called, a rejection is AMBIGUOUS (the server may or may not have received the
  * request) — this file never issues a second automatic POST and never falls back to a
@@ -719,7 +724,7 @@
 
   // ---- init -----------------------------------------------------------------------
 
-  function init() {
+  function directSweep() {
     var forms = qsa(document, FORM_SELECTOR);
     for (var i = 0; i < forms.length; i++) {
       bindForm(forms[i]);
@@ -734,14 +739,41 @@
     hydrateAddToCarts();
   }
 
-  if (document.readyState === 'loading') {
+  function init() {
+    // Runtime pages: the core owns scanning, markers, canvas policy, and containment —
+    // a direct sweep would bypass all four and re-fetch already-hydrated components
+    // (shopjs-on-runtime spec §2.4). enhance() is component-idempotent, so init()
+    // remains safe to call after inserting new blocks.
+    if (window.ThalloRuntime) {
+      window.ThalloRuntime.enhance(document.documentElement);
+      return;
+    }
+    directSweep();
+  }
+
+  /* shop-runtime:end */
+  if (window.ThalloRuntime) {
+    // Adoption (theme-runtime spec §2.5 / shopjs-on-runtime spec §2.2): the core
+    // drives; enhance closures ARE the per-component functions above. All six are
+    // canvas-skip (the default) — formalizing that shop behavior never runs in the
+    // canvas stage.
+    window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
+    window.ThalloRuntime.register('shop-gallery', { selector: '[data-shop-gallery]', enhance: bindGallery });
+    window.ThalloRuntime.register('shop-mini-cart', { selector: '[data-shop-mini-cart]', enhance: hydrateMiniCart });
+    window.ThalloRuntime.register('shop-product-grid', { selector: '[data-shop-block="product-grid"]', enhance: hydrateProductGrid });
+    window.ThalloRuntime.register('shop-featured-product', { selector: '[data-shop-block="featured-product"]', enhance: hydrateFeaturedProduct });
+    window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });
+  } else if (document.readyState === 'loading') {
+    // Fallback (spec §2.3): a copied pre-runtime layout has no ThalloRuntime — shop.js
+    // self-drives exactly as before adoption.
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
 
-  // Exposed for the executable test harness (ShopJsRuntimeTest) and for callers that need
-  // to re-run hydration after injecting new blocks (e.g. a builder preview inserting one).
+  // Exposed for the executable test harness (ShopJsRuntimeTest) and for callers that
+  // need to re-run enhancement after injecting new blocks (e.g. a builder preview
+  // inserting one). On runtime pages init() delegates to the core (see above).
   window.thalloShop = {
     init: init,
     bindForm: bindForm,
