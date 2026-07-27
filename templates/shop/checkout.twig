@@ -1,6 +1,8 @@
 {% extends 'layout.twig' %}
 {% block title %}Checkout — {{ site.name }}{% endblock %}
 {% block content %}
+  {# Baseline shop styling (same fingerprinted asset the catalog pages load). #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
   <section class="shop-checkout" aria-labelledby="shop-checkout-heading">
     <h1 id="shop-checkout-heading">Checkout</h1>
 

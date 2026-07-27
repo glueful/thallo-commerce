@@ -1,6 +1,8 @@
 {% extends 'layout.twig' %}
 {% block title %}Order {{ confirmation.orderRef }} — {{ site.name }}{% endblock %}
 {% block content %}
+  {# Baseline shop styling (same fingerprinted asset the catalog pages load). #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
   <section class="shop-confirmation" aria-labelledby="shop-confirmation-heading">
     <h1 id="shop-confirmation-heading">Order {{ confirmation.orderRef }}</h1>
     <p class="shop-confirmation__status" data-status="{{ confirmation.status }}">{{ confirmation.statusLabel }}</p>

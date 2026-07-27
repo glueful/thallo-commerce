@@ -410,9 +410,56 @@
       });
   }
 
-  function hydrateMiniCarts() {
-    if (qsa(document, '[data-shop-mini-cart]').length === 0) {
+  // The drawer disclosure (mini-cart-in-the-chrome, 2026-07-27): the toggle ships
+  // aria-expanded="false" and shop.css hides the panel until it flips — this binding is the
+  // only thing that flips it. Per-toggle inner marker (same idempotency layer as bindForm's
+  // guard) keeps re-enhancement from stacking listeners; the outside-click closer is bound
+  // once per page and never closes a drawer it cannot positively place outside its shell.
+  var outsideCartCloseBound = false;
+
+  function bindMiniCartShell(el) {
+    var toggle = qs(el, '[data-shop-cart-toggle]');
+    if (!toggle || toggle.getAttribute('data-shop-cart-toggle-bound') === '1') {
       return;
+    }
+    toggle.setAttribute('data-shop-cart-toggle-bound', '1');
+
+    toggle.addEventListener('click', function () {
+      var open = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+    });
+
+    el.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+        toggle.setAttribute('aria-expanded', 'false');
+        if (typeof toggle.focus === 'function') {
+          toggle.focus();
+        }
+      }
+    });
+
+    if (!outsideCartCloseBound) {
+      outsideCartCloseBound = true;
+      document.addEventListener('click', function (event) {
+        var open = qsa(document, '[data-shop-cart-toggle][aria-expanded="true"]');
+        for (var i = 0; i < open.length; i++) {
+          var shell = typeof open[i].closest === 'function' ? open[i].closest('[data-shop-mini-cart]') : null;
+          if (!shell || typeof shell.contains !== 'function' || shell.contains(event.target)) {
+            continue;
+          }
+          open[i].setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+  }
+
+  function hydrateMiniCarts() {
+    var shells = qsa(document, '[data-shop-mini-cart]');
+    if (shells.length === 0) {
+      return;
+    }
+    for (var i = 0; i < shells.length; i++) {
+      bindMiniCartShell(shells[i]);
     }
     hydrateMiniCart();
   }
@@ -759,7 +806,13 @@
     // canvas stage.
     window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
     window.ThalloRuntime.register('shop-gallery', { selector: '[data-shop-gallery]', enhance: bindGallery });
-    window.ThalloRuntime.register('shop-mini-cart', { selector: '[data-shop-mini-cart]', enhance: hydrateMiniCart });
+    window.ThalloRuntime.register('shop-mini-cart', {
+      selector: '[data-shop-mini-cart]',
+      enhance: function (el) {
+        bindMiniCartShell(el);
+        hydrateMiniCart();
+      },
+    });
     window.ThalloRuntime.register('shop-product-grid', { selector: '[data-shop-block="product-grid"]', enhance: hydrateProductGrid });
     window.ThalloRuntime.register('shop-featured-product', { selector: '[data-shop-block="featured-product"]', enhance: hydrateFeaturedProduct });
     window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });

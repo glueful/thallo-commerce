@@ -32,6 +32,9 @@
     {% endif %}
   </noscript>
 </div>
+{# Baseline shop styling (same fingerprinted asset the catalog pages load) — duplicate
+   link tags across blocks on one page dedupe at fetch time, like the script tag below. #}
+<link rel="stylesheet" href="/_shop/assets/shop.css">
 {# The stable, deploy-invariant asset alias (see ShopAssetController) — no Twig function can
    call ShopUrlGenerator::assets() directly, so every shop block loads shop.js this way. #}
 <script src="/_shop/assets/shop.js" defer></script>

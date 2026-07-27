@@ -1,6 +1,8 @@
 {% extends 'layout.twig' %}
 {% block title %}Cart — {{ site.name }}{% endblock %}
 {% block content %}
+  {# Baseline shop styling (same fingerprinted asset the catalog pages load). #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
   <section class="shop-cart" aria-labelledby="shop-cart-heading">
     <h1 id="shop-cart-heading">Your cart</h1>
 
