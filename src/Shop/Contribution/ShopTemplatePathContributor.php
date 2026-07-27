@@ -9,9 +9,11 @@ use Thallo\Render\Contribution\TemplatePathContributor;
 /**
  * Contributes `packages/thallo-commerce/templates/` into Render's theme resolution chain
  * (storefront-rendering spec §5.2): resolves BETWEEN the active app theme (which may override
- * `shop/index.twig` etc.) and the render pack's own default fallback. Registered UNCONDITIONALLY
- * (outside the `thallo.commerce` capability gate) — a harmless, unused contribution when the
- * capability is off, mirroring the reserved-path contributor's registration point.
+ * `shop/index.twig` etc.) and the render pack's own default fallback. Registered INSIDE the
+ * `thallo.commerce` capability gate (capability-boundary pin — unlike the reserved-path
+ * contributor, which stays unconditional): with the capability off these templates must not
+ * exist in the Twig loader, so stored shop blocks fall to the missing-template fallback and no
+ * shop markup or shop.js script tag reaches a rendered page.
  */
 final class ShopTemplatePathContributor implements TemplatePathContributor
 {

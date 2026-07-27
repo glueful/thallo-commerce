@@ -7,6 +7,7 @@ namespace Thallo\Commerce;
 use Glueful\Extensions\DeclaresLoadOrder;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
+use Glueful\Cache\Contracts\EdgeCacheInterface;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
 use Glueful\Encryption\EncryptionService;
@@ -53,6 +54,7 @@ use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
 use Thallo\Commerce\Listeners\EntryDeletedListener;
 use Thallo\Commerce\Listeners\ProductDeletedListener;
 use Thallo\Commerce\Purge\CommercePurgeHandler;
+use Thallo\Commerce\Shop\CapabilityFlipPurge;
 use Thallo\Commerce\Shop\Contribution\ShopReservedPathContributor;
 use Thallo\Commerce\Shop\Contribution\ShopTemplatePathContributor;
 use Thallo\Commerce\Shop\ShopAssetMap;
@@ -687,11 +689,16 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // never let previously-created links drift.
         $this->registerLifecycleListeners($context);
 
-        // Task 7 (storefront-rendering spec §3/§5.1/§5.2): the shop prefix reservation + pack
-        // template dir contribution are infrastructure, not user-facing behavior — OUTSIDE the
-        // gate below, exactly like the purge handler/adoption contributor/lifecycle listeners
-        // above, so Render's catch-all can never serve a builder page at the shop prefix path
-        // even while thallo.commerce itself is disabled (see the method's own docblock).
+        // Task 7 (storefront-rendering spec §3/§5.1/§5.2): the shop prefix RESERVATION is
+        // infrastructure, not user-facing behavior — OUTSIDE the gate below, exactly like the
+        // purge handler/adoption contributor/lifecycle listeners above, so Render's catch-all
+        // can never serve a builder page at the shop prefix path even while thallo.commerce
+        // itself is disabled (see the method's own docblock). The pack TEMPLATE dir
+        // contribution used to register here too but moved INSIDE the gate (capability-boundary
+        // pin): the template paths are exactly what make stored shop blocks render their shells
+        // + the shop.js script tag, and "capability off" means commerce absent from the
+        // rendered page — stored blocks fall to blocks()' missing-template fallback while
+        // disabled and return on re-enable with no migration or resync.
         $this->registerShopUrlContribution($context);
 
         // Task 8 (storefront-rendering spec §9): the shop cache purge listeners are the exact
@@ -700,11 +707,25 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // thallo.commerce can never leave a stale entry for the NEXT time it's re-enabled.
         $this->registerShopCachePurgeListeners($context);
 
+        // Capability-boundary pin: a flip of thallo.commerce between boots purges the rendered
+        // page cache (+ edge) so previously cached shop shells/script tags — or, on re-enable,
+        // cached missing-template fallbacks — disappear immediately. OUTSIDE the gate for the
+        // same reason as every purge above: it must run precisely when the capability is OFF.
+        $this->reconcileCapabilityState($context, $registry->isEnabled('thallo.commerce'));
+
         // Gated by ENABLED state (spec §3): the user-facing surface only, mirroring pack
         // conventions. Disabling thallo.commerce leaves migrations/tables/registration intact.
         if ($registry->isEnabled('thallo.commerce')) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/shop-routes.php');
+
+            // Capability-boundary pin: the pack template dir joins Render's resolution chain
+            // ONLY while the capability is on. With it off, `blocks/product-grid.twig` etc.
+            // simply don't exist in the Twig loader, so stored shop blocks render through the
+            // normal missing-template fallback — no shop HTML, no shop.js script tag, no /cart
+            // links — and reappear on the next enabled boot with no migration or resync
+            // (registration is boot-time and data is never touched).
+            $this->registerShopTemplatePaths($context);
 
             // Task 11: the starter "Product story" content-type contribution (design spec §9) is
             // user-facing batteries-included content, unlike the maintenance infrastructure
@@ -1060,15 +1081,17 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     /**
      * Task 7 (storefront-rendering spec §3/§5.1/§5.2): eagerly resolves {@see ShopUrlGenerator}
      * — validating/normalizing `thallo-commerce.shop_prefix` NOW, at boot, rather than lazily on
-     * the first request that happens to need it — then registers the reserved-path
+     * the first request that happens to need it — then registers the reserved-path contribution
      * ({@see ShopReservedPathContributor}: `{prefix}`, `cart`, `_shop` as of task 9; `checkout`
-     * is still a later task's own contribution once that route exists) and template-path
-     * contributions with the shared {@see RenderContributionRegistry}.
+     * is still a later task's own contribution once that route exists) with the shared
+     * {@see RenderContributionRegistry}.
      *
      * Called UNCONDITIONALLY from {@see boot()} (outside the `thallo.commerce` capability gate):
      * the whole point of the reserved-path contribution is that Render's `/{path}` catch-all must
      * never serve a builder page at the shop prefix path EVEN WHILE the capability is disabled
      * (disabling it only removes this pack's OWN routes, registered separately inside the gate).
+     * The TEMPLATE-path contribution is deliberately NOT here — it is user-facing rendered
+     * surface and registers inside the gate ({@see self::registerShopTemplatePaths()}).
      *
      * Soft-resolves {@see RenderContributionRegistry} (thallo-render may be absent/inactive) —
      * but the ShopUrlGenerator resolution above always runs first and always throws loudly on a
@@ -1089,6 +1112,48 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         /** @var RenderContributionRegistry $registry */
         $registry = $container->get(RenderContributionRegistry::class);
         $registry->registerReservedPaths(new ShopReservedPathContributor($urls->prefix));
+    }
+
+    /**
+     * The pack template dir contribution (capability-boundary pin) — called from boot()'s
+     * `thallo.commerce`-ENABLED branch only, unlike the reserved-path contribution above.
+     * Same soft-resolve posture (thallo-render may be absent/inactive).
+     */
+    private function registerShopTemplatePaths(ApplicationContext $context): void
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        $container = $context->getContainer();
+        if (!$container->has(RenderContributionRegistry::class)) {
+            return; // thallo-render absent/inactive — nothing to contribute to.
+        }
+        /** @var RenderContributionRegistry $registry */
+        $registry = $container->get(RenderContributionRegistry::class);
         $registry->registerTemplatePaths(new ShopTemplatePathContributor());
+    }
+
+    /**
+     * Capability-boundary pin: {@see CapabilityFlipPurge} — purge rendered pages (+ edge) when
+     * the `thallo.commerce` enabled state changed since the last boot, so cached pages carrying
+     * the OLD boundary (shop shells + shop.js tag after a disable; missing-template fallbacks
+     * after a re-enable) stop serving immediately. Runs OUTSIDE the gate — it must fire
+     * precisely on the boot where the capability turned off. Soft-resolves everything
+     * (CLI/pre-migration boots, absent cache): a skipped reconcile only delays the purge to the
+     * next fully-wired boot, because the marker is only ever advanced by reconcile() itself.
+     */
+    private function reconcileCapabilityState(ApplicationContext $context, bool $enabled): void
+    {
+        if (!interface_exists(CommerceTenantResolution::class)) {
+            return; // Commerce package itself absent — none of this pack's services are bound.
+        }
+        $container = $context->getContainer();
+        if (!$container->has(CacheStore::class)) {
+            return;
+        }
+        $edge = $container->has(EdgeCacheInterface::class)
+            ? $container->get(EdgeCacheInterface::class)
+            : null;
+        (new CapabilityFlipPurge($container->get(CacheStore::class), $edge))->reconcile($enabled);
     }
 }
