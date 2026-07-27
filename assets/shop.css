@@ -313,8 +313,9 @@
 }
 .thallo-block-mini-cart__count {
   position: absolute;
-  top: -0.125rem;
-  right: -0.125rem;
+  /* Nudged inward so the badge slightly overlaps the icon's top-right corner. */
+  top: 0.125rem;
+  right: 0.125rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
