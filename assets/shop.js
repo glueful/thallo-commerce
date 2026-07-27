@@ -763,6 +763,20 @@
     window.ThalloRuntime.register('shop-product-grid', { selector: '[data-shop-block="product-grid"]', enhance: hydrateProductGrid });
     window.ThalloRuntime.register('shop-featured-product', { selector: '[data-shop-block="featured-product"]', enhance: hydrateFeaturedProduct });
     window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });
+    if (document.readyState !== 'loading') {
+      // Boot-timing reality check: on a served page the runtime core and this file are
+      // SEPARATE defer <script> tasks, and a microtask checkpoint runs between tasks —
+      // so the core's deferred boot (Promise.resolve().then(boot) once readyState is
+      // past 'loading') has ALREADY fired before the six registrations above existed.
+      // Without a catch-up pass, nothing shop-owned would ever enhance. init()
+      // delegates to ThalloRuntime.enhance(document.documentElement), and the core's
+      // data-thallo-enhanced markers gate that pass per component — so wherever the
+      // boot pass DID cover a component (same-task evaluation, e.g. a test harness
+      // evaluating both files in one task), this pass is a no-op.
+      // While readyState is still 'loading', the core's boot is waiting on
+      // DOMContentLoaded and will cover these registrations itself — schedule nothing.
+      Promise.resolve().then(init);
+    }
   } else if (document.readyState === 'loading') {
     // Fallback (spec §2.3): a copied pre-runtime layout has no ThalloRuntime — shop.js
     // self-drives exactly as before adoption.
