@@ -362,8 +362,7 @@ final class ShopCatalogController
         $locale = $this->defaultLocale();
 
         $this->extension->resetTags();
-        $this->extension->resetBlockDepth();
-        $this->extension->resetBlockFrames();
+        $this->extension->resetPerRenderState();
         $this->extension->setAssetBase(null);
         $this->extension->setBlockAnnotations(false);
         $this->extension->setThemeAppearanceOverride(null, null);

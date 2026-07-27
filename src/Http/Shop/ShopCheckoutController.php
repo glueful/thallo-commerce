@@ -372,8 +372,7 @@ final class ShopCheckoutController
         $locale = (string) config($this->context, 'i18n.default_locale', 'en');
 
         $this->extension->resetTags();
-        $this->extension->resetBlockDepth();
-        $this->extension->resetBlockFrames();
+        $this->extension->resetPerRenderState();
         $this->extension->setAssetBase(null);
         $this->extension->setBlockAnnotations(false);
         $this->extension->setThemeAppearanceOverride(null, null);
