@@ -23,6 +23,11 @@
     return;
   }
 
+  /* shop-runtime:start */
+  if (window.thalloShop) {
+    return; // every shop block template emits its own <script> tag; run once
+  }
+
   var STATUS_ID = 'thallo-shop-status';
 
   var FORM_SELECTOR = [
@@ -369,12 +374,21 @@
   }
 
   // ---- block hydration: mini-cart ------------------------------------------------
+  // Cart regions are DOCUMENT-WIDE (header count badges live outside the shells), so
+  // the fetch AND the paint are shared: the first shell to enhance starts them, every
+  // concurrent shell awaits the same in-flight promise, and the slot clears on settle
+  // so a later enhance of a freshly inserted shell fetches fresh state
+  // (shopjs-on-runtime spec §2.2).
+  var cartFetchInFlight = null;
 
-  function hydrateMiniCarts() {
-    if (qsa(document, '[data-shop-mini-cart]').length === 0 || typeof window.fetch !== 'function') {
+  function hydrateMiniCart() {
+    if (typeof window.fetch !== 'function') {
       return;
     }
-    window
+    if (cartFetchInFlight) {
+      return;
+    }
+    cartFetchInFlight = window
       .fetch('/_shop/cart', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
       .then(function (res) {
         return res.json();
@@ -383,8 +397,19 @@
         updateCartRegions(data);
       })
       .catch(function () {
-        // Leave the safe static (empty/no-JS) shell as-is.
+        // Hydration is enhancement only — a failed cart read leaves the safe static
+        // (empty/no-JS) shell as-is (same posture as every other hydrate).
+      })
+      .then(function () {
+        cartFetchInFlight = null;
       });
+  }
+
+  function hydrateMiniCarts() {
+    if (qsa(document, '[data-shop-mini-cart]').length === 0) {
+      return;
+    }
+    hydrateMiniCart();
   }
 
   // ---- block hydration: product-grid ------------------------------------------------
