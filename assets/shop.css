@@ -294,8 +294,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -308,8 +308,8 @@
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 .thallo-block-mini-cart__icon {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.625rem;
+  height: 1.625rem;
 }
 .thallo-block-mini-cart__count {
   position: absolute;
