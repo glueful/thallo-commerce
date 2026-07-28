@@ -92,20 +92,22 @@
     <h1 class="shop-product__name">{{ product.name }}</h1>
     {# Rating ABOVE the price (artifact order), rendered as filled/empty stars plus the
        numeric average and review count — the same rating data the cards already show. #}
-    {% if product.rating %}
-      <p class="shop-product__rating">
-        <span class="shop-product__stars" aria-hidden="true">
-          {% for i in 1..5 %}
-            <svg class="shop-product__star{% if i > product.rating.average|round %} shop-product__star--empty{% endif %}"
-                 viewBox="0 0 24 24" fill="currentColor" focusable="false">
-              <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
-            </svg>
-          {% endfor %}
-        </span>
-        <span>{{ product.rating.average }}</span>
-        <span class="shop-product__rating-count">· {{ product.rating.count }} review{{ product.rating.count == 1 ? '' : 's' }}</span>
-      </p>
-    {% endif %}
+    {# Always rendered (operator decision 2026-07-28) — zeros + all-empty stars when the
+       product has no reviews yet, so the buy column's rhythm never shifts. #}
+    {% set rating_average = product.rating ? product.rating.average : 0 %}
+    {% set rating_count = product.rating ? product.rating.count : 0 %}
+    <p class="shop-product__rating{% if not product.rating %} shop-product__rating--none{% endif %}">
+      <span class="shop-product__stars" aria-hidden="true">
+        {% for i in 1..5 %}
+          <svg class="shop-product__star{% if i > rating_average|round %} shop-product__star--empty{% endif %}"
+               viewBox="0 0 24 24" fill="currentColor" focusable="false">
+            <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+          </svg>
+        {% endfor %}
+      </span>
+      <span>{{ rating_average }}</span>
+      <span class="shop-product__rating-count">· {{ rating_count }} review{{ rating_count == 1 ? '' : 's' }}</span>
+    </p>
     {% if product.priceFormatted %}
       <p class="shop-product__price">
         <span class="shop-product__price-current">{{ product.priceFormatted }}</span>

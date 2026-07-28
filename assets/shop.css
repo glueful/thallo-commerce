@@ -552,6 +552,12 @@
   height: 0.875rem;
   flex-shrink: 0;
 }
+/* No reviews yet: the whole row dims so zeros read as "nothing here yet", never as a
+   zero-star verdict on the product. */
+.shop-grid__rating--none,
+.shop-product__rating--none {
+  opacity: 0.45;
+}
 .shop-grid__rating-count {
   color: color-mix(in srgb, currentColor 45%, transparent);
 }

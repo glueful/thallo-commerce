@@ -692,23 +692,24 @@
     meta.className = 'shop-grid__meta';
     body.appendChild(meta);
 
-    if (product.rating && typeof product.rating.average === 'number') {
-      var rating = document.createElement('span');
-      rating.className = 'shop-grid__rating';
-      appendIcon(rating, ICON_STAR, 'shop-grid__star');
-      var label = document.createElement('span');
-      label.className = 'sr-only';
-      label.textContent = 'Rated ';
-      rating.appendChild(label);
-      var average = document.createElement('span');
-      average.textContent = product.rating.average.toFixed(1);
-      rating.appendChild(average);
-      var reviews = document.createElement('span');
-      reviews.className = 'shop-grid__rating-count';
-      reviews.textContent = '(' + product.rating.count + ')';
-      rating.appendChild(reviews);
-      meta.appendChild(rating);
-    }
+    // The rating slot ALWAYS renders (operator decision 2026-07-28) — same structure and
+    // zero-state as _product_card.twig, so hydrated cards stay identical to server ones.
+    var hasRating = !!(product.rating && typeof product.rating.average === 'number');
+    var rating = document.createElement('span');
+    rating.className = 'shop-grid__rating' + (hasRating ? '' : ' shop-grid__rating--none');
+    appendIcon(rating, ICON_STAR, 'shop-grid__star');
+    var label = document.createElement('span');
+    label.className = 'sr-only';
+    label.textContent = hasRating ? 'Rated ' : 'No reviews yet. ';
+    rating.appendChild(label);
+    var average = document.createElement('span');
+    average.textContent = (hasRating ? product.rating.average : 0).toFixed(1);
+    rating.appendChild(average);
+    var reviews = document.createElement('span');
+    reviews.className = 'shop-grid__rating-count';
+    reviews.textContent = '(' + (hasRating ? product.rating.count : 0) + ')';
+    rating.appendChild(reviews);
+    meta.appendChild(rating);
 
     if (product.price_formatted) {
       var price = document.createElement('span');
