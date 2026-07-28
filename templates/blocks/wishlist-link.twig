@@ -1,0 +1,40 @@
+{# wishlist-link — storefront-v1 spec §5: a LINK to the wishlist page (not the collection
+   itself). Mirrors mini-cart.twig's anatomy — inline commerce-owned icon + a `hidden` count
+   badge + an optional label — but as a plain <a>, so no-JS gets an ordinary working wishlist
+   link with no count. The URL comes ONLY from the generator-owned `shop_wishlist_url()` seam
+   (Twig never concatenates a shop path); a null URL means commerce is absent/inactive, and
+   this block then degrades to plain, non-interactive text rather than a dead link.
+
+   The count is ALWAYS zero server-side (the saved set lives in the visitor's BROWSER), which
+   is exactly what keeps this block cache-safe in the chrome: shop.js's shop-wishlist module
+   paints the real number from the device-local store and reveals the badge only above zero. #}
+{% set wishlist_url = shop_wishlist_url() %}
+{% set wishlist_scope = shop_wishlist_scope() %}
+{% set wishlist_label = data.label|default('') %}
+<div class="thallo-block thallo-block-wishlist-link" data-shop-wishlist-link{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+  {% if wishlist_url %}
+    <a class="thallo-block-wishlist-link__link" href="{{ wishlist_url }}">
+      {# width/height are the PRE-CSS intrinsic size, same reasoning as the mini cart's icon:
+         the stylesheet link renders after this markup, and a dimensionless SVG paints huge
+         until shop.css arrives. CSS still owns the final size. #}
+      <svg class="thallo-block-wishlist-link__icon" width="24" height="24" viewBox="0 0 24 24"
+           fill="currentColor" aria-hidden="true" focusable="false">
+        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path>
+      </svg>
+      {% if wishlist_label %}
+        <span class="thallo-block-wishlist-link__label">{{ wishlist_label }}</span>
+      {% else %}
+        <span class="sr-only">Wishlist</span>
+      {% endif %}
+      {# Ships hidden: the cacheable shell is always zero, and a zero badge is noise —
+         shop.js reveals it only once something is saved on this device. #}
+      <span class="thallo-block-wishlist-link__count" data-shop-wishlist-count hidden>0</span>
+    </a>
+  {% else %}
+    <span class="thallo-block-wishlist-link__label">{{ wishlist_label|default('Wishlist') }}</span>
+  {% endif %}
+</div>
+{# Baseline shop styling (same fingerprinted asset the catalog pages load) — duplicate
+   link tags across blocks on one page dedupe at fetch time, like the script tag below. #}
+<link rel="stylesheet" href="/_shop/assets/shop.css">
+<script src="/_shop/assets/shop.js" defer></script>

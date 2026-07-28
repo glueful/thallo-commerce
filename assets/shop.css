@@ -251,6 +251,12 @@
 .shop-product__wishlist:hover {
   border-color: color-mix(in srgb, currentColor 55%, transparent);
 }
+/* Saved: the detail heart fills, same state vocabulary as the grid cards'. */
+.shop-product__wishlist[aria-pressed="true"] {
+  border-color: var(--shop-accent, #16211c);
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+}
 
 .shop-product__unavailable {
   flex: 1 1 auto;
@@ -420,6 +426,17 @@
 .shop-grid__action--wishlist {
   background: #fff;
   color: #16211c;
+}
+/* Saved (storefront-v1 spec §5): the heart fills, and its card keeps the action stack
+   visible even unhovered — the saved state must be legible without pointing at the card.
+   aria-pressed stays the semantic source of truth; this only styles it. */
+.shop-grid__action--wishlist[aria-pressed="true"] {
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+}
+.shop-grid__item:has(.shop-grid__action--wishlist[aria-pressed="true"]) .shop-grid__actions {
+  opacity: 1;
+  transform: none;
 }
 .shop-grid__action:hover {
   filter: brightness(1.1);
@@ -626,6 +643,10 @@
   margin: 0;
 }
 
+/* The block's item container holds REAL cards (storefront-v1 spec §5: one
+   buildProductCard() shared by this hydration and the wishlist page), so the card visuals
+   live entirely in the .shop-grid__* rules above — only the container's own layout is
+   block-owned, and it is a touch denser than the full-width catalog grid. */
 .thallo-block-product-grid__items {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
@@ -633,31 +654,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.thallo-block-product-grid__item a {
-  display: block;
-  padding: 0.875rem;
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, currentColor 5%, transparent);
-  color: inherit;
-  text-decoration: none;
-}
-.thallo-block-product-grid__name {
-  display: block;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.thallo-block-product-grid__item a:hover .thallo-block-product-grid__name {
-  text-decoration: underline;
-}
-.thallo-block-product-grid__price {
-  display: block;
-  margin-top: 0.25rem;
-  font-size: 0.9375rem;
-  color: color-mix(in srgb, currentColor 70%, transparent);
-  font-variant-numeric: tabular-nums;
 }
 .thallo-block-product-grid__empty {
   margin: 0.5rem 0;
@@ -1033,4 +1029,105 @@
   padding: 0.75rem 1rem;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   border-radius: 0.5rem;
+}
+
+/* ------------------------------------------------------------------
+   Wishlist page (storefront-v1 spec §5) — the shell ships aria-busy="true"
+   with both the empty state and the grid hidden; shop.js settles them only
+   after localStorage AND reconciliation resolve, so nothing here may assume
+   an order. The grid itself is the SAME .shop-grid the catalog pages use.
+   ------------------------------------------------------------------ */
+
+.shop-wishlist {
+  display: grid;
+  gap: 1.25rem;
+}
+.shop-wishlist h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.shop-wishlist__status {
+  margin: 0;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+.shop-wishlist__status[hidden] {
+  display: none;
+}
+.shop-wishlist__empty {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+  padding: 2rem 1.25rem;
+  border: 1px dashed color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 0.75rem;
+}
+.shop-wishlist__empty[hidden],
+.shop-wishlist [data-shop-wishlist-grid][hidden] {
+  display: none;
+}
+.shop-wishlist__empty p {
+  margin: 0;
+}
+.shop-wishlist__continue {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.shop-wishlist__noscript {
+  margin: 0;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+/* ------------------------------------------------------------------
+   wishlist-link block — the mini cart's chrome anatomy as a plain link.
+   ------------------------------------------------------------------ */
+
+.thallo-block-wishlist-link__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+.thallo-block-wishlist-link__link:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.thallo-block-wishlist-link__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+.thallo-block-wishlist-link__label {
+  font-weight: 600;
+}
+.thallo-block-wishlist-link__count {
+  position: absolute;
+  /* Nudged inward so the badge overlaps the icon's top-right corner, like the cart's. */
+  top: 0.125rem;
+  left: 1.375rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.3125rem;
+  border-radius: 999px;
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* Ships hidden (a zero count is noise) — shop.js reveals it above zero. */
+.thallo-block-wishlist-link__count[hidden] {
+  display: none;
 }

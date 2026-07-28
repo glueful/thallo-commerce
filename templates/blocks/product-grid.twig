@@ -8,7 +8,12 @@
    constructs one here. #}
 {% set source = ({category: 'category', tag: 'tag', manual: 'manual', newest: 'newest'}[data.source|default('newest')] ?? 'newest') %}
 {% set pageSize = ({small: 12, medium: 24, large: 48}[data.page_size|default('medium')] ?? 24) %}
+{# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
+   entirely (never empty) when the seam answers null. The cards this block hydrates carry
+   hearts, and they resolve their store from this root without any metadata fetch. #}
+{% set wishlist_scope = shop_wishlist_scope() %}
 <div class="thallo-block thallo-block-product-grid" data-shop-block="product-grid"
+     {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
      data-source="{{ source }}"
      data-category-slug="{{ data.category_slug|default('') }}"
      data-tag-slug="{{ data.tag_slug|default('') }}"

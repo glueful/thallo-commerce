@@ -8,7 +8,11 @@
      - link    → the form stays hidden; a "View product" link is revealed instead
      - unavailable → neither is revealed; only the status message is shown
    This shell never submits a form on its own — nothing here can become an invalid cart line. #}
+{# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
+   entirely (never empty) when the seam answers null, exactly like every other shop root. #}
+{% set wishlist_scope = shop_wishlist_scope() %}
 <div class="thallo-block thallo-block-add-to-cart" data-shop-block="add-to-cart"
+     {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
      data-product-slug="{{ data.product_slug|default('') }}"
      data-entry-uuid="{{ entry.uuid|default('') }}">
   <p class="thallo-block-add-to-cart__status" data-shop-add-to-cart-status>Loading…</p>

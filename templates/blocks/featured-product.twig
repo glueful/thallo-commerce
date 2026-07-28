@@ -4,7 +4,11 @@
    so dropping this block onto a linked "Product page" entry needs no configuration at all. The
    shell carries both hints as data-* attributes; shop.js resolves and paints it via
    `GET /_shop/blocks/featured-product` — every URL in the response comes from ShopUrlGenerator. #}
+{# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
+   entirely (never empty) when the seam answers null, exactly like every other shop root. #}
+{% set wishlist_scope = shop_wishlist_scope() %}
 <div class="thallo-block thallo-block-featured-product" data-shop-block="featured-product"
+     {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
      data-product-slug="{{ data.product_slug|default('') }}"
      data-entry-uuid="{{ entry.uuid|default('') }}">
   <div class="thallo-block-featured-product__body" data-shop-featured-body hidden></div>

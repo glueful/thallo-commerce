@@ -3,7 +3,12 @@
    total below are ALWAYS rendered empty/zero server-side (so this block never bypasses the page
    cache with visitor-specific data) — shop.js fetches the real cart on every page load and
    repaints them, and again after every cart mutation elsewhere on the page. #}
-<div class="thallo-block thallo-block-mini-cart" data-shop-mini-cart>
+{# data-shop-scope (storefront-v1 spec §5): EVERY shop block root emits the opaque wishlist
+   storage scope — OMITTED entirely (never empty) when the seam answers null — so hearts
+   hydrated inside a route-less BUILDER page find their store from the nearest root, with no
+   metadata fetch. The scope is deterministic within an already tenant-segmented page cache. #}
+{% set wishlist_scope = shop_wishlist_scope() %}
+<div class="thallo-block thallo-block-mini-cart" data-shop-mini-cart{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
   {# Icon button with a corner count badge (the standard storefront pattern). The SVG is
      commerce-owned inline (shopping bag, fill: currentColor so it follows the theme) —
      no cross-pack icon dependency — and aria-hidden; the sr-only span keeps the

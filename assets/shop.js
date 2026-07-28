@@ -8,8 +8,12 @@
  * `/_shop/blocks/*` and `/_shop/cart` JSON endpoints, so a block placed on ANY page shows
  * live catalog/cart data without the page's own render pipeline knowing about commerce.
  *
+ * It also owns the device-local wishlist (storefront-v1 spec §5): ONE localStorage-backed
+ * store per shop scope, consumed by card hearts, the product-page heart, the wishlist page,
+ * and the `wishlist-link` badge, broadcast as `thallo:wishlist-changed`.
+ *
  * On runtime pages (window.ThalloRuntime present) the theme-runtime core drives all of this
- * through seven registered `shop-*` modules — shop.js attaches no load hook of its own there.
+ * through nine registered `shop-*` modules — shop.js attaches no load hook of its own there.
  * On runtime-absent pages (a copied pre-runtime layout) shop.js self-drives via its own
  * init() exactly as before adoption.
  *
@@ -527,8 +531,9 @@
         itemsEl.hidden = false;
         clear(itemsEl);
         for (var i = 0; i < items.length; i++) {
-          itemsEl.appendChild(buildGridItem(items[i]));
+          itemsEl.appendChild(buildProductCard(items[i]));
         }
+        enhanceBuiltCards(itemsEl);
       }
     }
 
@@ -540,27 +545,206 @@
     }
   }
 
-  function buildGridItem(product) {
+  // ---- the ONE client card renderer ------------------------------------------------
+  // storefront-v1 spec §5: `_product_card.twig` stays the SERVER card renderer, and this is
+  // its client twin — both consume the same closed ProductCardViewModel projection
+  // ({uuid, name, url, cover_url, rating, price_formatted, compare_at_formatted,
+  // category_name, cart_mode, direct_variant_uuid}), and ShopBlocksTest pins their shared
+  // class/data/ARIA hook set so a redesign of either cannot silently drift. Consumed by BOTH
+  // the hydrated product-grid block and the wishlist page.
+  //
+  // Cart honesty is the SERVER's decision, never re-derived here: `cart_mode: 'direct'` (plus a
+  // variant uuid) renders the real PRG form the shop-form module already intercepts; every
+  // other mode renders an options link to the detail page.
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var ICON_CART = 'M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 '
+    + '2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 '
+    + '0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 '
+    + '0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z';
+  var ICON_OPTIONS = 'M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z';
+  var ICON_HEART = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 '
+    + '4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+  var ICON_STAR = 'M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z';
+
+  /** An inline currentColor icon — omitted entirely where createElementNS is unavailable. */
+  function cardIcon(path, className) {
+    if (typeof document.createElementNS !== 'function') {
+      return null;
+    }
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    if (className) {
+      svg.setAttribute('class', className);
+    }
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    var shape = document.createElementNS(SVG_NS, 'path');
+    shape.setAttribute('d', path);
+    svg.appendChild(shape);
+    return svg;
+  }
+
+  function appendIcon(parent, path, className) {
+    var icon = cardIcon(path, className);
+    if (icon) {
+      parent.appendChild(icon);
+    }
+  }
+
+  function buildProductCard(product) {
     var li = document.createElement('li');
-    li.className = 'thallo-block-product-grid__item';
+    li.className = 'shop-grid__item';
 
-    var a = document.createElement('a');
-    a.setAttribute('href', product.url);
+    var tile = document.createElement('div');
+    tile.className = 'shop-grid__tile';
+    tile.appendChild(buildCardMedia(product));
+    if (product.category_name) {
+      var tag = document.createElement('span');
+      tag.className = 'shop-grid__tag';
+      tag.textContent = product.category_name;
+      tile.appendChild(tag);
+    }
+    tile.appendChild(buildCardActions(product));
+    li.appendChild(tile);
 
-    var name = document.createElement('span');
-    name.className = 'thallo-block-product-grid__name';
+    li.appendChild(buildCardBody(product));
+    return li;
+  }
+
+  function buildCardMedia(product) {
+    var media = document.createElement('span');
+    media.className = 'shop-grid__media';
+    if (product.cover_url) {
+      var img = document.createElement('img');
+      img.className = 'shop-grid__image';
+      img.setAttribute('src', product.cover_url);
+      img.setAttribute('alt', product.name || '');
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+      media.appendChild(img);
+    } else {
+      var placeholder = document.createElement('span');
+      placeholder.className = 'shop-grid__image shop-grid__image--empty';
+      placeholder.setAttribute('aria-hidden', 'true');
+      media.appendChild(placeholder);
+    }
+    return media;
+  }
+
+  function buildCardActions(product) {
+    var actions = document.createElement('div');
+    actions.className = 'shop-grid__actions';
+
+    if (product.cart_mode === 'direct' && product.direct_variant_uuid) {
+      var form = document.createElement('form');
+      form.className = 'shop-grid__cart-form';
+      form.setAttribute('method', 'post');
+      form.setAttribute('action', '/_shop/cart/add');
+      form.appendChild(hiddenField('variant_uuid', product.direct_variant_uuid));
+      form.appendChild(hiddenField('quantity', '1'));
+      var submit = document.createElement('button');
+      submit.className = 'shop-grid__action shop-grid__action--cart';
+      submit.setAttribute('type', 'submit');
+      submit.setAttribute('aria-label', 'Add ' + (product.name || 'product') + ' to cart');
+      appendIcon(submit, ICON_CART);
+      form.appendChild(submit);
+      actions.appendChild(form);
+    } else {
+      var options = document.createElement('a');
+      options.className = 'shop-grid__action shop-grid__action--options';
+      options.setAttribute('href', product.url);
+      options.setAttribute('aria-label', 'View options for ' + (product.name || 'product'));
+      appendIcon(options, ICON_OPTIONS);
+      actions.appendChild(options);
+    }
+
+    // The heart ships hidden exactly like the server card's: the wishlist modules reveal it
+    // only behind a ready store (an unavailable storage backend leaves no inert control).
+    var heart = document.createElement('button');
+    heart.className = 'shop-grid__action shop-grid__action--wishlist';
+    heart.setAttribute('type', 'button');
+    heart.setAttribute('data-shop-wishlist-toggle', '');
+    heart.setAttribute('data-product-uuid', product.uuid);
+    heart.setAttribute('aria-pressed', 'false');
+    heart.setAttribute('aria-label', 'Save ' + (product.name || 'product') + ' to wishlist');
+    heart.hidden = true;
+    appendIcon(heart, ICON_HEART);
+    actions.appendChild(heart);
+
+    return actions;
+  }
+
+  function buildCardBody(product) {
+    var body = document.createElement('span');
+    body.className = 'shop-grid__body';
+
+    var name = document.createElement('a');
+    name.className = 'shop-grid__name';
+    name.setAttribute('href', product.url);
     name.textContent = product.name;
-    a.appendChild(name);
+    body.appendChild(name);
+
+    if (product.rating && typeof product.rating.average === 'number') {
+      var rating = document.createElement('span');
+      rating.className = 'shop-grid__rating';
+      appendIcon(rating, ICON_STAR, 'shop-grid__star');
+      var label = document.createElement('span');
+      label.className = 'sr-only';
+      label.textContent = 'Rated ';
+      rating.appendChild(label);
+      var average = document.createElement('span');
+      average.textContent = product.rating.average.toFixed(1);
+      rating.appendChild(average);
+      var reviews = document.createElement('span');
+      reviews.className = 'shop-grid__rating-count';
+      reviews.textContent = '(' + product.rating.count + ')';
+      rating.appendChild(reviews);
+      body.appendChild(rating);
+    }
 
     if (product.price_formatted) {
       var price = document.createElement('span');
-      price.className = 'thallo-block-product-grid__price';
-      price.textContent = product.price_formatted + ' ' + (product.currency || '');
-      a.appendChild(price);
+      price.className = 'shop-grid__price';
+      var current = document.createElement('span');
+      current.className = 'shop-grid__price-current';
+      current.textContent = product.price_formatted;
+      price.appendChild(current);
+      if (product.compare_at_formatted) {
+        var was = document.createElement('s');
+        was.textContent = product.compare_at_formatted;
+        price.appendChild(was);
+      }
+      body.appendChild(price);
     }
 
-    li.appendChild(a);
-    return li;
+    return body;
+  }
+
+  function hiddenField(name, value) {
+    var input = document.createElement('input');
+    input.setAttribute('type', 'hidden');
+    input.setAttribute('name', name);
+    input.setAttribute('value', value);
+    input.value = String(value);
+    return input;
+  }
+
+  /**
+   * Freshly built cards carry REAL controls: a direct-add PRG form the shop-form module must
+   * intercept, and a wishlist heart the store must drive. Both binders are idempotent (their
+   * own inner markers), so a later core enhance() pass over the same nodes is a no-op.
+   */
+  function enhanceBuiltCards(container) {
+    var forms = qsa(container, FORM_SELECTOR);
+    for (var i = 0; i < forms.length; i++) {
+      bindForm(forms[i]);
+    }
+    var toggles = qsa(container, '[data-shop-wishlist-toggle]');
+    for (var t = 0; t < toggles.length; t++) {
+      bindWishlistToggle(toggles[t]);
+    }
   }
 
   // ---- block hydration: featured-product ------------------------------------------------
@@ -883,6 +1067,530 @@
     qty.addEventListener('input', updateLabel);
   }
 
+  // ---- wishlist: the ONE device-local state authority ------------------------------
+  // Storefront-v1 spec §5. Storage is an ADAPTER, never naked localStorage calls: reading,
+  // parsing, and writing are individually caught, a corrupt payload resets to [], and an
+  // unavailable or unwritable backend fails CLOSED — hearts and counts stay hidden (never an
+  // inert control, never false persistence) while every other shop.js module keeps enhancing.
+  // Initialization becomes `ready` ONLY after the sanitized current value round-trips through
+  // setItem, and a mutation publishes ONLY after its write succeeds.
+  //
+  // The value is a unique, ordered list of PRODUCT UUIDS only — newest first, bounded at 100
+  // (add unshifts; overflow drops the OLDEST from the tail). No timestamps, names, or prices.
+  //
+  // The scope comes from the nearest [data-shop-scope] root (every shop page root and every
+  // shop block root emits it): no scope means commerce is absent/inactive and the wishlist
+  // never initializes — no metadata fetch anywhere.
+
+  var WISHLIST_KEY_PREFIX = 'thallo:wishlist:v1:';
+  var WISHLIST_LIMIT = 100;
+  var WISHLIST_EVENT = 'thallo:wishlist-changed';
+  var WISHLIST_ENDPOINT = '/_shop/wishlist/items?';
+  var WISHLIST_SELECTOR = '[data-shop-wishlist-toggle], [data-shop-wishlist-count]';
+  // The SAME pinned product-uuid shape the endpoint enforces (schema-pinned NanoID).
+  var WISHLIST_UUID = /^[A-Za-z0-9]{12}$/;
+
+  var wishlistStores = {};
+
+  function nearestScope(el) {
+    var node = el;
+    while (node) {
+      if (typeof node.getAttribute === 'function') {
+        var scope = node.getAttribute('data-shop-scope');
+        if (scope) {
+          return scope;
+        }
+      }
+      node = node.parentNode;
+    }
+    // A control outside any scoped root (a header badge above the page section) still finds
+    // the page's one authority — the scope is per-tenant/shop, never per-element.
+    var root = qs(document, '[data-shop-scope]');
+    return root ? root.getAttribute('data-shop-scope') : null;
+  }
+
+  function wishlistStorage() {
+    var backend = null;
+    try {
+      // Even READING window.localStorage throws in some privacy configurations.
+      backend = window.localStorage || null;
+    } catch (err) {
+      backend = null;
+    }
+    return {
+      /** null = the backend is unavailable (fail closed); [] = readable but empty/corrupt. */
+      read: function (key) {
+        if (!backend) {
+          return null;
+        }
+        var raw;
+        try {
+          raw = backend.getItem(key);
+        } catch (err) {
+          return null;
+        }
+        return parseWishlistValue(raw);
+      },
+      write: function (key, value) {
+        if (!backend) {
+          return false;
+        }
+        try {
+          backend.setItem(key, JSON.stringify(value));
+          return true;
+        } catch (err) {
+          return false; // quota/denied — the caller publishes nothing
+        }
+      },
+    };
+  }
+
+  function parseWishlistValue(raw) {
+    if (raw === null || raw === undefined || raw === '') {
+      return [];
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (err) {
+      return []; // corrupt payload — reset, never throw
+    }
+  }
+
+  /** Malformed uuids out, duplicates out (first occurrence wins), clamped to 100. */
+  function sanitizeWishlist(value) {
+    var out = [];
+    if (!Array.isArray(value)) {
+      return out;
+    }
+    var seen = {};
+    for (var i = 0; i < value.length && out.length < WISHLIST_LIMIT; i++) {
+      var uuid = value[i];
+      if (typeof uuid !== 'string' || !WISHLIST_UUID.test(uuid) || seen[uuid] === true) {
+        continue;
+      }
+      seen[uuid] = true;
+      out.push(uuid);
+    }
+    return out;
+  }
+
+  function wishlistStore(scope) {
+    if (Object.prototype.hasOwnProperty.call(wishlistStores, scope)) {
+      return wishlistStores[scope];
+    }
+    var store = createWishlistStore(scope);
+    wishlistStores[scope] = store;
+    return store;
+  }
+
+  function createWishlistStore(scope) {
+    var key = WISHLIST_KEY_PREFIX + scope;
+    var storage = wishlistStorage();
+    var uuids = [];
+    var ready = false;
+    var revision = 0;
+    var generation = 0;
+    var refetchScheduled = false;
+    var subscribers = [];
+
+    var initial = storage.read(key);
+    if (initial !== null) {
+      uuids = sanitizeWishlist(initial);
+      // READY only after a successful sanitize + setItem round-trip.
+      ready = storage.write(key, uuids);
+    }
+
+    function publish() {
+      var snapshot = uuids.slice();
+      for (var i = 0; i < subscribers.length; i++) {
+        try {
+          subscribers[i](snapshot);
+        } catch (err) {
+          // One consumer's failure never stops the others from converging.
+        }
+      }
+      if (typeof window.CustomEvent !== 'function' || typeof document.dispatchEvent !== 'function') {
+        return;
+      }
+      document.dispatchEvent(new window.CustomEvent(WISHLIST_EVENT, {
+        detail: { scope: scope, uuids: snapshot },
+      }));
+    }
+
+    /** Persistence FIRST: nothing is adopted or broadcast unless the write succeeded. */
+    function commit(next) {
+      if (!storage.write(key, next)) {
+        return false;
+      }
+      uuids = next;
+      revision++;
+      publish();
+      return true;
+    }
+
+    function has(uuid) {
+      return uuids.indexOf(uuid) !== -1;
+    }
+
+    function add(uuid) {
+      if (!ready || typeof uuid !== 'string' || !WISHLIST_UUID.test(uuid)) {
+        return false;
+      }
+      if (has(uuid)) {
+        return false; // already saved — a NO-OP, never a reorder or a second write
+      }
+      var next = [uuid].concat(uuids);
+      if (next.length > WISHLIST_LIMIT) {
+        next = next.slice(0, WISHLIST_LIMIT); // overflow drops the OLDEST (the tail)
+      }
+      return commit(next);
+    }
+
+    function remove(uuid) {
+      if (!ready || !has(uuid)) {
+        return false;
+      }
+      var next = [];
+      for (var i = 0; i < uuids.length; i++) {
+        if (uuids[i] !== uuid) {
+          next.push(uuids[i]);
+        }
+      }
+      return commit(next);
+    }
+
+    function toggle(uuid) {
+      return has(uuid) ? remove(uuid) : add(uuid);
+    }
+
+    function settle(done, result) {
+      if (typeof done === 'function') {
+        done(result);
+      }
+    }
+
+    function scheduleReconcile(done) {
+      if (refetchScheduled) {
+        return; // exactly ONE fresh reconciliation, never a storm
+      }
+      refetchScheduled = true;
+      Promise.resolve().then(function () {
+        refetchScheduled = false;
+        reconcile(done);
+      });
+    }
+
+    /**
+     * Race-safe reconciliation (spec §5): each request captures {uuids, storeRevision,
+     * requestGeneration}. A response applies ONLY when it is the latest generation AND the
+     * store revision is unchanged; otherwise it is ignored and ONE fresh reconciliation is
+     * scheduled from current state. On an applicable response, only uuids present in THAT
+     * request's snapshot and absent from its response are removed — a remove/re-add or a new
+     * heart toggle that happened in flight always survives.
+     */
+    function reconcile(done) {
+      if (!ready) {
+        settle(done, { ok: false, ready: false, items: null, requested: [] });
+        return;
+      }
+      var snapshot = uuids.slice();
+      var snapshotRevision = revision;
+      var requestGeneration = ++generation;
+      if (snapshot.length === 0) {
+        settle(done, { ok: true, ready: true, items: [], requested: [] });
+        return;
+      }
+      if (typeof window.fetch !== 'function') {
+        settle(done, { ok: false, ready: true, items: null, requested: snapshot });
+        return;
+      }
+
+      var query = [];
+      for (var i = 0; i < snapshot.length; i++) {
+        query.push('uuids[]=' + encodeURIComponent(snapshot[i]));
+      }
+
+      window
+        .fetch(WISHLIST_ENDPOINT + query.join('&'), {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (requestGeneration !== generation || snapshotRevision !== revision) {
+            scheduleReconcile(done); // superseded — never applied, never settled on
+            return;
+          }
+          var items = (data && data.items) || [];
+          var present = {};
+          for (var p = 0; p < items.length; p++) {
+            if (items[p] && typeof items[p].uuid === 'string') {
+              present[items[p].uuid] = true;
+            }
+          }
+          var next = [];
+          var dropped = false;
+          for (var u = 0; u < uuids.length; u++) {
+            if (present[uuids[u]] !== true && snapshot.indexOf(uuids[u]) !== -1) {
+              dropped = true;
+              continue;
+            }
+            next.push(uuids[u]);
+          }
+          if (dropped) {
+            commit(next); // persistence + broadcast precede the settle below
+          }
+          settle(done, { ok: true, ready: true, items: items, requested: snapshot });
+        })
+        .catch(function () {
+          // A failed resolution is enhancement failure only — the saved set is untouched.
+          settle(done, { ok: false, ready: true, items: null, requested: snapshot });
+        });
+    }
+
+    // Cross-tab convergence: the other tab already persisted this value, so re-sanitize and
+    // publish it here — hearts, badges, and the page converge without a reload.
+    if (ready && typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', function (event) {
+        if (!event || (event.key !== null && event.key !== undefined && event.key !== key)) {
+          return;
+        }
+        uuids = sanitizeWishlist(parseWishlistValue(event.newValue));
+        revision++;
+        publish();
+      });
+    }
+
+    return {
+      scope: scope,
+      ready: function () { return ready; },
+      uuids: function () { return uuids.slice(); },
+      revision: function () { return revision; },
+      has: has,
+      add: add,
+      remove: remove,
+      toggle: toggle,
+      reconcile: reconcile,
+      subscribe: function (fn) { subscribers.push(fn); },
+    };
+  }
+
+  // ---- wishlist: hearts + count badges ---------------------------------------------
+
+  function bindWishlistNode(el) {
+    if (el.getAttribute('data-shop-wishlist-toggle') !== null) {
+      bindWishlistToggle(el);
+      return;
+    }
+    bindWishlistCount(el);
+  }
+
+  /** The store a control belongs to, or null when the wishlist must not initialize at all. */
+  function readyStoreFor(el) {
+    var scope = nearestScope(el);
+    if (!scope) {
+      return null;
+    }
+    var store = wishlistStore(scope);
+    return store.ready() ? store : null;
+  }
+
+  function bindWishlistToggle(btn) {
+    if (btn.getAttribute('data-shop-wishlist-bound') === '1') {
+      return;
+    }
+    var uuid = btn.getAttribute('data-product-uuid');
+    if (!uuid) {
+      return;
+    }
+    var store = readyStoreFor(btn);
+    if (!store) {
+      return; // fail closed: the heart stays hidden rather than becoming inert
+    }
+    btn.setAttribute('data-shop-wishlist-bound', '1');
+
+    var labels = wishlistLabels(btn);
+    paintWishlistToggle(btn, store.has(uuid), labels);
+    btn.hidden = false; // revealed ONLY behind a ready store
+    btn.addEventListener('click', function () {
+      store.toggle(uuid);
+    });
+    store.subscribe(function () {
+      paintWishlistToggle(btn, store.has(uuid), labels);
+    });
+  }
+
+  function paintWishlistToggle(btn, saved, labels) {
+    btn.setAttribute('aria-pressed', saved ? 'true' : 'false');
+    if (labels) {
+      btn.setAttribute('aria-label', saved ? labels.remove : labels.add);
+    }
+  }
+
+  /**
+   * The product-specific label pair. The server ships "Save {name} to wishlist"; its saved
+   * counterpart is derived from that ONE authority. An unrecognized label is left untouched —
+   * aria-pressed already carries the state, and a wrong name would be worse than none.
+   */
+  function wishlistLabels(btn) {
+    var add = btn.getAttribute('aria-label');
+    if (!add) {
+      return null;
+    }
+    var match = /^Save (.+) to wishlist$/.exec(add);
+    return match ? { add: add, remove: 'Remove ' + match[1] + ' from wishlist' } : null;
+  }
+
+  function bindWishlistCount(el) {
+    if (el.getAttribute('data-shop-wishlist-bound') === '1') {
+      return;
+    }
+    var store = readyStoreFor(el);
+    if (!store) {
+      return;
+    }
+    el.setAttribute('data-shop-wishlist-bound', '1');
+    paintWishlistCount(el, store.uuids().length);
+    store.subscribe(function (uuids) {
+      paintWishlistCount(el, uuids.length);
+    });
+  }
+
+  function paintWishlistCount(el, count) {
+    el.textContent = String(count);
+    // The badge only shows with saved items — a zero badge is noise, exactly like the cart's.
+    el.hidden = !(count > 0);
+  }
+
+  // ---- wishlist: the page -----------------------------------------------------------
+  // The server can never read browser storage, so this page is honestly JS-dependent: the
+  // shell ships aria-busy="true" with BOTH the empty state and the grid hidden, and this
+  // module settles them only after localStorage AND reconciliation resolve — a returning
+  // visitor never sees a false "nothing saved yet".
+
+  function hydrateWishlistPage(root) {
+    if (root.getAttribute('data-shop-wishlist-page-bound') === '1') {
+      return;
+    }
+    root.setAttribute('data-shop-wishlist-page-bound', '1');
+
+    var status = qs(root, '[data-shop-wishlist-status]');
+    var empty = qs(root, '[data-shop-wishlist-empty]');
+    var grid = qs(root, '[data-shop-wishlist-grid]');
+    var scope = nearestScope(root);
+    var store = scope ? wishlistStore(scope) : null;
+    var known = {};
+    var requested = {};
+    var cards = {};
+    var settled = false;
+
+    function settleShell(message, showEmpty) {
+      if (status) {
+        status.textContent = message;
+        status.hidden = message === '';
+      }
+      if (empty) {
+        empty.hidden = !showEmpty;
+      }
+      settled = true;
+      root.setAttribute('aria-busy', 'false'); // cleared ONLY after a real settle
+    }
+
+    if (!store || !store.ready()) {
+      // Not "nothing saved yet" — the saved set is simply unreadable here. Say so, and never
+      // leave a stuck spinner behind.
+      settleShell('Saved items are stored in your browser, which is unavailable here.', false);
+      return;
+    }
+
+    /**
+     * Repaints the grid in STORED order. Card elements are cached per uuid and rebuilt only
+     * when their projection actually changed, so a repaint never re-creates (and re-binds) a
+     * card that is merely moving — the hearts keep their single subscription.
+     */
+    function paint() {
+      var current = store.uuids();
+      var painted = 0;
+      var missing = false;
+      if (grid) {
+        clear(grid);
+      }
+      for (var i = 0; i < current.length; i++) {
+        var uuid = current[i];
+        var item = known[uuid];
+        if (!item) {
+          if (requested[uuid] !== true) {
+            missing = true; // never resolved (e.g. saved in another tab) — worth a refresh
+          }
+          continue;
+        }
+        if (!cards[uuid] || cards[uuid].item !== item) {
+          cards[uuid] = { item: item, element: buildProductCard(item) };
+        }
+        painted++;
+        if (grid) {
+          grid.appendChild(cards[uuid].element);
+        }
+      }
+      if (grid) {
+        grid.hidden = painted === 0;
+        enhanceBuiltCards(grid);
+      }
+      return { count: painted, missing: missing };
+    }
+
+    function refresh() {
+      store.reconcile(function (result) {
+        var items = result.items || [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i] && typeof items[i].uuid === 'string') {
+            known[items[i].uuid] = items[i];
+          }
+        }
+        for (var r = 0; r < result.requested.length; r++) {
+          requested[result.requested[r]] = true;
+        }
+        var painted = paint();
+        if (result.ok !== true) {
+          // A failed resolution is NOT an empty wishlist — the saved set is still there.
+          settleShell('We could not load your saved items. Refresh to try again.', false);
+          return;
+        }
+        settleShell(painted.count === 0 ? '' : savedItemsMessage(painted.count), painted.count === 0);
+      });
+    }
+
+    store.subscribe(function () {
+      var painted = paint();
+      if (!settled) {
+        return; // mid-reconciliation: the settle below is what clears aria-busy
+      }
+      settleShell(painted.count === 0 ? '' : savedItemsMessage(painted.count), painted.count === 0);
+      if (painted.missing) {
+        refresh();
+      }
+    });
+
+    refresh();
+  }
+
+  function savedItemsMessage(count) {
+    return count + ' saved item' + (count === 1 ? '' : 's') + '.';
+  }
+
+  function hydrateWishlistControls() {
+    var controls = qsa(document, WISHLIST_SELECTOR);
+    for (var i = 0; i < controls.length; i++) {
+      bindWishlistNode(controls[i]);
+    }
+    var pages = qsa(document, '[data-shop-wishlist-page]');
+    for (var p = 0; p < pages.length; p++) {
+      hydrateWishlistPage(pages[p]);
+    }
+  }
+
   // ---- init -----------------------------------------------------------------------
 
   function directSweep() {
@@ -902,6 +1610,7 @@
     hydrateProductGrids();
     hydrateFeaturedProducts();
     hydrateAddToCarts();
+    hydrateWishlistControls();
   }
 
   function init() {
@@ -919,7 +1628,7 @@
   /* shop-runtime:end */
   if (window.ThalloRuntime) {
     // Adoption (theme-runtime spec §2.5 / shopjs-on-runtime spec §2.2): the core
-    // drives; enhance closures ARE the per-component functions above. All seven are
+    // drives; enhance closures ARE the per-component functions above. All nine are
     // canvas-skip (the default) — formalizing that shop behavior never runs in the
     // canvas stage.
     window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
@@ -935,6 +1644,8 @@
     window.ThalloRuntime.register('shop-product-grid', { selector: '[data-shop-block="product-grid"]', enhance: hydrateProductGrid });
     window.ThalloRuntime.register('shop-featured-product', { selector: '[data-shop-block="featured-product"]', enhance: hydrateFeaturedProduct });
     window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });
+    window.ThalloRuntime.register('shop-wishlist', { selector: WISHLIST_SELECTOR, enhance: bindWishlistNode });
+    window.ThalloRuntime.register('shop-wishlist-page', { selector: '[data-shop-wishlist-page]', enhance: hydrateWishlistPage });
     if (document.readyState !== 'loading') {
       // Boot-timing reality check: on a served page the runtime core and this file are
       // SEPARATE defer <script> tasks, and a microtask checkpoint runs between tasks —
@@ -963,5 +1674,9 @@
   window.thalloShop = {
     init: init,
     bindForm: bindForm,
+    // The client card renderer (structural parity with `_product_card.twig` is pinned by
+    // ShopBlocksTest) and the one wishlist state authority, keyed by storage scope.
+    buildProductCard: buildProductCard,
+    wishlist: wishlistStore,
   };
 })();

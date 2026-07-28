@@ -8,8 +8,9 @@ use Thallo\Contracts\Starter\StarterBlockTypeContributor;
 use Thallo\Contracts\Starter\StarterBlockTypeDefinition;
 
 /**
- * Task 11 (storefront-rendering spec §5.2/§10): this pack's contribution to the starter
- * block-type library — the 4 batteries-included shop blocks, mirroring
+ * Task 11 (storefront-rendering spec §5.2/§10) + storefront-v1 spec §5: this pack's
+ * contribution to the starter block-type library — the 5 batteries-included shop blocks
+ * (`wishlist-link` joined the original four), mirroring
  * {@see \Thallo\Commerce\Starter\ProductStoryContributor}'s Slice-1 pattern exactly but for
  * {@see \Thallo\Contracts\Starter\StarterBlockTypeRegistry} instead of the content-type registry.
  * `sourceId`s are stable `thallo-commerce:{slug}` identifiers (survive a future slug rename,
@@ -31,6 +32,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
     public const SLUG_FEATURED_PRODUCT = 'featured-product';
     public const SLUG_ADD_TO_CART = 'add-to-cart';
     public const SLUG_MINI_CART = 'mini-cart';
+    public const SLUG_WISHLIST_LINK = 'wishlist-link';
 
     private const CATEGORY = 'Commerce';
 
@@ -89,6 +91,21 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 description: 'A cart count/drawer that hydrates live via JavaScript; a plain '
                     . 'cart link without it.',
                 schema: [],
+            ),
+            // Storefront-v1 spec §5: a LINK to the wishlist page, mirroring the mini cart
+            // exactly (capability-gated, cacheable zero-count shell, JS-hydrated badge).
+            new StarterBlockTypeDefinition(
+                sourceId: 'thallo-commerce:' . self::SLUG_WISHLIST_LINK,
+                slug: self::SLUG_WISHLIST_LINK,
+                label: 'Wishlist link',
+                icon: 'i-lucide-heart',
+                category: self::CATEGORY,
+                description: 'A link to the wishlist page with a live saved-item count; a plain '
+                    . 'wishlist link without JavaScript.',
+                schema: [
+                    // Optional: blank renders the icon with a screen-reader-only "Wishlist".
+                    ['name' => 'label', 'type' => 'string'],
+                ],
             ),
         ];
     }
