@@ -47,6 +47,10 @@
       <span>{{ product.name }}</span>
     </nav>
 
+    {# Two-column detail layout (approved Concept A artifact): media column left, buy column
+       right; one column below the 48rem breakpoint. #}
+    <div class="shop-product__layout">
+    <div class="shop-product__media">
     {# The gallery leads (the composed-editor mock): cover image first, thumbnail strip when more
        exist. Every URL here came pre-resolved through the anonymous-media authority — a product
        with no publicly servable image simply renders no gallery block. #}
@@ -79,7 +83,29 @@
       </div>
     {% endif %}
 
+    </div>{# /media #}
+    <div class="shop-product__info">
+    {# Category eyebrow (artifact): the same deterministic first-category the breadcrumb uses. #}
+    {% if breadcrumb_category %}
+      <p class="shop-product__eyebrow">{{ breadcrumb_category.name }}</p>
+    {% endif %}
     <h1 class="shop-product__name">{{ product.name }}</h1>
+    {# Rating ABOVE the price (artifact order), rendered as filled/empty stars plus the
+       numeric average and review count — the same rating data the cards already show. #}
+    {% if product.rating %}
+      <p class="shop-product__rating">
+        <span class="shop-product__stars" aria-hidden="true">
+          {% for i in 1..5 %}
+            <svg class="shop-product__star{% if i > product.rating.average|round %} shop-product__star--empty{% endif %}"
+                 viewBox="0 0 24 24" fill="currentColor" focusable="false">
+              <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+            </svg>
+          {% endfor %}
+        </span>
+        <span>{{ product.rating.average }}</span>
+        <span class="shop-product__rating-count">· {{ product.rating.count }} review{{ product.rating.count == 1 ? '' : 's' }}</span>
+      </p>
+    {% endif %}
     {% if product.priceFormatted %}
       <p class="shop-product__price">
         <span class="shop-product__price-current">{{ product.priceFormatted }}</span>
@@ -87,9 +113,6 @@
           <s class="shop-product__price-compare">{{ product.compareAtFormatted }}</s>
         {% endif %}
       </p>
-    {% endif %}
-    {% if product.rating %}
-      <p class="shop-product__rating">{{ product.rating.average }} ({{ product.rating.count }})</p>
     {% endif %}
     {# Rich HTML through the render pack's fail-closed sanitizer (sanitizer spec §4) — plain-text
        legacy descriptions pass through escaped; markup is sanitized, never trusted raw. #}
@@ -169,6 +192,22 @@
         </svg>
       </button>
     </div>
+
+    {# Availability line (artifact's trust strip, honest subset): "In stock" is derived from
+       the SAME closed add-to-cart decision the buy area uses. The mock's other two claims
+       (returns window, free-shipping threshold) are store POLICY the product model has no
+       source for — they are deliberately not rendered rather than asserted as fact; they
+       belong to a store-settings follow-up. #}
+    {% if product.addToCart.available and product.addToCart.mode in ['direct', 'select'] %}
+      <p class="shop-product__availability">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+          <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+        In stock
+      </p>
+    {% endif %}
+    </div>{# /info #}
+    </div>{# /layout #}
 
     {# Optional enrichment (Commerce-Slice-2 Fix B): the linked entry's blocks region, ALREADY
        rendered server-side by Thallo\Render\EntryBlocksRenderer (a route-independent read —

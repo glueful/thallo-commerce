@@ -7,10 +7,64 @@
  */
 
 .shop-product {
-  max-width: 40rem;
+  /* Two-column detail page (approved Concept A artifact) — wider than the old single
+     column, same container width as the catalog pages. */
+  max-width: 64rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
   line-height: 1.5;
+}
+
+/* Media left, buy column right (artifact proportions); one column on small screens. */
+.shop-product__layout {
+  display: grid;
+  gap: 2rem;
+  align-items: start;
+}
+@media (min-width: 48rem) {
+  .shop-product__layout {
+    grid-template-columns: 1.05fr 1fr;
+  }
+}
+.shop-product__info {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+.shop-product__eyebrow {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+}
+.shop-product__stars {
+  display: inline-flex;
+  gap: 0.0625rem;
+}
+.shop-product__star {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.shop-product__star--empty {
+  color: color-mix(in srgb, currentColor 25%, transparent);
+}
+.shop-product__rating-count {
+  color: color-mix(in srgb, currentColor 55%, transparent);
+}
+.shop-product__availability {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+.shop-product__availability svg {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  flex-shrink: 0;
 }
 
 .shop-product__breadcrumb {
@@ -95,9 +149,13 @@
 }
 
 .shop-product__rating {
-  margin: 0 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0;
   font-size: 0.875rem;
   color: color-mix(in srgb, currentColor 65%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 
 .shop-product__description {
@@ -427,16 +485,13 @@
   background: #fff;
   color: #16211c;
 }
-/* Saved (storefront-v1 spec §5): the heart fills, and its card keeps the action stack
-   visible even unhovered — the saved state must be legible without pointing at the card.
-   aria-pressed stays the semantic source of truth; this only styles it. */
+/* Saved (storefront-v1 spec §5): the heart fills. aria-pressed stays the semantic source
+   of truth; this only styles it. The action stack itself stays hover-revealed even when
+   saved — the approved concept is a clean resting grid, so a saved product must not pin
+   its buttons open (that read as "hover is broken"). */
 .shop-grid__action--wishlist[aria-pressed="true"] {
   background: var(--shop-accent, #16211c);
   color: #fff;
-}
-.shop-grid__item:has(.shop-grid__action--wishlist[aria-pressed="true"]) .shop-grid__actions {
-  opacity: 1;
-  transform: none;
 }
 .shop-grid__action:hover {
   filter: brightness(1.1);
