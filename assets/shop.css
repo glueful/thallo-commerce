@@ -51,7 +51,7 @@
   color: color-mix(in srgb, currentColor 25%, transparent);
 }
 .shop-product__rating-count {
-  color: color-mix(in srgb, currentColor 55%, transparent);
+  color: color-mix(in srgb, currentColor 70%, transparent);
 }
 .shop-product__availability {
   display: flex;
@@ -154,7 +154,7 @@
   gap: 0.375rem;
   margin: 0;
   font-size: 0.875rem;
-  color: color-mix(in srgb, currentColor 65%, transparent);
+  color: color-mix(in srgb, currentColor 82%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -544,7 +544,7 @@
   align-items: center;
   gap: 0.25rem;
   font-size: 0.8125rem;
-  color: color-mix(in srgb, currentColor 70%, transparent);
+  color: color-mix(in srgb, currentColor 85%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .shop-grid__star {
@@ -556,10 +556,10 @@
    zero-star verdict on the product. */
 .shop-grid__rating--none,
 .shop-product__rating--none {
-  opacity: 0.45;
+  opacity: 0.6;
 }
 .shop-grid__rating-count {
-  color: color-mix(in srgb, currentColor 45%, transparent);
+  color: color-mix(in srgb, currentColor 65%, transparent);
 }
 .shop-grid__price {
   display: flex;
