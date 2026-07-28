@@ -64,6 +64,7 @@ use Thallo\Commerce\Shop\ShopAssetMap;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnAppearanceChange;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnCatalogChange;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnLinkChange;
+use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnRegionUpdate;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnSlugChange;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnThemeChange;
 use Thallo\Commerce\Shop\PackCheckoutAttemptAuthority;
@@ -79,6 +80,7 @@ use Thallo\Commerce\Starter\ShopBlockTypesContributor;
 use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
 use Thallo\Contracts\Capability\Capability;
 use Thallo\Contracts\Capability\CapabilityRegistry;
+use Thallo\Contracts\Content\RegionUpdated;
 use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
 use Thallo\Contracts\Delivery\StorefrontLinkResolver;
 use Thallo\Contracts\Delivery\StorefrontWishlistResolver;
@@ -386,6 +388,10 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'factory' => [self::class, 'makePurgeShopCacheOnLinkChange'],
                 'shared'  => true,
             ],
+            PurgeShopCacheOnRegionUpdate::class => [
+                'factory' => [self::class, 'makePurgeShopCacheOnRegionUpdate'],
+                'shared'  => true,
+            ],
             PurgeShopCacheOnThemeChange::class => [
                 'factory' => [self::class, 'makePurgeShopCacheOnThemeChange'],
                 'shared'  => true,
@@ -645,6 +651,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     public static function makePurgeShopCacheOnLinkChange(ContainerInterface $container): PurgeShopCacheOnLinkChange
     {
         return new PurgeShopCacheOnLinkChange($container);
+    }
+
+    public static function makePurgeShopCacheOnRegionUpdate(
+        ContainerInterface $container,
+    ): PurgeShopCacheOnRegionUpdate {
+        return new PurgeShopCacheOnRegionUpdate($container);
     }
 
     public static function makePurgeShopCacheOnThemeChange(
@@ -950,6 +962,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         $events->addListener(ProductLinkChanged::class, [
             app($context, PurgeShopCacheOnLinkChange::class),
             'onLinkChanged',
+        ]);
+        // Header/footer chrome renders on shop pages too, but those live in the SHOP cache —
+        // without this the render-cache purge alone left stale chrome on /shop & friends.
+        $events->addListener(RegionUpdated::class, [
+            app($context, PurgeShopCacheOnRegionUpdate::class),
+            'onRegionUpdated',
         ]);
         $events->addListener(ThemeChanged::class, [
             app($context, PurgeShopCacheOnThemeChange::class),
