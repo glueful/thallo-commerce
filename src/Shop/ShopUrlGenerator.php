@@ -98,6 +98,26 @@ final class ShopUrlGenerator
     }
 
     /**
+     * The ONE current fingerprinted `shop.css` URL. Same content-hash guarantee as
+     * {@see self::assets()}: the theme links THIS from `<head>` (storefront-v1 follow-up),
+     * so the storefront's own styling is present at first paint and costs no round trip —
+     * the `/_shop/assets/shop.css` ALIAS every block template emits is deliberately
+     * uncacheable and 302s, which showed up as the header's cart/wishlist icons visibly
+     * restyling on every navigation.
+     */
+    public function stylesheet(): string
+    {
+        $name = $this->assets->fingerprintedName('shop.css');
+        if ($name === null) {
+            throw new \RuntimeException(
+                'thallo-commerce: shop.css was not found in the pack assets/ directory.'
+            );
+        }
+
+        return '/_shop/assets/' . rawurlencode($name);
+    }
+
+    /**
      * The ONE current fingerprinted `shop.js` URL (task 11) — the fingerprint is a content
      * hash computed at boot by {@see ShopAssetMap}, so this changes automatically whenever the
      * shipped file's bytes change (every normal release), making the

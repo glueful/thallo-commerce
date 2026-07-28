@@ -487,7 +487,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     /** Commerce-Slice-2 Fix A: a thin {@see ShopUrlGenerator} adapter — see the class docblock. */
     public static function makeStorefrontLinkResolver(ContainerInterface $container): ShopStorefrontLinkResolver
     {
-        return new ShopStorefrontLinkResolver($container->get(ShopUrlGenerator::class));
+        return new ShopStorefrontLinkResolver(
+            $container->get(ShopUrlGenerator::class),
+            static fn (): bool => $container->has(CapabilityRegistry::class)
+                && $container->get(CapabilityRegistry::class)->isEnabled('thallo.commerce'),
+        );
     }
 
     /**

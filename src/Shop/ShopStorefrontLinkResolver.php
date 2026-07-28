@@ -14,8 +14,20 @@ use Thallo\Contracts\Delivery\StorefrontLinkResolver;
  */
 final class ShopStorefrontLinkResolver implements StorefrontLinkResolver
 {
-    public function __construct(private readonly ShopUrlGenerator $urls)
+    /** @param \Closure(): bool $capabilityEnabled re-read per call, so a flip is honored at once */
+    public function __construct(
+        private readonly ShopUrlGenerator $urls,
+        private readonly ?\Closure $capabilityEnabled = null,
+    ) {
+    }
+
+    public function stylesheetUrl(): ?string
     {
+        if ($this->capabilityEnabled !== null && !($this->capabilityEnabled)()) {
+            return null;
+        }
+
+        return $this->urls->stylesheet();
     }
 
     public function productUrl(string $slug): string
