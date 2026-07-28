@@ -61,6 +61,12 @@ final class ShopUrlGenerator
         return '/' . $this->prefix . '/categories/' . rawurlencode($slug);
     }
 
+    /** The wishlist page under the catalog prefix (storefront-v1 spec §5). */
+    public function wishlist(): string
+    {
+        return '/' . $this->prefix . '/wishlist';
+    }
+
     /** Stable root-level workflow path — independent of the catalog prefix (spec §3). */
     public function cart(): string
     {

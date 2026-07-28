@@ -69,6 +69,7 @@ use Thallo\Commerce\Shop\ShopFrameEmbedding;
 use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
+use Thallo\Commerce\Shop\ShopWishlistSurface;
 use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
 use Thallo\Commerce\Starter\ProductStoryContributor;
 use Thallo\Commerce\Starter\ShopBlockTypesContributor;
@@ -77,6 +78,7 @@ use Thallo\Contracts\Capability\Capability;
 use Thallo\Contracts\Capability\CapabilityRegistry;
 use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
 use Thallo\Contracts\Delivery\StorefrontLinkResolver;
+use Thallo\Contracts\Delivery\StorefrontWishlistResolver;
 use Thallo\Contracts\Events\ContentLifecycleEvent;
 use Thallo\Contracts\Settings\ThemeAppearanceChanged;
 use Thallo\Contracts\Settings\ThemeChanged;
@@ -282,6 +284,16 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'factory' => [self::class, 'makeStorefrontLinkResolver'],
                 'shared'  => true,
             ],
+            // Storefront-v1 Task 4 (spec §5): the wishlist seam thallo-render's
+            // RenderContextExtension consumes (`shop_wishlist_scope()`/`shop_wishlist_url()`).
+            // Bound unconditionally like StorefrontLinkResolver immediately above — compiled
+            // services can't be capability-conditional — but UNLIKE that pure adapter, the
+            // implementation itself re-checks `thallo.commerce` on every call and answers null
+            // while it's off (the SettingsStoreCommerceOverride gate-at-use-time posture).
+            StorefrontWishlistResolver::class => [
+                'factory' => [self::class, 'makeStorefrontWishlistResolver'],
+                'shared'  => true,
+            ],
             ShopCatalogController::class => [
                 'class'    => ShopCatalogController::class,
                 'shared'   => true,
@@ -453,6 +465,24 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     public static function makeStorefrontLinkResolver(ContainerInterface $container): ShopStorefrontLinkResolver
     {
         return new ShopStorefrontLinkResolver($container->get(ShopUrlGenerator::class));
+    }
+
+    /**
+     * Storefront-v1 Task 4 (spec §5): tenant resolution goes through the SAME shared
+     * {@see CommerceTenantResolution} seam Commerce itself consumes (resolved live per call
+     * inside the surface — see its docblock), and the capability closure re-reads
+     * {@see CapabilityRegistry} on every invocation so a flip is honored immediately, with the
+     * `has()` guard keeping pre-registry boots (CLI, partial harnesses) fail-closed to "off".
+     */
+    public static function makeStorefrontWishlistResolver(ContainerInterface $container): ShopWishlistSurface
+    {
+        return new ShopWishlistSurface(
+            $container->get(ApplicationContext::class),
+            $container->get(ShopUrlGenerator::class),
+            $container->get(CommerceTenantResolution::class),
+            static fn (): bool => $container->has(CapabilityRegistry::class)
+                && $container->get(CapabilityRegistry::class)->isEnabled('thallo.commerce'),
+        );
     }
 
     /**
