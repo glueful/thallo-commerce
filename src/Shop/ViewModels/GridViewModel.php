@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Thallo\Commerce\Shop\ViewModels;
 
 /**
- * A paginated grid of {@see ProductViewModel} — the shop index and category archive share this
- * shape. `prevPath`/`nextPath` are pre-built full paths (never a bare page number), so templates
- * never construct a query string by hand — matching {@see \Thallo\Commerce\Shop\ShopUrlGenerator}
- * being the only URL source.
+ * A paginated grid of {@see ProductCardViewModel} — the shop index and category archive share
+ * this shape. `prevPath`/`nextPath` are pre-built full paths (never a bare page number), so
+ * templates never construct a query string by hand — matching
+ * {@see \Thallo\Commerce\Shop\ShopUrlGenerator} being the only URL source.
  */
 final class GridViewModel
 {
-    /** @param list<ProductViewModel> $items */
+    /** @param list<ProductCardViewModel> $items */
     public function __construct(
         public readonly array $items,
         public readonly int $page,
@@ -28,7 +28,7 @@ final class GridViewModel
     public function toArray(): array
     {
         return [
-            'items' => array_map(static fn (ProductViewModel $item): array => $item->toArray(), $this->items),
+            'items' => array_map(static fn (ProductCardViewModel $item): array => $item->toArray(), $this->items),
             'page' => $this->page,
             'per_page' => $this->perPage,
             'total' => $this->total,

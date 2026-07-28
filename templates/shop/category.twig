@@ -4,8 +4,21 @@
   <link rel="canonical" href="{{ canonical }}">
   {# Baseline shop styling (same fingerprinted asset the product page loads). #}
   <link rel="stylesheet" href="/_shop/assets/shop.css">
-  <section class="shop-category">
+  {# data-shop-scope (storefront-v1 spec §5): omitted entirely when the seam answers null —
+     same rule as shop/index.twig. #}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <section class="shop-category"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
     <h1>{{ category.name }}</h1>
+    {# The same chip rail as the index (spec §2), with THIS category's chip active instead
+       of "All" — the controller's projection carries the active flag. #}
+    {% if categories %}
+      <nav class="shop-rail" aria-label="Categories">
+        <a class="shop-rail__chip" href="{{ shop_index }}">All</a>
+        {% for chip in categories %}
+          <a class="shop-rail__chip{% if chip.active %} shop-rail__chip--active{% endif %}"{% if chip.active %} aria-current="page"{% endif %} href="{{ chip.url }}">{{ chip.name }}</a>
+        {% endfor %}
+      </nav>
+    {% endif %}
     <ul class="shop-grid">
       {% for product in grid.items %}
         {% include 'shop/_product_card.twig' %}

@@ -19,10 +19,12 @@ use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
+use Thallo\Contracts\Delivery\MediaUrlBatchResolver;
 use Thallo\Contracts\Delivery\MediaUrlResolver;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\CategoryViewModel;
 use Thallo\Commerce\Shop\ViewModels\GridViewModel;
+use Thallo\Commerce\Shop\ViewModels\ProductCardViewModel;
 use Thallo\Commerce\Shop\ViewModels\ProductViewModel;
 use Thallo\Render\EntryBlocksRenderer;
 use Thallo\Render\Http\Middleware\RenderPageCache;
@@ -68,6 +70,10 @@ final class ShopCatalogController
         // API-prefix-correct) — the app binds it; autowiring injects it. Nullable so the pack
         // never hard-requires an app-only binding: without it, pages honestly render imageless.
         private readonly ?MediaUrlResolver $mediaUrls = null,
+        // Batched companion (storefront-v1 spec §2.2): ONE blobs query for a whole card list.
+        // Soft-consumed exactly like $mediaUrls above — when unbound, buildGrid() falls back to
+        // the per-row resolver; the pack never hard-requires the app-only binding.
+        private readonly ?MediaUrlBatchResolver $mediaUrlBatches = null,
     ) {
     }
 
@@ -89,6 +95,8 @@ final class ShopCatalogController
 
         return $this->render($request, 'shop/index.twig', [
             'grid' => $grid,
+            'categories' => $this->categoryRail($tenant),
+            'shop_index' => $this->urls->shopIndex(),
             'canonical' => $this->urls->shopIndex(),
         ]);
     }
@@ -109,6 +117,8 @@ final class ShopCatalogController
         return $this->render($request, 'shop/category.twig', [
             'category' => CategoryViewModel::fromRow($category, $this->urls),
             'grid' => $grid,
+            'categories' => $this->categoryRail($tenant, $slug),
+            'shop_index' => $this->urls->shopIndex(),
             'canonical' => $this->urls->category($slug),
         ]);
     }
@@ -271,6 +281,14 @@ final class ShopCatalogController
     }
 
     /**
+     * The batched card pipeline (storefront-v1 Task 5): ONE call per concern for the whole
+     * page — variants, required-add-on presence, first-category projections, primary media
+     * (which replaces the old `coversForProducts()` + per-missing-product `forProduct()`
+     * fallback loop without changing visual selection semantics), then one batched media-URL
+     * resolution. Per row, the existing {@see AddToCartViewModel::build()} decision reduces
+     * to the closed {@see ProductCardViewModel} — the query budget is constant in product
+     * count, and ShopCatalogTest's counting-statement guard fails if a per-card loop returns.
+     *
      * @param array{items: list<array<string,mixed>>, total: int} $result
      * @param callable(int): string $pathFor
      */
@@ -278,30 +296,38 @@ final class ShopCatalogController
     {
         $productUuids = array_map(static fn (array $p): string => (string) $p['uuid'], $result['items']);
         $variantsByProduct = $this->variants->forProducts($this->context, $tenant, $productUuids);
-        $covers = $this->media->coversForProducts($this->context, $tenant, $productUuids);
-
-        // Cover-role first, first gallery image as the fallback (the admin attaches with role
-        // 'gallery' by default — cover-only grids rendered admin-managed products imageless).
-        // The fallback read + per-item resolver lookups run on cache FILL only (shop-cached page).
-        $coverUrls = [];
-        foreach ($productUuids as $productUuid) {
-            $row = $covers[$productUuid] ?? null;
-            if ($row === null) {
-                $rows = $this->media->forProduct($this->context, $tenant, $productUuid);
-                $row = $rows[0] ?? null;
-            }
-            $coverUrls[$productUuid] = $this->mediaUrl($row);
-        }
-
-        $items = array_map(
-            fn (array $product): ProductViewModel => ProductViewModel::fromRow(
-                $product,
-                $variantsByProduct[(string) $product['uuid']] ?? [],
-                $coverUrls[(string) $product['uuid']] ?? null,
-                $this->urls,
-            ),
-            $result['items'],
+        $requiredAddons = $this->addons->hasRequiredForProducts($this->context, $tenant, $productUuids);
+        $firstCategories = $this->categories->firstCategoryProjectionsForProducts(
+            $this->context,
+            $tenant,
+            $productUuids,
         );
+        $coverUrls = $this->resolveCoverUrls(
+            $this->media->primaryForProducts($this->context, $tenant, $productUuids),
+        );
+        $currency = CommerceSettings::currency($this->context);
+
+        $items = [];
+        foreach ($result['items'] as $product) {
+            $uuid = (string) $product['uuid'];
+            $variants = $variantsByProduct[$uuid] ?? [];
+            $activeVariants = array_values(array_filter(
+                $variants,
+                static fn (array $variant): bool => ($variant['status'] ?? null) === 'active',
+            ));
+            $addToCart = AddToCartViewModel::build(
+                $product,
+                $activeVariants,
+                $requiredAddons[$uuid] ?? false,
+                $this->urls,
+                $currency,
+            );
+            $items[] = ProductCardViewModel::fromProduct(
+                ProductViewModel::fromRow($product, $variants, $coverUrls[$uuid] ?? null, $this->urls),
+                isset($firstCategories[$uuid]) ? $firstCategories[$uuid]['name'] : null,
+                $addToCart,
+            );
+        }
 
         $total = $result['total'];
         $totalPages = max(1, (int) ceil($total / self::PER_PAGE));
@@ -314,6 +340,58 @@ final class ShopCatalogController
             totalPages: $totalPages,
             prevPath: $page > 1 ? $pathFor($page - 1) : null,
             nextPath: $page < $totalPages ? $pathFor($page + 1) : null,
+        );
+    }
+
+    /**
+     * Resolved anonymous URLs for the grid's primary media rows — ONE batched blobs query
+     * through {@see MediaUrlBatchResolver} when the app binds it, else the existing per-row
+     * {@see self::mediaUrl()} fallback (the pack never hard-requires the app-only binding;
+     * the fallback runs on cache FILL only, this being a shop-cached page). Unservable blobs
+     * resolve to null either way — never a broken `<img>`.
+     *
+     * @param array<string, array<string,mixed>> $primaryMedia primary media row per product uuid
+     * @return array<string, ?string> resolved URL (or null) per product uuid
+     */
+    private function resolveCoverUrls(array $primaryMedia): array
+    {
+        if ($this->mediaUrlBatches === null) {
+            return array_map(fn (array $row): ?string => $this->mediaUrl($row), $primaryMedia);
+        }
+
+        $blobUuids = [];
+        foreach ($primaryMedia as $row) {
+            if (isset($row['blob_uuid'])) {
+                $blobUuids[] = (string) $row['blob_uuid'];
+            }
+        }
+        $urlsByBlob = $blobUuids === [] ? [] : $this->mediaUrlBatches->urls($blobUuids);
+
+        return array_map(
+            static fn (array $row): ?string => isset($row['blob_uuid'])
+                ? ($urlsByBlob[(string) $row['blob_uuid']] ?? null)
+                : null,
+            $primaryMedia,
+        );
+    }
+
+    /**
+     * The chip rail (storefront-v1 spec §2): every category for the tenant as a closed
+     * `{name, url, active}` projection — never a raw row. Empty → templates skip the rail
+     * entirely. `$activeSlug` marks the category page's own chip; the index passes none
+     * (its "All" chip is the template's own active state).
+     *
+     * @return list<array{name: string, url: string, active: bool}>
+     */
+    private function categoryRail(string $tenant, ?string $activeSlug = null): array
+    {
+        return array_map(
+            fn (array $row): array => [
+                'name' => (string) $row['name'],
+                'url' => $this->urls->category((string) $row['slug']),
+                'active' => $activeSlug !== null && (string) $row['slug'] === $activeSlug,
+            ],
+            $this->categories->all($this->context, $tenant),
         );
     }
 
