@@ -432,14 +432,24 @@
     }
     toggle.setAttribute('data-shop-cart-toggle-bound', '1');
 
+    // `hidden` is authoritative (shop.css): the drawer's OPEN state must clear the attribute,
+    // never rely on an author display rule out-ranking it. aria-expanded stays the semantic
+    // source of truth and drives the panel's own styling; the two are always set together.
+    var panel = qs(el, '[data-shop-cart-drawer]');
+    var setOpen = function (open) {
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (panel) {
+        panel.hidden = !open;
+      }
+    };
+
     toggle.addEventListener('click', function () {
-      var open = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+      setOpen(toggle.getAttribute('aria-expanded') !== 'true');
     });
 
     el.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
-        toggle.setAttribute('aria-expanded', 'false');
+        setOpen(false);
         if (typeof toggle.focus === 'function') {
           toggle.focus();
         }
@@ -456,6 +466,10 @@
             continue;
           }
           open[i].setAttribute('aria-expanded', 'false');
+          var openPanel = shell.querySelector('[data-shop-cart-drawer]');
+          if (openPanel) {
+            openPanel.hidden = true;
+          }
         }
       });
     }

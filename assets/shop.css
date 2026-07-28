@@ -6,6 +6,18 @@
  * Served via the fingerprinted immutable asset pipeline (ShopAssetMap / ShopAssetController).
  */
 
+/* `hidden` is authoritative (2026-07-28). An author `display` declaration BEATS the UA's
+   `[hidden] { display: none }` — so every shell element that ships the boolean attribute
+   (cart/wishlist count badges, the pre-hydration grid + view-all link, the add-to-cart form
+   and its link, the wishlist grid) rendered anyway: a "0" badge on an empty cart, dead
+   href="#" links, and an add-to-cart form visible before its mode was resolved. Proven in
+   the browser: setting .hidden on the badge left computed display `flex`. One rule fixes the
+   class and makes future `hidden` shells correct by default; shop.js toggles the ATTRIBUTE
+   (never a style) wherever it shows or hides such an element. */
+[hidden] {
+  display: none !important;
+}
+
 .shop-product {
   /* Two-column detail page (approved Concept A artifact) — wider than the old single
      column, same container width as the catalog pages. */
@@ -299,9 +311,6 @@
 }
 /* Ships `hidden` until the wishlist store is ready — the display rule above would
    otherwise defeat the attribute's UA display: none. */
-.shop-product__wishlist[hidden] {
-  display: none;
-}
 .shop-product__wishlist svg {
   width: 1.25rem;
   height: 1.25rem;
@@ -487,11 +496,6 @@
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
-}
-/* The heart ships `hidden` until the wishlist store is ready — without this, the
-   author-level display rule above would defeat the attribute's UA display: none. */
-.shop-grid__action[hidden] {
-  display: none;
 }
 .shop-grid__action svg {
   width: 1.125rem;
@@ -1215,6 +1219,3 @@
   font-variant-numeric: tabular-nums;
 }
 /* Ships hidden (a zero count is noise) — shop.js reveals it above zero. */
-.thallo-block-wishlist-link__count[hidden] {
-  display: none;
-}
