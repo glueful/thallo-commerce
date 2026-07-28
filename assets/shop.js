@@ -187,6 +187,15 @@
     if (data && typeof data === 'object') {
       if (Object.prototype.hasOwnProperty.call(data, 'item_count')) {
         updateCartRegions(data);
+        // updateCartRegions() paints the mini-cart regions and nothing else. The cart PAGE's
+        // line rows, per-line forms, discount row, totals and empty-state swap are rendered by
+        // cart.twig, so re-render from that one authority instead of duplicating it here — the
+        // same state the no-JS PRG redirect lands on, for the same two round trips. Scoped to
+        // pages that actually show it: a product-page add must not discard the page being read.
+        if (document.querySelector('[data-shop-cart-page]')) {
+          window.location.reload();
+          return;
+        }
         announce('Cart updated: ' + data.item_count + ' item' + (data.item_count === 1 ? '' : 's') + '.');
         return;
       }

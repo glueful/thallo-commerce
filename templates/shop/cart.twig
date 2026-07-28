@@ -7,7 +7,10 @@
      storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
      the index page's own root. #}
   {% set wishlist_scope = shop_wishlist_scope() %}
-  <section class="shop-cart"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %} aria-labelledby="shop-cart-heading">
+  {# data-shop-cart-page: the rows, per-line forms, totals and empty-state below are
+     server-rendered, so shop.js re-renders this page after a successful cart mutation
+     rather than repainting them client-side (see onSuccess in shop.js). #}
+  <section class="shop-cart" data-shop-cart-page{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %} aria-labelledby="shop-cart-heading">
     <h1 id="shop-cart-heading">Your cart</h1>
 
     {% if cart.items is empty %}
