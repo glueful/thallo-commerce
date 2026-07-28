@@ -209,22 +209,12 @@
   padding: 0;
   list-style: none;
 }
-/* Contained card: the whole card is the link; hover lifts the card instead of
-   underlining the name (mirrors the modern storefront card pattern). */
-.shop-grid__card {
+/* Borderless card: static presentation, the product NAME is the link to the
+   detail page — no whole-card link, no hover chrome. */
+.shop-grid__item {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  height: 100%;
-  padding: 0.875rem;
-  border-radius: 1rem;
-  color: inherit;
-  text-decoration: none;
-  transition: box-shadow 150ms ease, translate 150ms ease;
-}
-.shop-grid__card:hover {
-  box-shadow: 0 0.75rem 1.75rem -1rem color-mix(in srgb, currentColor 45%, transparent);
-  translate: 0 -2px;
 }
 .shop-grid__media {
   display: block;
@@ -240,22 +230,6 @@
   object-fit: contain;
   padding: 1.25rem;
   box-sizing: border-box;
-  transition: scale 200ms ease;
-}
-.shop-grid__card:hover .shop-grid__image {
-  scale: 1.04;
-}
-@media (prefers-reduced-motion: reduce) {
-  .shop-grid__card,
-  .shop-grid__image {
-    transition: none;
-  }
-  .shop-grid__card:hover {
-    translate: none;
-  }
-  .shop-grid__card:hover .shop-grid__image {
-    scale: none;
-  }
 }
 .shop-grid__body {
   display: grid;
@@ -265,9 +239,14 @@
 .shop-grid__name {
   display: block;
   font-weight: 650;
+  color: inherit;
+  text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.shop-grid__name:hover {
+  text-decoration: underline;
 }
 .shop-grid__rating {
   display: flex;
