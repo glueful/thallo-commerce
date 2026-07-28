@@ -1316,6 +1316,13 @@
           credentials: 'same-origin',
         })
         .then(function (res) {
+          if (!res.ok || res.status !== 200) {
+            // The framework serves JSON ERROR envelopes — a 500 parses fine, and the
+            // endpoint's own 422 body even carries `items: []`. An error response is NEVER
+            // reconciliation authority: throw into the SAME failed-resolution path a
+            // network rejection takes (saved set untouched, `ok: false` settle below).
+            throw new Error('wishlist resolution failed: HTTP ' + res.status);
+          }
           return res.json();
         })
         .then(function (data) {
@@ -1650,7 +1657,7 @@
       // Boot-timing reality check: on a served page the runtime core and this file are
       // SEPARATE defer <script> tasks, and a microtask checkpoint runs between tasks —
       // so the core's deferred boot (Promise.resolve().then(boot) once readyState is
-      // past 'loading') has ALREADY fired before the seven registrations above existed.
+      // past 'loading') has ALREADY fired before the nine registrations above existed.
       // Without a catch-up pass, nothing shop-owned would ever enhance. init()
       // delegates to ThalloRuntime.enhance(document.documentElement), and the core's
       // data-thallo-enhanced markers gate that pass per component — so wherever the

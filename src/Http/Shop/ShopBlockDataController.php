@@ -21,6 +21,7 @@ use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Shop\ManualProductListNormalizer;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
+use Thallo\Commerce\Shop\ViewModels\ProductCardViewModel;
 use Thallo\Commerce\Shop\ViewModels\ProductViewModel;
 use Thallo\Contracts\Delivery\MediaUrlResolver;
 
@@ -57,6 +58,10 @@ final class ShopBlockDataController
         private readonly AddonRepository $addons,
         private readonly ProductLinkService $links,
         private readonly ShopUrlGenerator $urls,
+        // Task 7's shared batched card authority — productGrid() items feed shop.js's
+        // buildProductCard(), so they MUST be the same closed ProductCardViewModel
+        // projection the wishlist endpoint and the server-rendered grids emit.
+        private readonly ShopProductCardAssembler $cards,
         // Same anonymous-media URL authority ShopCatalogController uses — see its ctor note.
         private readonly ?MediaUrlResolver $mediaUrls = null,
     ) {
@@ -110,10 +115,15 @@ final class ShopBlockDataController
             ));
         }
 
-        $items = $this->toViewModels($tenant, $rows);
-
+        // The SAME batched card pipeline the shop grids and the wishlist endpoint use —
+        // shop.js paints these items via buildProductCard(), which consumes exactly the
+        // closed ProductCardViewModel allowlist (cart_mode/direct_variant_uuid/category_name
+        // included, nothing else leaked). Constant query budget in product count.
         return $this->noStore(new JsonResponse([
-            'items' => array_map(static fn (ProductViewModel $vm): array => $vm->toArray(), $items),
+            'items' => array_map(
+                static fn (ProductCardViewModel $card): array => $card->toArray(),
+                $this->cards->cards($tenant, $rows),
+            ),
             'view_all_url' => $viewAllUrl,
         ]));
     }
@@ -223,27 +233,6 @@ final class ShopBlockDataController
         }
 
         return $items;
-    }
-
-    /**
-     * @param list<array<string,mixed>> $rows
-     * @return list<ProductViewModel>
-     */
-    private function toViewModels(string $tenant, array $rows): array
-    {
-        $productUuids = array_map(static fn (array $p): string => (string) $p['uuid'], $rows);
-        $variantsByProduct = $this->variants->forProducts($this->context, $tenant, $productUuids);
-        $covers = $this->media->coversForProducts($this->context, $tenant, $productUuids);
-
-        return array_map(
-            fn (array $product): ProductViewModel => ProductViewModel::fromRow(
-                $product,
-                $variantsByProduct[(string) $product['uuid']] ?? [],
-                $this->coverUrlFor($tenant, (string) $product['uuid'], $covers[(string) $product['uuid']] ?? null),
-                $this->urls,
-            ),
-            $rows,
-        );
     }
 
     // ------------------------------------------------------------------
