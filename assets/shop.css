@@ -1039,6 +1039,11 @@
    ------------------------------------------------------------------ */
 
 .shop-wishlist {
+  /* Same centered page container as .shop-index/.shop-category. */
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+  line-height: 1.5;
   display: grid;
   gap: 1.25rem;
 }
