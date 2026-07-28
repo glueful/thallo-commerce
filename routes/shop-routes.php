@@ -9,6 +9,7 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Http\Shop\ShopWishlistController;
 use Thallo\Commerce\Shop\ShopFrameEmbedding;
 use Thallo\Commerce\Shop\ShopPageCache;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
@@ -47,6 +48,15 @@ $router->get('/' . $prefix, [ShopCatalogController::class, 'index'])
 $router->get('/' . $prefix . '/products/{slug}', [ShopCatalogController::class, 'product'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopFrameEmbedding::class, ShopPageCache::class]);
 $router->get('/' . $prefix . '/categories/{slug}', [ShopCatalogController::class, 'category'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+/*
+ * Storefront-v1 Task 7 (spec §5): the wishlist page — a static, per-visitor-data-free
+ * hydration shell, so it participates in ShopPageCache exactly like the catalog pages above
+ * (the saved set lives in the browser; shop.js resolves it via /_shop/wishlist/items below,
+ * which — like every /_shop route — is never page-cached). Static-route precedence over
+ * `/{prefix}/products/{slug}`-style dynamic routes is structural, same as `/{prefix}` above.
+ */
+$router->get('/' . $prefix . '/wishlist', [ShopWishlistController::class, 'page'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
 
 /*
@@ -100,6 +110,12 @@ $router->get('/checkout/confirmation/{ref}', [ShopCheckoutController::class, 'co
  * ShopPageCache (deliberately absent) — these are per-block reads, not the dimension-complete
  * catalog page cache's concern.
  */
+// Storefront-v1 Task 7 (spec §5): the bounded, ordered wishlist resolution endpoint shop.js
+// hydrates the wishlist page (and reconciles localStorage) from. Public GET like `/_shop/cart`
+// above, and never cached by ShopPageCache (deliberately absent) — always private, no-store.
+$router->get('/_shop/wishlist/items', [ShopWishlistController::class, 'items'])
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+
 $router->get('/_shop/blocks/product-grid', [ShopBlockDataController::class, 'productGrid'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 $router->get('/_shop/blocks/featured-product', [ShopBlockDataController::class, 'featuredProduct'])

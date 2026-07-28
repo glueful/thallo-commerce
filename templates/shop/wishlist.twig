@@ -1,0 +1,38 @@
+{% extends 'layout.twig' %}
+{% block title %}Wishlist — {{ site.name }}{% endblock %}
+{% block content %}
+  <link rel="canonical" href="{{ canonical }}">
+  {# Baseline shop styling (same fingerprinted asset every other shop page loads). #}
+  <link rel="stylesheet" href="/_shop/assets/shop.css">
+  {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
+     storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
+     the index page's own root. The shell starts aria-busy="true" and both the empty state and
+     the grid ship hidden: shop.js settles them AFTER localStorage + reconciliation resolve,
+     so a false "nothing saved yet" can never flash first. Cache-safe by construction — no
+     per-visitor data anywhere in this markup (the saved set lives in the BROWSER), which is
+     what lets this page participate in ShopPageCache exactly like the catalog pages. #}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <section class="shop-wishlist" data-shop-wishlist-page{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %} aria-busy="true" aria-labelledby="shop-wishlist-heading">
+    <h1 id="shop-wishlist-heading">Wishlist</h1>
+    <p class="shop-wishlist__status" data-shop-wishlist-status role="status">Loading your saved items…</p>
+    <div class="shop-wishlist__empty" data-shop-wishlist-empty hidden>
+      <p>Nothing saved yet.</p>
+      <p class="shop-wishlist__actions">
+        <a class="shop-wishlist__continue" href="{{ shop_index }}">Continue shopping</a>
+      </p>
+    </div>
+    {# The card grid container — hydrated by shop.js with the SAME card contract the server
+       grids render (`_product_card.twig` / buildProductCard()), via /_shop/wishlist/items. #}
+    <ul class="shop-grid" data-shop-wishlist-grid hidden></ul>
+    <noscript>
+      {# Honestly JS-dependent (spec §5): the server cannot read browser storage. #}
+      <p class="shop-wishlist__noscript">
+        Saved items are stored in your browser, so this page needs JavaScript to display them.
+        Enable JavaScript to see your wishlist — or head back to the
+        <a href="{{ shop_index }}">shop</a>.
+      </p>
+    </noscript>
+  </section>
+  {# Same stable, deploy-invariant asset alias the product page and shop blocks load. #}
+  <script src="/_shop/assets/shop.js" defer></script>
+{% endblock %}

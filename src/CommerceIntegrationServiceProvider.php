@@ -51,6 +51,9 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Http\Shop\ShopPageRenderer;
+use Thallo\Commerce\Http\Shop\ShopProductCardAssembler;
+use Thallo\Commerce\Http\Shop\ShopWishlistController;
 use Thallo\Commerce\Listeners\EntryDeletedListener;
 use Thallo\Commerce\Listeners\ProductDeletedListener;
 use Thallo\Commerce\Purge\CommercePurgeHandler;
@@ -294,8 +297,28 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'factory' => [self::class, 'makeStorefrontWishlistResolver'],
                 'shared'  => true,
             ],
+            // Storefront-v1 Task 7: the shared shop-page render seam (ShopCatalogController's
+            // old private render(), extracted verbatim) and the shared batched card pipeline
+            // (its old buildGrid() body) — both consumed by ShopCatalogController AND
+            // ShopWishlistController so pages and cards can never drift between the two.
+            ShopPageRenderer::class => [
+                'class'    => ShopPageRenderer::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ShopProductCardAssembler::class => [
+                'class'    => ShopProductCardAssembler::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ShopCatalogController::class => [
                 'class'    => ShopCatalogController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Storefront-v1 Task 7: the wishlist page shell + bounded resolution endpoint.
+            ShopWishlistController::class => [
+                'class'    => ShopWishlistController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
