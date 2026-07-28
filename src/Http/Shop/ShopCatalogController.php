@@ -177,8 +177,18 @@ final class ShopCatalogController
 
         $enrichment = $this->resolveEnrichment($tenant, $uuid);
 
+        // Breadcrumb (storefront-v1 Task 6): the SAME deterministic first-category projection
+        // the grid tags use (Task 1's batched read — the single-product call is the same
+        // bounded query), or null when the product has no direct category assignment.
+        $breadcrumbCategory = $this->categories->firstCategoryProjectionsForProducts(
+            $this->context,
+            $tenant,
+            [$uuid],
+        )[$uuid] ?? null;
+
         $response = $this->render($request, 'shop/product.twig', [
             'product' => $vm,
+            'breadcrumb_category' => $breadcrumbCategory,
             'enrichment_html' => $enrichment['html'] ?? null,
             'canonical' => $this->urls->product($slug),
             'shop_index' => $this->urls->shopIndex(),

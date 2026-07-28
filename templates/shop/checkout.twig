@@ -3,7 +3,11 @@
 {% block content %}
   {# Baseline shop styling (same fingerprinted asset the catalog pages load). #}
   <link rel="stylesheet" href="/_shop/assets/shop.css">
-  <section class="shop-checkout" aria-labelledby="shop-checkout-heading">
+  {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
+     storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
+     the index page's own root. #}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <section class="shop-checkout"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %} aria-labelledby="shop-checkout-heading">
     <h1 id="shop-checkout-heading">Checkout</h1>
 
     {% if checkout.cart.items is empty %}

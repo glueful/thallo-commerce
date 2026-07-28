@@ -9,7 +9,7 @@
  * live catalog/cart data without the page's own render pipeline knowing about commerce.
  *
  * On runtime pages (window.ThalloRuntime present) the theme-runtime core drives all of this
- * through six registered `shop-*` modules — shop.js attaches no load hook of its own there.
+ * through seven registered `shop-*` modules — shop.js attaches no load hook of its own there.
  * On runtime-absent pages (a copied pre-runtime layout) shop.js self-drives via its own
  * init() exactly as before adoption.
  *
@@ -773,6 +773,116 @@
     });
   }
 
+  // ---- product buy area: quantity stepper + exponent-aware price-in-button --------
+  // Storefront-v1 Task 6: the product page's add-to-cart form ([data-shop-buy]) carries the
+  // stepper ([data-shop-qty-minus]/[data-shop-qty-plus] around the REAL quantity input,
+  // clamped 1–99) and the closed price projection — data-currency + data-currency-exponent
+  // ONCE on the form (the exponent only ever comes from commerce Money::exponentFor()),
+  // data-price-minor on the form in direct mode / on each <option> in select mode. The
+  // submit button's [data-shop-buy-price] span ships the server-rendered unit price (the
+  // no-JS truth); this module recomputes it as qty × minor with CHECKED integer math — a
+  // malformed/absent attribute, an unknown currency, or a product past
+  // Number.MAX_SAFE_INTEGER leaves the server-rendered label untouched. Pure DOM state, no
+  // fetch — nothing here can affect PRG.
+
+  var QTY_MIN = 1;
+  var QTY_MAX = 99;
+
+  function bindBuyArea(form) {
+    if (form.getAttribute('data-shop-buy-bound') === '1') {
+      return;
+    }
+    form.setAttribute('data-shop-buy-bound', '1');
+
+    var qty = qs(form, 'input[name="quantity"]');
+    if (!qty) {
+      return;
+    }
+    var minus = qs(form, '[data-shop-qty-minus]');
+    var plus = qs(form, '[data-shop-qty-plus]');
+    var select = qs(form, 'select[name="variant_uuid"]');
+
+    function clampedQty() {
+      var value = parseInt(qty.value, 10);
+      if (!Number.isSafeInteger(value) || value < QTY_MIN) {
+        return QTY_MIN;
+      }
+      return value > QTY_MAX ? QTY_MAX : value;
+    }
+
+    // The minor unit price: the SELECTED option's data-price-minor when a variant select
+    // exists, else the form's own (direct mode). Null when absent/unmatched.
+    function priceMinorRaw() {
+      if (select) {
+        var options = qsa(select, 'option');
+        for (var i = 0; i < options.length; i++) {
+          if (options[i].value === select.value) {
+            return options[i].getAttribute('data-price-minor');
+          }
+        }
+        return null;
+      }
+      return form.getAttribute('data-price-minor');
+    }
+
+    function updateLabel() {
+      var target = qs(form, '[data-shop-buy-price]');
+      var currency = form.getAttribute('data-currency');
+      var exponentRaw = form.getAttribute('data-currency-exponent');
+      var minorRaw = priceMinorRaw();
+      if (!target || !currency || exponentRaw === null || minorRaw === null) {
+        return;
+      }
+      if (typeof Intl === 'undefined' || typeof Intl.NumberFormat !== 'function') {
+        return;
+      }
+      // Every parse is guarded — non-digit attributes never reach the math below.
+      if (!/^\d+$/.test(exponentRaw) || !/^\d+$/.test(String(minorRaw))) {
+        return;
+      }
+      var exponent = parseInt(exponentRaw, 10);
+      var minor = parseInt(minorRaw, 10);
+      if (!Number.isSafeInteger(exponent) || exponent > 4 || !Number.isSafeInteger(minor)) {
+        return;
+      }
+      var total = minor * clampedQty();
+      if (!Number.isSafeInteger(total)) {
+        return; // past 2^53 the product is no longer exact — never display a drifted amount
+      }
+      try {
+        target.textContent = new Intl.NumberFormat(
+          document.documentElement.lang || undefined,
+          { style: 'currency', currency: currency }
+        ).format(total / Math.pow(10, exponent));
+      } catch (err) {
+        // Unknown currency code — the server-rendered label stays.
+      }
+    }
+
+    function step(delta) {
+      var next = clampedQty() + delta;
+      if (next < QTY_MIN) {
+        next = QTY_MIN;
+      }
+      if (next > QTY_MAX) {
+        next = QTY_MAX;
+      }
+      qty.value = String(next);
+      updateLabel();
+    }
+
+    if (minus) {
+      minus.addEventListener('click', function () { step(-1); });
+    }
+    if (plus) {
+      plus.addEventListener('click', function () { step(1); });
+    }
+    if (select) {
+      select.addEventListener('change', updateLabel);
+    }
+    qty.addEventListener('input', updateLabel);
+  }
+
   // ---- init -----------------------------------------------------------------------
 
   function directSweep() {
@@ -783,6 +893,10 @@
     var galleries = qsa(document, '[data-shop-gallery]');
     for (var g = 0; g < galleries.length; g++) {
       bindGallery(galleries[g]);
+    }
+    var buyAreas = qsa(document, 'form[data-shop-buy]');
+    for (var b = 0; b < buyAreas.length; b++) {
+      bindBuyArea(buyAreas[b]);
     }
     hydrateMiniCarts();
     hydrateProductGrids();
@@ -805,11 +919,12 @@
   /* shop-runtime:end */
   if (window.ThalloRuntime) {
     // Adoption (theme-runtime spec §2.5 / shopjs-on-runtime spec §2.2): the core
-    // drives; enhance closures ARE the per-component functions above. All six are
+    // drives; enhance closures ARE the per-component functions above. All seven are
     // canvas-skip (the default) — formalizing that shop behavior never runs in the
     // canvas stage.
     window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
     window.ThalloRuntime.register('shop-gallery', { selector: '[data-shop-gallery]', enhance: bindGallery });
+    window.ThalloRuntime.register('shop-buy', { selector: 'form[data-shop-buy]', enhance: bindBuyArea });
     window.ThalloRuntime.register('shop-mini-cart', {
       selector: '[data-shop-mini-cart]',
       enhance: function (el) {
@@ -824,7 +939,7 @@
       // Boot-timing reality check: on a served page the runtime core and this file are
       // SEPARATE defer <script> tasks, and a microtask checkpoint runs between tasks —
       // so the core's deferred boot (Promise.resolve().then(boot) once readyState is
-      // past 'loading') has ALREADY fired before the six registrations above existed.
+      // past 'loading') has ALREADY fired before the seven registrations above existed.
       // Without a catch-up pass, nothing shop-owned would ever enhance. init()
       // delegates to ThalloRuntime.enhance(document.documentElement), and the core's
       // data-thallo-enhanced markers gate that pass per component — so wherever the

@@ -129,15 +129,22 @@
   color: inherit;
 }
 
+/* Buy area (storefront-v1 Task 6, approved mock): select row above; action row = stepper
+   pill + price-in-button; the detail heart sits beside the action row. */
+.shop-product__buy {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.625rem;
+  margin-bottom: 1.5rem;
+}
 .shop-product__add-to-cart {
+  flex: 1 1 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 0.625rem;
   align-items: stretch;
-  margin-bottom: 1.5rem;
 }
-.shop-product__add-to-cart select,
-.shop-product__add-to-cart input[type="number"] {
+.shop-product__add-to-cart select {
   padding: 0.625rem 0.75rem;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   border-radius: 0.5rem;
@@ -146,20 +153,67 @@
   font: inherit;
 }
 .shop-product__variant-label {
-  flex: 1 1 12rem;
+  flex: 1 1 100%;
   display: flex;
 }
 .shop-product__variant-label select {
   width: 100%;
 }
-.shop-product__quantity input {
-  width: 5rem;
-}
-.shop-product__add-to-cart button[type="submit"] {
+.shop-product__buy-row {
   flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.625rem;
+}
+/* The stepper pill: minus / value / plus around the REAL quantity input. */
+.shop-product__stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.shop-product__stepper button {
+  width: 2.5rem;
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.shop-product__stepper button:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.shop-product__quantity {
+  display: inline-flex;
+}
+.shop-product__quantity input {
+  width: 3rem;
+  padding: 0.625rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.shop-product__quantity input::-webkit-outer-spin-button,
+.shop-product__quantity input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.shop-product__submit {
+  flex: 1 1 auto;
   padding: 0.75rem 1.25rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 999px;
   /* Themes override --shop-accent (and the label color) to brand this. */
   background: var(--shop-accent, #16211c);
   color: #fff;
@@ -167,11 +221,40 @@
   font-weight: 600;
   cursor: pointer;
 }
-.shop-product__add-to-cart button[type="submit"]:hover {
+.shop-product__submit:hover {
   filter: brightness(1.15);
+}
+/* The detail heart: same hidden-until-ready contract as the grid card hearts. */
+.shop-product__wishlist {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+/* Ships `hidden` until the wishlist store is ready — the display rule above would
+   otherwise defeat the attribute's UA display: none. */
+.shop-product__wishlist[hidden] {
+  display: none;
+}
+.shop-product__wishlist svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.shop-product__wishlist:hover {
+  border-color: color-mix(in srgb, currentColor 55%, transparent);
 }
 
 .shop-product__unavailable {
+  flex: 1 1 auto;
+  margin: 0;
   padding: 0.75rem 1rem;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
   border-radius: 0.5rem;

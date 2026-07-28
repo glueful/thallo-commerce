@@ -26,7 +26,7 @@ use Thallo\Commerce\Shop\ShopUrlGenerator;
  */
 final class AddToCartViewModel
 {
-    /** @param list<array{uuid:string,label:string,price_formatted:string}> $variants */
+    /** @param list<array{uuid:string,label:string,price_formatted:string,price_minor:int}> $variants */
     private function __construct(
         public readonly bool $available,
         public readonly string $mode,
@@ -34,6 +34,19 @@ final class AddToCartViewModel
         public readonly ?string $productUrl,
         public readonly ?string $variantUuid,
         public readonly array $variants,
+        /**
+         * Storefront-v1 Task 6: the buy-area price projection for the product page's
+         * stepper/price-in-button JS. Purchasable modes (`direct`/`select`) only — `link`/
+         * `unavailable` render no form, so all three stay null there. `$currency` follows the
+         * existing default-currency rule (the variant's own code, else the store default);
+         * `$currencyExponent` comes ONLY from {@see Money::exponentFor()} (null for an unknown
+         * code — the template then omits the attribute and the JS leaves the label alone);
+         * `$directPriceMinor` is the single variant's minor price in `direct` mode (select mode
+         * puts `price_minor` on each option instead).
+         */
+        public readonly ?string $currency = null,
+        public readonly ?int $currencyExponent = null,
+        public readonly ?int $directPriceMinor = null,
     ) {
     }
 
@@ -60,8 +73,26 @@ final class AddToCartViewModel
             return new self(true, 'link', $name, $url, null, []);
         }
 
+        // Single store currency (Task 6 spec amendment): the form emits ONE currency/exponent
+        // pair, resolved from the first active variant via the same per-variant default rule
+        // the option formatter below has always used.
+        $currency = isset($activeVariants[0]['currency'])
+            ? (string) $activeVariants[0]['currency']
+            : $defaultCurrency;
+        $exponent = Money::exponentFor($currency);
+
         if (count($activeVariants) === 1) {
-            return new self(true, 'direct', $name, $url, (string) $activeVariants[0]['uuid'], []);
+            return new self(
+                true,
+                'direct',
+                $name,
+                $url,
+                (string) $activeVariants[0]['uuid'],
+                [],
+                $currency,
+                $exponent,
+                (int) ($activeVariants[0]['price'] ?? 0),
+            );
         }
 
         $options = array_map(
@@ -72,11 +103,12 @@ final class AddToCartViewModel
                     (int) ($variant['price'] ?? 0),
                     isset($variant['currency']) ? (string) $variant['currency'] : $defaultCurrency,
                 ),
+                'price_minor' => (int) ($variant['price'] ?? 0),
             ],
             $activeVariants,
         );
 
-        return new self(true, 'select', $name, $url, null, $options);
+        return new self(true, 'select', $name, $url, null, $options, $currency, $exponent, null);
     }
 
     private static function variantLabel(array $variant): string
@@ -96,6 +128,9 @@ final class AddToCartViewModel
             'product_url' => $this->productUrl,
             'variant_uuid' => $this->variantUuid,
             'variants' => $this->variants,
+            'currency' => $this->currency,
+            'currency_exponent' => $this->currencyExponent,
+            'direct_price_minor' => $this->directPriceMinor,
         ];
     }
 }

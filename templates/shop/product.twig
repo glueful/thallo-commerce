@@ -29,10 +29,21 @@
   {% endif %}
   <script type="application/ld+json">{{ structuredData|json_encode(constant('JSON_UNESCAPED_SLASHES'))|raw }}</script>
 
-  <article class="shop-product">
+  {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
+     storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
+     the index page's own root. #}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <article class="shop-product"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+    {# Breadcrumb (storefront-v1 Task 6): Shop / first category (when one is assigned —
+       the controller's deterministic first-category projection) / product name. The category
+       link goes through the generator-owned shop_category_url(), never a hand-built path. #}
     <nav class="shop-product__breadcrumb" aria-label="Breadcrumb">
       <a href="{{ shop_index }}">Shop</a>
       <span aria-hidden="true">/</span>
+      {% if breadcrumb_category %}
+        <a href="{{ shop_category_url(breadcrumb_category.slug) }}">{{ breadcrumb_category.name }}</a>
+        <span aria-hidden="true">/</span>
+      {% endif %}
       <span>{{ product.name }}</span>
     </nav>
 
@@ -101,25 +112,46 @@
        this markup — this page is shop-cached ({@see \Thallo\Commerce\Shop\ShopPageCache}), and
        {@see \Thallo\Commerce\Http\Shop\ShopCsrfGuard}'s Origin/Referer check is the
        REQUEST-level defense, so a cached copy of this exact form is safe for every visitor. #}
+    {# Buy area (storefront-v1 Task 6, per the approved mock): select row above, action row =
+       stepper pill + price-in-button; the detail heart sits beside the action row, same
+       attribute contract as the grid cards (hidden until the wishlist store is ready). The
+       form carries data-currency + data-currency-exponent ONCE (exponent ONLY from commerce
+       Money::exponentFor(), omitted when unknown — shop.js then leaves the label alone);
+       direct mode adds data-price-minor on the form, select mode on each <option>. The server
+       keeps rendering the unit price inside [data-shop-buy-price] — the no-JS truth shop.js's
+       shop-buy module recomputes as qty × minor. The stepper buttons are type="button": no-JS
+       leaves the plain quantity input working exactly as before. #}
+    <div class="shop-product__buy">
     {% if product.addToCart.available and product.addToCart.mode in ['direct', 'select'] %}
-      <form class="shop-product__add-to-cart" method="post" action="/_shop/cart/add">
+      <form class="shop-product__add-to-cart" method="post" action="/_shop/cart/add" data-shop-buy
+        {%- if product.addToCart.currency %} data-currency="{{ product.addToCart.currency }}"{% endif %}
+        {%- if product.addToCart.currencyExponent is not null %} data-currency-exponent="{{ product.addToCart.currencyExponent }}"{% endif %}
+        {%- if product.addToCart.directPriceMinor is not null %} data-price-minor="{{ product.addToCart.directPriceMinor }}"{% endif %}>
         {% if product.addToCart.mode == 'direct' %}
           <input type="hidden" name="variant_uuid" value="{{ product.addToCart.variantUuid }}">
+          {% set unit_price = product.priceFormatted %}
         {% else %}
           <label class="shop-product__variant-label">
             <span class="sr-only">Options</span>
             <select name="variant_uuid" required>
               {% for variant in product.addToCart.variants %}
-                <option value="{{ variant.uuid }}">{{ variant.label }} — {{ variant.price_formatted }}</option>
+                <option value="{{ variant.uuid }}" data-price-minor="{{ variant.price_minor }}">{{ variant.label }} — {{ variant.price_formatted }}</option>
               {% endfor %}
             </select>
           </label>
+          {% set unit_price = product.addToCart.variants[0].price_formatted %}
         {% endif %}
-        <label class="shop-product__quantity">
-          <span class="sr-only">Quantity</span>
-          <input type="number" name="quantity" min="1" step="1" value="1" inputmode="numeric">
-        </label>
-        <button type="submit">Add to cart</button>
+        <div class="shop-product__buy-row">
+          <div class="shop-product__stepper">
+            <button type="button" data-shop-qty-minus aria-label="Decrease quantity">&#8722;</button>
+            <label class="shop-product__quantity">
+              <span class="sr-only">Quantity</span>
+              <input type="number" name="quantity" min="1" max="99" step="1" value="1" inputmode="numeric">
+            </label>
+            <button type="button" data-shop-qty-plus aria-label="Increase quantity">+</button>
+          </div>
+          <button class="shop-product__submit" type="submit">Add to cart{% if unit_price %} — <span data-shop-buy-price>{{ unit_price }}</span>{% endif %}</button>
+        </div>
       </form>
     {% elseif product.addToCart.available %}
       {# mode is 'link' here: a required add-on or zero purchasable variants — this pack has no
@@ -129,6 +161,14 @@
          answer without inventing an out-of-scope add-on UI. #}
       <p class="shop-product__unavailable">This product is not available for online purchase right now.</p>
     {% endif %}
+      <button class="shop-product__wishlist" type="button"
+              hidden data-shop-wishlist-toggle data-product-uuid="{{ product.uuid }}" aria-pressed="false"
+              aria-label="Save {{ product.name }} to wishlist">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      </button>
+    </div>
 
     {# Optional enrichment (Commerce-Slice-2 Fix B): the linked entry's blocks region, ALREADY
        rendered server-side by Thallo\Render\EntryBlocksRenderer (a route-independent read —
