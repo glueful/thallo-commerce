@@ -363,7 +363,7 @@ final class ShopCatalogController
 
         $this->extension->resetTags();
         $this->extension->resetPerRenderState();
-        $this->extension->setAssetBase(null);
+        $this->extension->setAssetContext(null, null);
         $this->extension->setBlockAnnotations(false);
         $this->extension->setThemeAppearanceOverride(null, null);
         $this->extension->setLocale($locale);
