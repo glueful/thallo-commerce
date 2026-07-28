@@ -9,7 +9,11 @@
      answers null (commerce off / seam unbound), so wishlist enhancement simply stays off. #}
   {% set wishlist_scope = shop_wishlist_scope() %}
   <section class="shop-index"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
-    <h1>Shop</h1>
+    <div class="shop-titlerow">
+      <h1>Shop</h1>
+      {# Muted count beside the heading (approved artifact). #}
+      <span class="shop-titlerow__count">{{ grid.total }} product{{ grid.total == 1 ? '' : 's' }}</span>
+    </div>
     {# Category chip rail (spec §2): "All" (active here) + one chip per category; zero
        categories → no rail at all. Every href comes from ShopUrlGenerator via the
        controller's closed {name, url, active} projection. #}

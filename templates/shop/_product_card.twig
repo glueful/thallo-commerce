@@ -61,21 +61,24 @@
   </div>
   <span class="shop-grid__body">
     <a class="shop-grid__name" href="{{ product.url }}">{{ product.name }}</a>
-    {% if product.rating %}
-      <span class="shop-grid__rating">
-        <svg class="shop-grid__star" viewBox="0 0 24 24" fill="currentColor"
-             aria-hidden="true" focusable="false">
-          <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
-        </svg>
-        <span class="sr-only">Rated </span>{{ product.rating.average|number_format(1) }}
-        <span class="shop-grid__rating-count">({{ product.rating.count }})</span>
-      </span>
-    {% endif %}
-    {% if product.priceFormatted %}
-      <span class="shop-grid__price">
-        <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
-        {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
-      </span>
-    {% endif %}
+    {# Meta row (approved artifact): rating left, price right on ONE line. #}
+    <span class="shop-grid__meta">
+      {% if product.rating %}
+        <span class="shop-grid__rating">
+          <svg class="shop-grid__star" viewBox="0 0 24 24" fill="currentColor"
+               aria-hidden="true" focusable="false">
+            <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+          </svg>
+          <span class="sr-only">Rated </span>{{ product.rating.average|number_format(1) }}
+          <span class="shop-grid__rating-count">({{ product.rating.count }})</span>
+        </span>
+      {% endif %}
+      {% if product.priceFormatted %}
+        <span class="shop-grid__price">
+          <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
+          {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
+        </span>
+      {% endif %}
+    </span>
   </span>
 </li>

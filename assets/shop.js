@@ -686,6 +686,12 @@
     name.textContent = product.name;
     body.appendChild(name);
 
+    // Meta row (approved artifact): rating left, price right on ONE line — the same
+    // structure _product_card.twig renders, so hydrated and server cards stay identical.
+    var meta = document.createElement('span');
+    meta.className = 'shop-grid__meta';
+    body.appendChild(meta);
+
     if (product.rating && typeof product.rating.average === 'number') {
       var rating = document.createElement('span');
       rating.className = 'shop-grid__rating';
@@ -701,7 +707,7 @@
       reviews.className = 'shop-grid__rating-count';
       reviews.textContent = '(' + product.rating.count + ')';
       rating.appendChild(reviews);
-      body.appendChild(rating);
+      meta.appendChild(rating);
     }
 
     if (product.price_formatted) {
@@ -716,7 +722,7 @@
         was.textContent = product.compare_at_formatted;
         price.appendChild(was);
       }
-      body.appendChild(price);
+      meta.appendChild(price);
     }
 
     return body;

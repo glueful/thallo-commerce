@@ -408,18 +408,40 @@
 }
 /* First-category chip on the artwork — absent when the product has no category. */
 .shop-grid__tag {
+  /* Approved artifact: a white pill in the tile's TOP-RIGHT corner, category name as
+     written (never uppercased — long category names turn into shouting). */
   position: absolute;
   top: 0.625rem;
-  left: 0.625rem;
-  padding: 0.25rem 0.625rem;
+  right: 0.625rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.9);
-  color: #16211c;
+  background: #fff;
+  color: color-mix(in srgb, currentColor 65%, transparent);
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
   pointer-events: none;
+}
+/* Rating left, price right on one line (artifact .ga-meta). */
+.shop-grid__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+/* Heading + muted count (artifact .ga-titlerow). */
+.shop-titlerow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+.shop-titlerow h1 {
+  margin: 0;
+}
+.shop-titlerow__count {
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, currentColor 50%, transparent);
 }
 /* Hover actions (storefront-v1 §2): stacked circular buttons pinned bottom-right,
    revealed on card hover/focus-within. Motion only under an explicit
@@ -537,7 +559,6 @@
   display: flex;
   gap: 0.375rem;
   align-items: baseline;
-  margin-top: 0.125rem;
 }
 .shop-grid__price-current {
   font-weight: 700;

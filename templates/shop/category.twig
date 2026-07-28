@@ -8,7 +8,11 @@
      same rule as shop/index.twig. #}
   {% set wishlist_scope = shop_wishlist_scope() %}
   <section class="shop-category"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
-    <h1>{{ category.name }}</h1>
+    <div class="shop-titlerow">
+      <h1>{{ category.name }}</h1>
+      {# Muted count beside the heading (approved artifact). #}
+      <span class="shop-titlerow__count">{{ grid.total }} product{{ grid.total == 1 ? '' : 's' }}</span>
+    </div>
     {# The same chip rail as the index (spec §2), with THIS category's chip active instead
        of "All" — the controller's projection carries the active flag. #}
     {% if categories %}
