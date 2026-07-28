@@ -10,7 +10,6 @@
   max-width: 40rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 
@@ -190,7 +189,6 @@
   max-width: 64rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 .shop-index h1,
@@ -551,7 +549,6 @@
   max-width: 44rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 .shop-cart h1 {
@@ -712,7 +709,6 @@
   max-width: 44rem;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
 }
 .shop-checkout h1,
