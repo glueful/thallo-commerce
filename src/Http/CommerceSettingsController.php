@@ -15,6 +15,7 @@ use Glueful\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Request;
 use Thallo\Commerce\Settings\CommerceSettingsStore;
 use Thallo\Commerce\Settings\SettingsStoreCommerceOverride;
+use Thallo\Commerce\Shop\ShopUrlGenerator;
 
 /**
  * Store settings admin API (store-settings spec §3.4): `GET/PUT /v1/admin/commerce/settings`.
@@ -47,6 +48,8 @@ final class CommerceSettingsController
         private readonly VariantRepository $variants,
         private readonly ?OrderRepository $orders = null,
         private readonly ?CommerceSettingsStore $store = null,
+        /** The one shop-path authority (bound unconditionally); soft-bound like its siblings. */
+        private readonly ?ShopUrlGenerator $urls = null,
     ) {
     }
 
@@ -65,7 +68,7 @@ final class CommerceSettingsController
             ];
         }
 
-        return Response::success([
+        $payload = [
             'settings' => $settings,
             'currency_locked' => $this->currencyLocked(),
             // For the UI's honesty note: an UNLOCKED change with priced products reinterprets
@@ -74,7 +77,21 @@ final class CommerceSettingsController
                 $this->context,
                 $this->tenants->tenantUuid($this->context),
             ),
-        ], 'Store settings retrieved');
+        ];
+
+        // The default store pages (account-form-blocks plan Task 1): a FIXED, allowlisted
+        // inventory — every path from ShopUrlGenerator (the single prefix authority), never the
+        // router. Parameterized pages and per-order transitional hops are deliberately absent.
+        if ($this->urls !== null) {
+            $payload['pages'] = [
+                ['label' => 'Shop', 'path' => $this->urls->shopIndex()],
+                ['label' => 'Wishlist', 'path' => $this->urls->wishlist()],
+                ['label' => 'Cart', 'path' => $this->urls->cart()],
+                ['label' => 'Checkout', 'path' => $this->urls->checkout()],
+            ];
+        }
+
+        return Response::success($payload, 'Store settings retrieved');
     }
 
     #[ApiOperation(
