@@ -83,18 +83,40 @@ $router->post('/_shop/cart/discount', [ShopCartController::class, 'discount'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
 
 /*
- * Task 10 (storefront-rendering spec §3/§7/§8): checkout page + placement + provider
- * return/cancel + order confirmation. `checkout` is reserved unconditionally by
- * ShopReservedPathContributor regardless of this gate, exactly like `{prefix}`/`cart`/`_shop`
- * above. Never cached (ShopPageCache deliberately absent, mirrors the cart routes above) —
- * every response here is private/no-store. ShopCsrfGuard applies only to the one mutating POST.
+ * Task 10 (storefront-rendering spec §3/§7/§8) + checkout-ui plan Task 3: checkout page +
+ * no-JS quote render + placement + provider return/cancel + order confirmation. `checkout` is
+ * reserved unconditionally by ShopReservedPathContributor regardless of this gate, exactly like
+ * `{prefix}`/`cart`/`_shop` above. Never cached (ShopPageCache deliberately absent, mirrors the
+ * cart routes above) — every response here is private/no-store.
+ *
+ * Optional shopper identity (checkout-ui plan): page/quote/place carry
+ * `session_cookie:optional` (adapts a valid account cookie into a Bearer header, drops a lapsed
+ * one to anonymous) then `auth:optional` (sets the `user` attribute without 401-ing strangers),
+ * AFTER the tenant pair and BEFORE ShopCsrfGuard — identity only prefills email and stamps
+ * order ownership; anonymous checkout is byte-identical to before. The POST /checkout quote
+ * render is NON-mutating but carries ShopCsrfGuard like the other shop POSTs (one provenance
+ * policy for every form post).
  */
 $router->get('/checkout', [ShopCheckoutController::class, 'page'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', 'session_cookie:optional', 'auth:optional']);
+$router->post('/checkout', [ShopCheckoutController::class, 'quotePage'])
+    ->middleware([
+        'tenant_profile:public',
+        'tenant_bootstrap',
+        'session_cookie:optional',
+        'auth:optional',
+        ShopCsrfGuard::class,
+    ]);
 $router->post('/_shop/checkout/quote', [ShopCheckoutController::class, 'quote'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
 $router->post('/_shop/checkout/place', [ShopCheckoutController::class, 'place'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopCsrfGuard::class]);
+    ->middleware([
+        'tenant_profile:public',
+        'tenant_bootstrap',
+        'session_cookie:optional',
+        'auth:optional',
+        ShopCsrfGuard::class,
+    ]);
 $router->get('/checkout/return/{ref}', [ShopCheckoutController::class, 'paymentReturn'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 $router->get('/checkout/cancel/{ref}', [ShopCheckoutController::class, 'paymentCancel'])

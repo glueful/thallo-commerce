@@ -17,6 +17,7 @@ use Glueful\Extensions\Commerce\Catalog\SlugLifecycleAuthority;
 use Glueful\Extensions\Commerce\Events\ProductDeleted;
 use Glueful\Extensions\Commerce\Events\ProductSlugChanged;
 use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
+use Glueful\Extensions\Commerce\Contracts\OrderPaymentReturnUrlProvider;
 use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantPurge;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
@@ -51,6 +52,7 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Payments\ThalloOrderPaymentReturnUrlProvider;
 use Thallo\Commerce\Http\Shop\ShopPageRenderer;
 use Thallo\Commerce\Http\Shop\ShopProductCardAssembler;
 use Thallo\Commerce\Http\Shop\ShopWishlistController;
@@ -352,6 +354,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             ShopCsrfGuard::class => [
                 'factory' => [self::class, 'makeShopCsrfGuard'],
                 'shared'  => true,
+            ],
+            // Checkout-ui plan Task 3: hosted payments' browser return/cancel URLs. Commerce
+            // soft-resolves this contract; binding it here makes the trusted-origin composition
+            // (CanonicalPublicOriginResolver + ShopUrlGenerator — never the request Host) the one
+            // authority for every placement/replay/retry initiation.
+            OrderPaymentReturnUrlProvider::class => [
+                'class'    => ThalloOrderPaymentReturnUrlProvider::class,
+                'shared'   => true,
+                'autowire' => true,
             ],
             ShopCartController::class => [
                 'class'    => ShopCartController::class,

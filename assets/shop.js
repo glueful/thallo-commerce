@@ -46,6 +46,10 @@
     'form[action="/_shop/cart/discount"]',
     'form[action="/_shop/checkout/quote"]',
     'form[action="/_shop/checkout/place"]',
+    // The checkout page's one form (checkout-ui plan Task 3): default action is the no-JS quote
+    // render; the Place submitter carries formaction to the placement endpoint. One interception
+    // authority (bindForm) owns both — submitter formaction is honored in onSubmit().
+    'form[action="/checkout"]',
   ].join(', ');
 
   // ---- tiny DOM helpers ---------------------------------------------------
@@ -133,10 +137,21 @@
     if (isPending(form)) {
       return; // a submit is already in flight — suppressed, not queued.
     }
-    submit(form);
+    // Honor the SUBMITTER's explicit formaction (the checkout page's Place button targets the
+    // placement endpoint while the form's own action is the quote render) before falling back
+    // to the form action — one interception authority, two honest button targets.
+    var submitter = evt.submitter;
+    var override = submitter && typeof submitter.getAttribute === 'function'
+      ? submitter.getAttribute('formaction')
+      : null;
+    submit(form, override || form.getAttribute('action'));
   }
 
-  function submit(form) {
+  function submit(form, url) {
+    // Remember the last resolved target so the explicit Retry (which calls submit(form) bare)
+    // re-posts to the SAME endpoint the ambiguous attempt used.
+    url = url || form.getAttribute('data-shop-last-action') || form.getAttribute('action');
+    form.setAttribute('data-shop-last-action', url);
     setPending(form, true);
     clearRetry(form);
 
@@ -148,7 +163,7 @@
     }
 
     window
-      .fetch(form.getAttribute('action'), {
+      .fetch(url, {
         method: 'POST',
         body: body,
         headers: headers,
@@ -347,10 +362,86 @@
 
   function updateQuoteRegions(data) {
     var totals = data.totals || {};
-    setRegionText('[data-shop-quote-subtotal]', totals.subtotal);
-    setRegionText('[data-shop-quote-shipping]', totals.shipping_total);
-    setRegionText('[data-shop-quote-tax]', totals.tax_total);
-    setRegionText('[data-shop-quote-total]', totals.grand_total);
+    var formatted = data.totals_formatted || {};
+    var suffix = data.currency ? ' ' + data.currency : '';
+    setRegionText('[data-shop-quote-subtotal]', quoteText(formatted.subtotal, totals.subtotal, suffix));
+    setRegionText('[data-shop-quote-shipping]', quoteText(formatted.shipping_total, totals.shipping_total, suffix));
+    setRegionText('[data-shop-quote-tax]', quoteText(formatted.tax_total, totals.tax_total, suffix));
+    setRegionText('[data-shop-quote-total]', quoteText(formatted.grand_total, totals.grand_total, suffix));
+    rebuildShippingMethods(data);
+  }
+
+  /** Prefer the server's exponent-aware formatted string; fall back to the raw minor units. */
+  function quoteText(formattedValue, rawValue, suffix) {
+    if (formattedValue !== undefined && formattedValue !== null) {
+      return formattedValue + suffix;
+    }
+    return rawValue;
+  }
+
+  /**
+   * Rebuild the checkout page's shipping-method radios from a fresh quote (the slot exists only
+   * on the checkout page; every other quote consumer is unaffected). Built with DOM nodes, never
+   * HTML strings — no escaping concerns. The visitor's current selection is preserved when the
+   * option still exists; otherwise the first option is checked — mirroring the server render's
+   * own default.
+   */
+  function rebuildShippingMethods(data) {
+    var slot = qs(document, '[data-shop-checkout-methods-slot]');
+    if (!slot || !data || !data.shipping_options || !data.shipping_options.length) {
+      return;
+    }
+    var radios = qsa(slot, 'input[name="shipping_method_id"]');
+    var selected = '';
+    for (var r = 0; r < radios.length; r++) {
+      if (radios[r].checked) {
+        selected = radios[r].value;
+        break;
+      }
+    }
+    var stillExists = false;
+    for (var s = 0; s < data.shipping_options.length; s++) {
+      if (data.shipping_options[s].id === selected) {
+        stillExists = true;
+        break;
+      }
+    }
+    var suffix = data.currency ? ' ' + data.currency : '';
+
+    var fieldset = document.createElement('fieldset');
+    fieldset.className = 'shop-checkout__methods';
+    fieldset.setAttribute('data-shop-checkout-methods', '');
+    var legend = document.createElement('legend');
+    legend.textContent = 'Shipping method';
+    fieldset.appendChild(legend);
+
+    for (var i = 0; i < data.shipping_options.length; i++) {
+      var option = data.shipping_options[i];
+      var label = document.createElement('label');
+      label.className = 'shop-checkout__method';
+      var input = document.createElement('input');
+      input.setAttribute('type', 'radio');
+      input.setAttribute('name', 'shipping_method_id');
+      input.setAttribute('value', String(option.id));
+      input.value = String(option.id);
+      input.checked = stillExists ? option.id === selected : i === 0;
+      var name = document.createElement('span');
+      name.textContent = String(option.label);
+      var amount = document.createElement('span');
+      amount.className = 'shop-checkout__method-amount';
+      amount.textContent = option.amount_formatted !== undefined && option.amount_formatted !== null
+        ? option.amount_formatted + suffix
+        : String(option.amount);
+      label.appendChild(input);
+      label.appendChild(name);
+      label.appendChild(amount);
+      fieldset.appendChild(label);
+    }
+
+    while (slot.firstChild) {
+      slot.removeChild(slot.firstChild);
+    }
+    slot.appendChild(fieldset);
   }
 
   function setRegionText(selector, value) {
@@ -1638,6 +1729,54 @@
     }
   }
 
+  // ---- checkout page: live re-quote (checkout-ui plan Task 3) ---------------------
+
+  /**
+   * CHANGE listeners only — never a second submit listener: re-quoting flows through
+   * form.requestSubmit(updateBtn), so bindForm() stays the one interception authority (pending
+   * suppression, retry, quote-region patching all included for free). Address edits debounce;
+   * a shipping-method pick re-quotes immediately. Fail-open by construction: without
+   * requestSubmit support the server-rendered Update-totals flow stands untouched.
+   */
+  function bindCheckoutPage(rootEl) {
+    if (rootEl.getAttribute('data-shop-checkout-bound') === '1') {
+      return;
+    }
+    rootEl.setAttribute('data-shop-checkout-bound', '1');
+    var form = qs(rootEl, '[data-shop-checkout-form]');
+    var updateBtn = form ? qs(form, '[data-shop-checkout-update]') : null;
+    if (!form || !updateBtn || typeof form.requestSubmit !== 'function') {
+      return;
+    }
+    var timer = null;
+    function requote() {
+      timer = null;
+      if (isPending(form)) {
+        return;
+      }
+      form.requestSubmit(updateBtn);
+    }
+    form.addEventListener('change', function (evt) {
+      var target = evt.target;
+      var name = target && typeof target.getAttribute === 'function'
+        ? String(target.getAttribute('name') || '')
+        : '';
+      if (name === '') {
+        return;
+      }
+      if (name === 'shipping_method_id') {
+        requote();
+        return;
+      }
+      if (name === 'email' || name.indexOf('addresses[shipping]') === 0) {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = setTimeout(requote, 400);
+      }
+    });
+  }
+
   // ---- init -----------------------------------------------------------------------
 
   function directSweep() {
@@ -1652,6 +1791,10 @@
     var buyAreas = qsa(document, 'form[data-shop-buy]');
     for (var b = 0; b < buyAreas.length; b++) {
       bindBuyArea(buyAreas[b]);
+    }
+    var checkoutPages = qsa(document, '[data-shop-checkout-page]');
+    for (var c = 0; c < checkoutPages.length; c++) {
+      bindCheckoutPage(checkoutPages[c]);
     }
     hydrateMiniCarts();
     hydrateProductGrids();
@@ -1675,7 +1818,7 @@
   /* shop-runtime:end */
   if (window.ThalloRuntime) {
     // Adoption (theme-runtime spec §2.5 / shopjs-on-runtime spec §2.2): the core
-    // drives; enhance closures ARE the per-component functions above. All nine are
+    // drives; enhance closures ARE the per-component functions above. All ten are
     // canvas-skip (the default) — formalizing that shop behavior never runs in the
     // canvas stage.
     window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
@@ -1693,6 +1836,7 @@
     window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });
     window.ThalloRuntime.register('shop-wishlist', { selector: WISHLIST_SELECTOR, enhance: bindWishlistNode });
     window.ThalloRuntime.register('shop-wishlist-page', { selector: '[data-shop-wishlist-page]', enhance: hydrateWishlistPage });
+    window.ThalloRuntime.register('shop-checkout-page', { selector: '[data-shop-checkout-page]', enhance: bindCheckoutPage });
     if (document.readyState !== 'loading') {
       // Boot-timing reality check: on a served page the runtime core and this file are
       // SEPARATE defer <script> tasks, and a microtask checkpoint runs between tasks —

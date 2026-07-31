@@ -11,6 +11,8 @@ use Glueful\Extensions\Commerce\Orders\CheckoutAttemptContext;
 use Glueful\Extensions\Commerce\Orders\CheckoutPresentation;
 use Glueful\Extensions\Commerce\Orders\CheckoutService;
 use Glueful\Extensions\Commerce\Orders\OrderRepository;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
+use Glueful\Extensions\Commerce\Support\Money;
 use Glueful\Extensions\Commerce\Support\TokenHasher;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Validation\ValidationException;
@@ -22,6 +24,7 @@ use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\CartViewModel;
 use Thallo\Commerce\Shop\ViewModels\CheckoutViewModel;
 use Thallo\Commerce\Shop\ViewModels\ConfirmationViewModel;
+use Thallo\Contracts\Account\StorefrontAccountIdentityReader;
 use Thallo\Render\Http\Middleware\RenderPageCache;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
@@ -55,38 +58,96 @@ final class ShopCheckoutController
         private readonly ShopUrlGenerator $urls,
         private readonly TwigFactory $twigFactory,
         private readonly RenderContextExtension $extension,
+        /** Optional signed-in email resolution (checkout-ui plan Task 3); null = anonymous only. */
+        private readonly ?StorefrontAccountIdentityReader $identity = null,
     ) {
     }
 
     /** `GET /checkout` — private, no-store; mints a fresh idempotency key for the no-JS form. */
     public function page(Request $request): Response
     {
-        return $this->noStore($this->render($request, 'shop/checkout.twig', [
-            'checkout' => $this->buildCheckoutViewModel($request),
-        ]));
+        return $this->noStore($this->renderCheckout(
+            $request,
+            ['email' => $this->signedInEmail($request)] + self::emptySubmission(),
+            null,
+            [],
+        ));
+    }
+
+    /**
+     * `POST /checkout` — the no-JS quote leg (checkout-ui plan Task 3). Quote is non-mutating, and
+     * there is no session/flash authority that could carry address/errors/idempotency across a
+     * 303, so this renders DIRECTLY (200 valid, 422 invalid) with every submitted value, the
+     * quote result, and the submitted idempotency key preserved verbatim. With
+     * `Accept: application/json` it returns the exact `/_shop/checkout/quote` shape — one shared
+     * projector, never a forked validation or totals path.
+     */
+    public function quotePage(Request $request): Response
+    {
+        $submission = $this->submissionFrom($this->input($request));
+        $projection = $this->quoteProjection(
+            $request,
+            $submission['shipping_address'],
+            $submission['shipping_method_id'] !== '' ? $submission['shipping_method_id'] : null,
+        );
+        $errors = $projection['errors'] ?? [];
+        $status = $errors === [] ? 200 : 422;
+
+        if (str_contains((string) $request->headers->get('Accept'), 'application/json')) {
+            return $this->noStore(new JsonResponse($projection, $status));
+        }
+
+        return $this->noStore($this->renderCheckout(
+            $request,
+            $submission,
+            $errors === [] ? $projection : null,
+            $errors,
+            $status,
+        ));
     }
 
     /** `POST /_shop/checkout/quote` — a preview of totals/shipping options; never mutates. */
     public function quote(Request $request): Response
     {
+        $input = $this->input($request);
+        $shippingAddress = is_array($input['addresses']['shipping'] ?? null) ? $input['addresses']['shipping'] : [];
+        $projection = $this->quoteProjection(
+            $request,
+            $shippingAddress,
+            $this->optionalString($input, 'shipping_method_id'),
+        );
+
+        return $this->noStore(new JsonResponse($projection, isset($projection['errors']) ? 422 : 200));
+    }
+
+    /**
+     * The ONE quote projection both the JSON endpoint and the no-JS page render consume —
+     * validation and totals shape can never fork between them.
+     *
+     * @param array<string,mixed> $shippingAddress
+     * @return array{totals: array<string,int>|null, shipping_options: list<array{id: string,
+     *   label: string, amount: int}>}|array{errors: array<string, list<string>|string>}
+     */
+    private function quoteProjection(Request $request, array $shippingAddress, ?string $shippingMethodId): array
+    {
         $token = $this->cartCookie->read($request);
         $cart = $token !== null ? $this->carts->byToken($this->context, $token) : null;
         if ($cart === null) {
-            return $this->noStore(new JsonResponse(['totals' => null, 'shipping_options' => []]));
+            return ['totals' => null, 'shipping_options' => []];
         }
-
-        $input = $this->input($request);
-        $shippingAddress = is_array($input['addresses']['shipping'] ?? null) ? $input['addresses']['shipping'] : [];
-        $shippingMethodId = $this->optionalString($input, 'shipping_method_id');
 
         try {
             $result = $this->checkout->quote($this->context, $cart, $shippingAddress, $shippingMethodId);
         } catch (ValidationException $e) {
-            return $this->noStore(new JsonResponse(['errors' => $e->firstErrors()], 422));
+            return ['errors' => $e->firstErrors()];
         }
 
         $totals = $result['totals'];
-        return $this->noStore(new JsonResponse([
+        // ADDITIVE beside the raw ints (existing JSON consumers untouched): exponent-aware
+        // formatted strings for the page render + JS text patching, in the store currency.
+        $currency = CommerceSettings::currency($this->context);
+
+        return [
             'totals' => [
                 'subtotal' => $totals->subtotal,
                 'discount_total' => $totals->discountTotal,
@@ -94,11 +155,24 @@ final class ShopCheckoutController
                 'tax_total' => $totals->taxTotal,
                 'grand_total' => $totals->grandTotal,
             ],
+            'totals_formatted' => [
+                'subtotal' => Money::format($totals->subtotal, $currency),
+                'discount_total' => Money::format($totals->discountTotal, $currency),
+                'shipping_total' => Money::format($totals->shippingTotal, $currency),
+                'tax_total' => Money::format($totals->taxTotal, $currency),
+                'grand_total' => Money::format($totals->grandTotal, $currency),
+            ],
+            'currency' => $currency,
             'shipping_options' => array_map(
-                static fn ($o): array => ['id' => $o->id, 'label' => $o->label, 'amount' => $o->amount],
+                static fn ($o): array => [
+                    'id' => $o->id,
+                    'label' => $o->label,
+                    'amount' => $o->amount,
+                    'amount_formatted' => Money::format($o->amount, $currency),
+                ],
                 $result['shipping_options']
             ),
-        ]));
+        ];
     }
 
     /**
@@ -129,7 +203,9 @@ final class ShopCheckoutController
             $result = $this->checkout->placeOrder(
                 $this->context,
                 $cartToken,
-                ['email' => $email, 'user_uuid' => null],
+                // Authenticated visitors stamp order ownership; anonymous stays null (identical
+                // to before). The `user` attribute is the post-auth principal auth:optional sets.
+                ['email' => $email, 'user_uuid' => $this->signedInUuid($request)],
                 $addresses,
                 $shippingMethodId,
                 new CheckoutAttemptContext($key, $fingerprint),
@@ -225,17 +301,26 @@ final class ShopCheckoutController
         ]);
     }
 
-    /** @param array<string,list<string>> $errors */
+    /** @param array<string,list<string>|string> $errors */
     private function placeError(Request $request, array $errors, int $status): Response
     {
         if (str_contains((string) $request->headers->get('Accept'), 'application/json')) {
             return $this->noStore(new JsonResponse(['errors' => $errors], $status));
         }
 
-        // No-JS PRG: there is no session/flash mechanism here (spec §6/§9 keep checkout
-        // private/no-store, never session-backed) — the checkout page itself re-mints a fresh
-        // idempotency key, so a failed no-JS submission simply redirects back with a query flag.
-        return $this->noStore(new RedirectResponse($this->urls->checkout() . '?checkout_err=' . $status, 303));
+        // State-preserving render (checkout-ui plan Task 3, replacing the lossy 303/?checkout_err
+        // flag): a no-JS placement failure re-renders the checkout page with the submitted values,
+        // the field errors, a fresh best-effort quote, and the SUBMITTED idempotency key reused
+        // verbatim — same-key retries stay idempotent. Quote errors merge under the place errors.
+        $submission = $this->submissionFrom($this->input($request));
+        $projection = $this->quoteProjection(
+            $request,
+            $submission['shipping_address'],
+            $submission['shipping_method_id'] !== '' ? $submission['shipping_method_id'] : null,
+        );
+        $quote = isset($projection['errors']) ? null : $projection;
+
+        return $this->noStore($this->renderCheckout($request, $submission, $quote, $errors, $status));
     }
 
     private function redirectToConfirmationOrNotFound(Request $request, string $ref): Response
@@ -276,15 +361,124 @@ final class ShopCheckoutController
         return $order;
     }
 
-    private function buildCheckoutViewModel(Request $request): CheckoutViewModel
-    {
+    // ------------------------------------------------------------------
+    // checkout page rendering (GET page / POST quote render / place errors)
+    // ------------------------------------------------------------------
+
+    /**
+     * The one checkout-page render: cart summary + idempotency key (submitted one reused
+     * verbatim, else freshly minted), the submitted field values, the quote projection when one
+     * succeeded, and field errors. Every caller wraps it in noStore().
+     *
+     * @param array{email: string, shipping_address: array<string,string>, shipping_method_id:
+     *   string, idempotency_key: string} $submission
+     * @param array{totals: array<string,int>|null, shipping_options: list<array{id: string,
+     *   label: string, amount: int}>}|null $quote
+     * @param array<string,list<string>|string> $errors
+     */
+    private function renderCheckout(
+        Request $request,
+        array $submission,
+        ?array $quote,
+        array $errors,
+        int $status = 200
+    ): Response {
         $token = $this->cartCookie->read($request);
         $cart = $token !== null ? $this->carts->byToken($this->context, $token) : null;
         $cartVm = $cart !== null
             ? CartViewModel::fromView($this->context, $this->carts->view($this->context, $cart), $this->urls)
             : CartViewModel::empty($this->context, $this->urls);
+        $key = $submission['idempotency_key'] !== '' ? $submission['idempotency_key'] : bin2hex(random_bytes(16));
 
-        return new CheckoutViewModel($cartVm, bin2hex(random_bytes(16)));
+        return $this->render($request, 'shop/checkout.twig', [
+            'checkout' => new CheckoutViewModel($cartVm, $key),
+            'submitted' => $submission,
+            'quote' => $quote,
+            'errors' => $this->flattenErrors($errors),
+        ], $status);
+    }
+
+    /**
+     * Normalize the submitted checkout fields (shared by the quote render and place-error
+     * render). Missing fields normalize to '' so templates never branch on key existence.
+     *
+     * @param array<string,mixed> $input
+     * @return array{email: string, shipping_address: array<string,string>, shipping_method_id:
+     *   string, idempotency_key: string}
+     */
+    private function submissionFrom(array $input): array
+    {
+        $shippingRaw = is_array($input['addresses']['shipping'] ?? null) ? $input['addresses']['shipping'] : [];
+        $shipping = [];
+        foreach (['name', 'line1', 'line2', 'city', 'state', 'postcode', 'country'] as $field) {
+            $value = $shippingRaw[$field] ?? '';
+            $shipping[$field] = is_string($value) ? trim($value) : '';
+        }
+
+        return [
+            'email' => is_string($input['email'] ?? null) ? trim((string) $input['email']) : '',
+            'shipping_address' => $shipping,
+            'shipping_method_id' => is_string($input['shipping_method_id'] ?? null)
+                ? trim((string) $input['shipping_method_id'])
+                : '',
+            'idempotency_key' => is_string($input['idempotency_key'] ?? null)
+                ? trim((string) $input['idempotency_key'])
+                : '',
+        ];
+    }
+
+    /**
+     * @return array{email: string, shipping_address: array<string,string>, shipping_method_id:
+     *   string, idempotency_key: string}
+     */
+    private static function emptySubmission(): array
+    {
+        return [
+            'email' => '',
+            'shipping_address' => [
+                'name' => '', 'line1' => '', 'line2' => '', 'city' => '',
+                'state' => '', 'postcode' => '', 'country' => '',
+            ],
+            'shipping_method_id' => '',
+            'idempotency_key' => '',
+        ];
+    }
+
+    /**
+     * One message per field for template rendering (commerce reports both `field => message` and
+     * `field => [messages]` shapes across its throws).
+     *
+     * @param array<string,list<string>|string> $errors
+     * @return array<string,string>
+     */
+    private function flattenErrors(array $errors): array
+    {
+        $flat = [];
+        foreach ($errors as $field => $messages) {
+            $flat[$field] = is_array($messages) ? (string) ($messages[0] ?? '') : (string) $messages;
+        }
+
+        return $flat;
+    }
+
+    /** The post-auth principal's uuid (auth:optional), or null for an anonymous visitor. */
+    private function signedInUuid(Request $request): ?string
+    {
+        $user = $request->attributes->get('user');
+        $uuid = is_array($user) ? (string) ($user['uuid'] ?? '') : '';
+
+        return $uuid !== '' ? $uuid : null;
+    }
+
+    /** The signed-in visitor's account email via the optional identity reader; fail-soft null. */
+    private function signedInEmail(Request $request): string
+    {
+        $uuid = $this->signedInUuid($request);
+        if ($uuid === null || $this->identity === null) {
+            return '';
+        }
+
+        return (string) ($this->identity->emailFor($uuid) ?? '');
     }
 
     private function idempotencyKey(Request $request): ?string
