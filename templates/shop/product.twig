@@ -98,7 +98,7 @@
     {% set rating_count = product.rating ? product.rating.count : 0 %}
     <p class="shop-product__rating{% if not product.rating %} shop-product__rating--none{% endif %}">
       <span class="shop-product__stars" aria-hidden="true">
-        {% for i in 1..5 %}
+        {% for i in [1, 2, 3, 4, 5] %}
           <svg class="shop-product__star{% if i > rating_average|round %} shop-product__star--empty{% endif %}"
                viewBox="0 0 24 24" fill="currentColor" focusable="false">
             <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
