@@ -25,113 +25,125 @@
         </div>
       {% endif %}
 
-      <ul class="shop-checkout__lines">
-        {% for item in checkout.cart.items %}
-          <li class="shop-checkout__line">
-            <span class="shop-checkout__line-name">{{ item.product_name }}</span>
-            <span class="shop-checkout__line-qty">× {{ item.quantity }}</span>
-            <span class="shop-checkout__line-total">{{ item.line_total_formatted }} {{ item.currency }}</span>
-          </li>
-        {% endfor %}
-      </ul>
+      <div class="shop-checkout__layout">
+        {# ONE form, two honest submitters: "Update totals" posts back to /checkout (the
+           non-mutating quote render); "Place order" targets the placement endpoint via
+           formaction. shop.js keeps one interception authority over both. #}
+        <form class="shop-checkout__form" method="post" action="/checkout" data-shop-checkout-form>
+          <input type="hidden" name="idempotency_key" value="{{ checkout.idempotencyKey }}">
 
-      {# Quote-driven totals once an address has been quoted; the cart's own total before. The
-         data-shop-quote-* markers are the SAME regions shop.js already patches. #}
-      <dl class="shop-checkout__totals" data-shop-checkout-totals>
-        {% if quote %}
-          <div class="shop-checkout__totals-row"><dt>Subtotal</dt>
-            <dd data-shop-quote-subtotal>{{ quote.totals_formatted.subtotal }} {{ quote.currency }}</dd></div>
-          {% if quote.totals.discount_total > 0 %}
-            <div class="shop-checkout__totals-row"><dt>Discount</dt>
-              <dd>−{{ quote.totals_formatted.discount_total }} {{ quote.currency }}</dd></div>
-          {% endif %}
-          <div class="shop-checkout__totals-row"><dt>Shipping</dt>
-            <dd data-shop-quote-shipping>{{ quote.totals_formatted.shipping_total }} {{ quote.currency }}</dd></div>
-          <div class="shop-checkout__totals-row"><dt>Tax</dt>
-            <dd data-shop-quote-tax>{{ quote.totals_formatted.tax_total }} {{ quote.currency }}</dd></div>
-          <div class="shop-checkout__totals-row shop-checkout__totals-row--grand"><dt>Total</dt>
-            <dd data-shop-quote-total>{{ quote.totals_formatted.grand_total }} {{ quote.currency }}</dd></div>
-        {% else %}
-          <div class="shop-checkout__totals-row shop-checkout__totals-row--grand">
-            <dt>Total</dt><dd data-shop-quote-total>{{ checkout.cart.grandTotalFormatted }} {{ checkout.cart.currency }}</dd>
+          <section class="shop-checkout__card">
+            <h2 class="shop-checkout__card-title">Contact</h2>
+            <label class="shop-checkout__field">
+              <span>Email</span>
+              <input type="email" name="email" value="{{ submitted.email|default('') }}" autocomplete="email"
+                placeholder="you@example.com" required>
+            </label>
+          </section>
+
+          <fieldset class="shop-checkout__card shop-checkout__address">
+            <legend class="shop-checkout__card-title">Shipping address</legend>
+            {% set addr = submitted.shipping_address|default({}) %}
+            <label class="shop-checkout__field">
+              <span>Full name</span>
+              <input type="text" name="addresses[shipping][name]" value="{{ addr.name|default('') }}" autocomplete="name">
+            </label>
+            <label class="shop-checkout__field">
+              <span>Address line 1</span>
+              <input type="text" name="addresses[shipping][line1]" value="{{ addr.line1|default('') }}" autocomplete="address-line1">
+            </label>
+            <label class="shop-checkout__field">
+              <span>Address line 2 <em>(optional)</em></span>
+              <input type="text" name="addresses[shipping][line2]" value="{{ addr.line2|default('') }}" autocomplete="address-line2">
+            </label>
+            <div class="shop-checkout__row">
+              <label class="shop-checkout__field">
+                <span>City</span>
+                <input type="text" name="addresses[shipping][city]" value="{{ addr.city|default('') }}" autocomplete="address-level2">
+              </label>
+              <label class="shop-checkout__field">
+                <span>State / region</span>
+                <input type="text" name="addresses[shipping][state]" value="{{ addr.state|default('') }}" autocomplete="address-level1">
+              </label>
+            </div>
+            <div class="shop-checkout__row">
+              <label class="shop-checkout__field">
+                <span>Postcode</span>
+                <input type="text" name="addresses[shipping][postcode]" value="{{ addr.postcode|default('') }}" autocomplete="postal-code">
+              </label>
+              <label class="shop-checkout__field">
+                <span>Country</span>
+                <input type="text" name="addresses[shipping][country]" value="{{ addr.country|default('') }}" autocomplete="country" required>
+              </label>
+            </div>
+          </fieldset>
+
+          {# Always-present slot: the server fills it when a quote render supplied options; shop.js
+             rebuilds it in place after a live re-quote. #}
+          <div data-shop-checkout-methods-slot>
+            {% if quote and quote.shipping_options is not empty %}
+              <fieldset class="shop-checkout__card shop-checkout__methods" data-shop-checkout-methods>
+                <legend class="shop-checkout__card-title">Shipping method</legend>
+                {% for option in quote.shipping_options %}
+                  <label class="shop-checkout__method">
+                    <input type="radio" name="shipping_method_id" value="{{ option.id }}"
+                      {% if submitted.shipping_method_id|default('') == option.id or (submitted.shipping_method_id|default('') == '' and loop.first) %} checked{% endif %}>
+                    <span>{{ option.label }}</span>
+                    <span class="shop-checkout__method-amount">{{ option.amount_formatted }} {{ quote.currency }}</span>
+                  </label>
+                {% endfor %}
+              </fieldset>
+            {% endif %}
           </div>
-          <p class="shop-checkout__totals-note">Shipping and tax are calculated from your address below.</p>
-        {% endif %}
-      </dl>
 
-      {# ONE form, two honest submitters: "Update totals" posts back to /checkout (the non-mutating
-         quote render); "Place order" targets the placement endpoint via formaction. shop.js keeps
-         one interception authority over both. #}
-      <form class="shop-checkout__form" method="post" action="/checkout" data-shop-checkout-form>
-        <input type="hidden" name="idempotency_key" value="{{ checkout.idempotencyKey }}">
+          {# Provider-neutral by design: a config preflight can never guarantee the later provider
+             request succeeds. The post-placement CheckoutPresentation VM is the sole authority. #}
+          <p class="shop-checkout__posture">After placing your order, payment instructions or a secure payment step will follow.</p>
 
-        <label class="shop-checkout__field">
-          <span>Email</span>
-          <input type="email" name="email" value="{{ submitted.email|default('') }}" autocomplete="email" required>
-        </label>
+          <div class="shop-checkout__actions">
+            <button type="submit" class="shop-checkout__update" data-shop-checkout-update>Update totals</button>
+            <button type="submit" class="shop-checkout__place" formaction="/_shop/checkout/place"
+              data-shop-checkout-place>Place order</button>
+          </div>
+        </form>
 
-        <fieldset class="shop-checkout__address">
-          <legend>Shipping address</legend>
-          {% set addr = submitted.shipping_address|default({}) %}
-          <label class="shop-checkout__field">
-            <span>Full name</span>
-            <input type="text" name="addresses[shipping][name]" value="{{ addr.name|default('') }}" autocomplete="name">
-          </label>
-          <label class="shop-checkout__field">
-            <span>Address line 1</span>
-            <input type="text" name="addresses[shipping][line1]" value="{{ addr.line1|default('') }}" autocomplete="address-line1">
-          </label>
-          <label class="shop-checkout__field">
-            <span>Address line 2 (optional)</span>
-            <input type="text" name="addresses[shipping][line2]" value="{{ addr.line2|default('') }}" autocomplete="address-line2">
-          </label>
-          <label class="shop-checkout__field">
-            <span>City</span>
-            <input type="text" name="addresses[shipping][city]" value="{{ addr.city|default('') }}" autocomplete="address-level2">
-          </label>
-          <label class="shop-checkout__field">
-            <span>State / region</span>
-            <input type="text" name="addresses[shipping][state]" value="{{ addr.state|default('') }}" autocomplete="address-level1">
-          </label>
-          <label class="shop-checkout__field">
-            <span>Postcode</span>
-            <input type="text" name="addresses[shipping][postcode]" value="{{ addr.postcode|default('') }}" autocomplete="postal-code">
-          </label>
-          <label class="shop-checkout__field">
-            <span>Country</span>
-            <input type="text" name="addresses[shipping][country]" value="{{ addr.country|default('') }}" autocomplete="country" required>
-          </label>
-        </fieldset>
+        <aside class="shop-checkout__summary" aria-label="Order summary">
+          <h2 class="shop-checkout__card-title">Order summary</h2>
+          <ul class="shop-checkout__lines">
+            {% for item in checkout.cart.items %}
+              <li class="shop-checkout__line">
+                <span class="shop-checkout__line-name">{{ item.product_name }}</span>
+                <span class="shop-checkout__line-qty">× {{ item.quantity }}</span>
+                <span class="shop-checkout__line-total">{{ item.line_total_formatted }} {{ item.currency }}</span>
+              </li>
+            {% endfor %}
+          </ul>
 
-        {# Always-present slot: the server fills it when a quote render supplied options; shop.js
-           rebuilds it in place after a live re-quote (the JS-only flow never saw a server quote). #}
-        <div data-shop-checkout-methods-slot>
-          {% if quote and quote.shipping_options is not empty %}
-            <fieldset class="shop-checkout__methods" data-shop-checkout-methods>
-              <legend>Shipping method</legend>
-              {% for option in quote.shipping_options %}
-                <label class="shop-checkout__method">
-                  <input type="radio" name="shipping_method_id" value="{{ option.id }}"
-                    {% if submitted.shipping_method_id|default('') == option.id or (submitted.shipping_method_id|default('') == '' and loop.first) %} checked{% endif %}>
-                  <span>{{ option.label }}</span>
-                  <span class="shop-checkout__method-amount">{{ option.amount_formatted }} {{ quote.currency }}</span>
-                </label>
-              {% endfor %}
-            </fieldset>
-          {% endif %}
-        </div>
-
-        {# Provider-neutral by design: a config preflight can never guarantee the later provider
-           request succeeds, so nothing stronger is promised before placement. The post-placement
-           CheckoutPresentation VM is the sole authority for what actually happens. #}
-        <p class="shop-checkout__posture">After placing your order, payment instructions or a secure payment step will follow.</p>
-
-        <div class="shop-checkout__actions">
-          <button type="submit" class="shop-checkout__update" data-shop-checkout-update>Update totals</button>
-          <button type="submit" class="shop-checkout__place" formaction="/_shop/checkout/place"
-            data-shop-checkout-place>Place order</button>
-        </div>
-      </form>
+          {# Quote-driven totals once an address has been quoted; the cart's own total before. The
+             data-shop-quote-* markers are the SAME regions shop.js already patches. #}
+          <dl class="shop-checkout__totals" data-shop-checkout-totals>
+            {% if quote %}
+              <div class="shop-checkout__totals-row"><dt>Subtotal</dt>
+                <dd data-shop-quote-subtotal>{{ quote.totals_formatted.subtotal }} {{ quote.currency }}</dd></div>
+              {% if quote.totals.discount_total > 0 %}
+                <div class="shop-checkout__totals-row"><dt>Discount</dt>
+                  <dd>−{{ quote.totals_formatted.discount_total }} {{ quote.currency }}</dd></div>
+              {% endif %}
+              <div class="shop-checkout__totals-row"><dt>Shipping</dt>
+                <dd data-shop-quote-shipping>{{ quote.totals_formatted.shipping_total }} {{ quote.currency }}</dd></div>
+              <div class="shop-checkout__totals-row"><dt>Tax</dt>
+                <dd data-shop-quote-tax>{{ quote.totals_formatted.tax_total }} {{ quote.currency }}</dd></div>
+              <div class="shop-checkout__totals-row shop-checkout__totals-row--grand"><dt>Total</dt>
+                <dd data-shop-quote-total>{{ quote.totals_formatted.grand_total }} {{ quote.currency }}</dd></div>
+            {% else %}
+              <div class="shop-checkout__totals-row shop-checkout__totals-row--grand">
+                <dt>Total</dt><dd data-shop-quote-total>{{ checkout.cart.grandTotalFormatted }} {{ checkout.cart.currency }}</dd>
+              </div>
+              <p class="shop-checkout__totals-note">Shipping and tax are calculated from your address.</p>
+            {% endif %}
+          </dl>
+        </aside>
+      </div>
     {% endif %}
   </section>
 {% endblock %}

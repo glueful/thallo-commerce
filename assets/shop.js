@@ -463,6 +463,15 @@
       return;
     }
 
+    // Every other placed outcome (manual / reference / unavailable): the CONFIRMATION page is
+    // the order-placed surface — status, payment instructions, and a fresh cart. Navigate there,
+    // mirroring the no-JS render, so a placed order never strands the visitor on a checkout page
+    // that appears to have done nothing.
+    if (data.confirmation_url) {
+      window.location.href = data.confirmation_url;
+      return;
+    }
+
     var message = checkoutMessage(data);
     announce(message);
 
