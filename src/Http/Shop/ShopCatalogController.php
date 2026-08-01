@@ -241,7 +241,7 @@ final class ShopCatalogController
      * previous PublicRouteResolver::resolveEntry()-based lookup this replaces. Either way the
      * product page still renders — commerce data alone when `html` is null.
      *
-     * @return array{entry_uuid: string, html: ?string}|null
+     * @return array{entry_uuid: string, html: ?\Twig\Markup}|null
      */
     private function resolveEnrichment(string $tenant, string $productUuid): ?array
     {

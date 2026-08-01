@@ -27,7 +27,7 @@
       priceCurrency: product.currency,
     }}) %}
   {% endif %}
-  <script type="application/ld+json">{{ structuredData|json_encode(constant('JSON_UNESCAPED_SLASHES'))|raw }}</script>
+  <script type="application/ld+json">{{ json_script(structuredData) }}</script>
 
   {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
      storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
@@ -216,7 +216,7 @@
        resolves a route-less linked entry, unlike the old PublicRouteResolver::resolveEntry()
        lookup) — commerce data alone when unlinked/unresolvable. #}
     {% if enrichment_html is not empty %}
-      <div class="shop-product__enrichment">{{ enrichment_html|raw }}</div>
+      <div class="shop-product__enrichment">{{ enrichment_html }}</div>
     {% endif %}
 
     {# The stable, deploy-invariant asset alias (see ShopAssetController/ShopUrlGenerator's own
