@@ -5,7 +5,6 @@ declare(strict_types=1);
 use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
-use Thallo\Commerce\Http\PaymentsSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
 use Thallo\Commerce\Http\MarketplaceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
@@ -78,14 +77,11 @@ $router->group(
         $router->put('/settings', [CommerceSettingsController::class, 'update'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.settings.update');
-        // Payments settings (store-settings spec §3.6): same read/write grading as /settings.
-        // Secrets are write-only — GET reports booleans, PUT accepts values (encrypted at rest).
-        $router->get('/payments', [PaymentsSettingsController::class, 'show'])
-            ->middleware('content_permission:commerce.view,commerce.manage')
-            ->name('thallo.commerce.admin.payments.show');
-        $router->put('/payments', [PaymentsSettingsController::class, 'update'])
-            ->middleware('content_permission:commerce.manage')
-            ->name('thallo.commerce.admin.payments.update');
+        // Payments settings RETIRED (platform-payments-settings spec, Task 6): gateway
+        // credentials are platform/installation-level infrastructure, not per-store content, so
+        // they moved to the neutral `GET|PUT /v1/admin/settings/payments` (routes/admin.php,
+        // gated `tenancy.manage`) backed by the app-owned PlatformPaymentSettingsStore. This pack
+        // no longer owns any payments-settings surface.
         // Order-email switches (store-settings spec §4.2 follow-up): same grading again.
         $router->get('/emails', [EmailSettingsController::class, 'show'])
             ->middleware('content_permission:commerce.view,commerce.manage')

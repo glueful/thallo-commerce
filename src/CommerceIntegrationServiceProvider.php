@@ -34,7 +34,6 @@ use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
-use Thallo\Commerce\Http\PaymentsSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
 use Thallo\Commerce\Http\MarketplaceSettingsController;
 use Thallo\Commerce\Http\ProductLinkController;
@@ -195,15 +194,9 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'shared'   => true,
                 'autowire' => true,
             ],
-            // Store-settings spec §3.6 (Payments tab): GET/PUT /payments. Autowired — the store
-            // contract and the framework EncryptionService both resolve from the container; the
-            // controller reads the payvia namespace via config keys only, so it loads (and
-            // honestly reports mode `manual`) without the extension installed.
-            PaymentsSettingsController::class => [
-                'class'    => PaymentsSettingsController::class,
-                'shared'   => true,
-                'autowire' => true,
-            ],
+            // Payments settings RETIRED (platform-payments-settings spec, Task 6): moved to an
+            // app-owned controller at `/v1/admin/settings/payments`. This pack no longer binds a
+            // payments controller.
             // Spec §4.2 follow-up: GET/PUT /emails — the per-template order-email switches.
             EmailSettingsController::class => [
                 'class'    => EmailSettingsController::class,
