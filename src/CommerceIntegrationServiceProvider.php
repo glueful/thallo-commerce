@@ -22,9 +22,7 @@ use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantPurge;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Extensions\Commerce\Support\CommerceSettingsOverride;
-use Glueful\Extensions\Payvia\Support\PayviaSettingsOverride;
 use Thallo\Commerce\Settings\SettingsStoreCommerceOverride;
-use Thallo\Commerce\Settings\SettingsStorePayviaOverride;
 use Glueful\Extensions\Commerce\Tenancy\TenantAdopter;
 use Glueful\Extensions\Contracts\Tenancy\TenantTableRegistry;
 use Glueful\Extensions\ServiceProvider;
@@ -442,17 +440,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // discoverCommands() in boot() below, matching the thallo-tenancy pack's convention.
         ];
 
-        // Store-settings spec §3.6 (Payments tab): Payvia's runtime-settings seam, bound only
-        // when the extension is installed (its interface must exist for the container to compile
-        // a reference to it — the same soft-dependency shape as the CommerceTenantResolution
-        // guard above). Enabling/installing payvia recompiles the container, so the binding
-        // appears without any config step.
-        if (interface_exists(PayviaSettingsOverride::class)) {
-            $services[PayviaSettingsOverride::class] = [
-                'factory' => [self::class, 'makePayviaSettingsOverride'],
-                'shared'  => true,
-            ];
-        }
+        // NOTE: Payvia's runtime-settings seam is deliberately NOT bound here any more.
+        // Platform-payments-settings spec §2 (Task 4) moved gateway-credential ownership to the
+        // HOST APP, which binds that seam from its own provider's services(): credentials are
+        // installation-level infrastructure that webhook signature verification reads before any
+        // tenant context exists, so they must not sit behind this pack's `thallo.commerce`
+        // capability gate.
 
         return $services;
     }
@@ -617,12 +610,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     public static function makeCommerceSettingsOverride(ContainerInterface $container): CommerceSettingsOverride
     {
         return new SettingsStoreCommerceOverride();
-    }
-
-    /** Spec §3.6: same store-backed shape as the commerce seam, plus at-rest secret decryption. */
-    public static function makePayviaSettingsOverride(ContainerInterface $container): PayviaSettingsOverride
-    {
-        return new SettingsStorePayviaOverride();
     }
 
     public static function makeShopFrameEmbedding(ContainerInterface $container): ShopFrameEmbedding

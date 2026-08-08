@@ -24,8 +24,9 @@ use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
  *
  * PUT is write-only for secrets: absent = untouched, null/blank = clear (row DELETED — env
  * fallback shows through), a value = validate, ENCRYPT (framework EncryptionService, AAD = the
- * settings key), store. Effective behavior flows through payvia's own settings seam
- * ({@see \Thallo\Commerce\Settings\SettingsStorePayviaOverride}), which decrypts on read.
+ * settings key), store. Effective behavior flows through payvia's own settings seam, whose
+ * implementation the HOST APP binds (platform-payments-settings spec §2, Task 4 — this pack no
+ * longer owns it) and which decrypts on read.
  *
  * Gateway ids come from the `payvia.gateways` CONFIG map — this endpoint can reconfigure a
  * configured gateway but never invent one. Reads the payvia namespace via config keys only
