@@ -32,6 +32,7 @@ use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Email\CommerceEmailTemplates;
 use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
+use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
@@ -41,6 +42,7 @@ use Thallo\Commerce\Links\EntryLinkSearch;
 use Thallo\Commerce\Links\LinkReconciler;
 use Thallo\Commerce\Links\ProductLinkRepository;
 use Thallo\Commerce\Links\ProductLinkService;
+use Thallo\Commerce\Orders\AdminOrderSearchQuery;
 use Thallo\Commerce\Http\Shop\CartCookie;
 use Thallo\Commerce\Http\Shop\GuestOrderCookie;
 use Thallo\Commerce\Http\Shop\ShopAssetController;
@@ -206,6 +208,22 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // Spec §3.6 Marketplace group: thin front over commerce's marketplace services.
             MarketplaceSettingsController::class => [
                 'class'    => MarketplaceSettingsController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 3 (orders-invoices-receipts plan): TEMPORARY app-owned filtered orders search
+            // (see AdminOrderSearchController's own docblock for the retirement condition).
+            // AdminOrderSearchFilter is deliberately NOT bound here -- the controller constructs
+            // it directly per-request from the live Request (`new AdminOrderSearchFilter($request)`,
+            // mirroring every other request-driven QueryFilter in this codebase), so it carries
+            // no DI entry of its own.
+            AdminOrderSearchQuery::class => [
+                'class'    => AdminOrderSearchQuery::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            AdminOrderSearchController::class => [
+                'class'    => AdminOrderSearchController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

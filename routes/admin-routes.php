@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Thallo\Commerce\Http\AdminMountAllowlist;
+use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
@@ -107,6 +108,16 @@ $router->group(
         $router->put('/marketplace/master', [MarketplaceSettingsController::class, 'setMaster'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.marketplace.master');
+        // Task 3 (orders-invoices-receipts plan): TEMPORARY app-owned filtered orders search,
+        // until Commerce's own admin orders endpoint gains equivalent filter parity upstream
+        // (see AdminOrderSearchController's own docblock for the retirement condition). A fully
+        // static path ('/orders/search') — the router tries its static-route table before the
+        // catalog's dynamic '/orders/{uuid}' mount below, so this can never be shadowed by (or
+        // shadow) that route regardless of registration order (Router::match() step 1 vs step 2).
+        // View authority, matching every other read in this pack's own group.
+        $router->get('/orders/search', [AdminOrderSearchController::class, 'search'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.orders.search');
     },
 );
 
