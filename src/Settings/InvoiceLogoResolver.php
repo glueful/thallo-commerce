@@ -21,11 +21,23 @@ use Thallo\Contracts\Delivery\MediaUrlResolver;
  *
  * Deliberately never imports an app class and never queries `media_assets` itself — those rows
  * simply don't exist when tenancy is off, and this resolver must stay correct in both modes by
- * delegating the ownership question entirely to the injected policy. Every failure path (missing
- * row, wrong mime, private/inactive/deleted, policy refusal, unresolvable URL) collapses to
- * `null` — this method NEVER throws, so a stale or invalid stored uuid degrades a read to
- * "no logo" instead of a 500. Callers that must REJECT an invalid uuid at save time (the
- * controller's PUT validation) do so themselves by treating a `null` return as invalid.
+ * delegating the ownership question entirely to the injected policy.
+ *
+ * Two entry points, deliberately different failure postures:
+ *  - {@see self::resolve()} is the GET/derivation path (`CommerceSettingsController::show()`'s
+ *    derived `invoice_logo_url`). Every failure — missing row, wrong mime,
+ *    private/inactive/deleted, policy refusal, unresolvable URL, OR a genuine DB/policy fault
+ *    (the bound `BlobAccessPolicy`/`MediaUrlResolver` run raw queries and CAN throw on a real
+ *    outage) — collapses to `null`. It NEVER throws, so a stale/invalid/faulted stored uuid
+ *    degrades a read to "no logo" instead of 500ing the entire settings payload.
+ *  - {@see self::resolveOrFail()} is the SAVE-time validation path
+ *    (`CommerceSettingsController::validate()`). It does the identical ownership+servability
+ *    check but deliberately does NOT catch a genuine DB/policy fault — that must propagate and
+ *    refuse the save loudly (a 500, surfacing the real infrastructure problem) rather than being
+ *    swallowed into a misleading "must be a public image you own" 422, which would mask the
+ *    actual cause and — worse — risks a future refinement of this method quietly turning a
+ *    caught fault into an accepted save. A `null` return (the ordinary "not servable" outcome,
+ *    no exception involved) is still the caller's cue to 422 normally.
  */
 final class InvoiceLogoResolver
 {
@@ -36,7 +48,18 @@ final class InvoiceLogoResolver
     ) {
     }
 
+    /** GET/derivation path — NEVER throws (see class docblock). */
     public function resolve(string $uuid): ?string
+    {
+        try {
+            return $this->resolveOrFail($uuid);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /** SAVE-time validation path — propagates a genuine DB/policy fault (see class docblock). */
+    public function resolveOrFail(string $uuid): ?string
     {
         $uuid = trim($uuid);
         if ($uuid === '') {

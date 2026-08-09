@@ -247,7 +247,9 @@ final class CommerceSettingsController
         // — a uuid that doesn't resolve to a servable public image (missing, non-image, private,
         // inactive, deleted, or cross-tenant) is refused here rather than stored blind.
         if ($key === 'commerce.invoice.logo_blob_uuid') {
-            if ($this->invoiceLogoResolver()->resolve($value) === null) {
+            // resolveOrFail(), not resolve(): a genuine DB/policy fault here must propagate and
+            // refuse the save loudly, never be swallowed into this ordinary "not servable" 422.
+            if ($this->invoiceLogoResolver()->resolveOrFail($value) === null) {
                 throw ValidationException::forField($key, 'Must be a public image you own.');
             }
             return $value;
@@ -331,7 +333,7 @@ final class CommerceSettingsController
             'commerce.invoice.paper_preset' => (string) config($this->context, $key, 'a4'),
             'commerce.invoice.show_sku',
             'commerce.invoice.show_addresses',
-            'commerce.invoice.show_tax_id' => (bool) config($this->context, $key, true),
+            'commerce.invoice.show_tax_id' => $this->configBool($key, true),
             default => '',
         };
     }
@@ -350,7 +352,28 @@ final class CommerceSettingsController
             }
         }
 
-        return (bool) config($this->context, $key, $default);
+        return $this->configBool($key, $default);
+    }
+
+    /**
+     * A raw `(bool)` cast on a config value is wrong for a string like `'false'` (a non-empty
+     * string casts to `true`) — parse it the same string-aware way as a stored flag, and only
+     * fall back to a plain bool cast for an already-boolean config value.
+     */
+    private function configBool(string $key, bool $default): bool
+    {
+        $value = config($this->context, $key, $default);
+        if (is_string($value)) {
+            $flag = strtolower(trim($value));
+            if (in_array($flag, ['1', 'true'], true)) {
+                return true;
+            }
+            if (in_array($flag, ['0', 'false'], true)) {
+                return false;
+            }
+        }
+
+        return (bool) $value;
     }
 
     /**
