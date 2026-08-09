@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Thallo\Commerce\Http\AdminMountAllowlist;
+use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
@@ -118,6 +119,14 @@ $router->group(
         $router->get('/orders/search', [AdminOrderSearchController::class, 'search'])
             ->middleware('content_permission:commerce.view,commerce.manage')
             ->name('thallo.commerce.admin.orders.search');
+        // Task 4 (orders-invoices-receipts plan): the bounded streamed CSV export sharing
+        // AdminOrderSearchQuery/AdminOrderSearchFilter with the search route above (see
+        // AdminOrderExportController's own docblock). Also a fully static path
+        // ('/orders/export'), same non-shadowing reasoning as '/orders/search'. Same view
+        // authority as every other read in this pack's own group.
+        $router->get('/orders/export', [AdminOrderExportController::class, 'export'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.orders.export');
     },
 );
 

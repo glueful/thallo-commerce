@@ -32,6 +32,7 @@ use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Email\CommerceEmailTemplates;
 use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
+use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
@@ -224,6 +225,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             ],
             AdminOrderSearchController::class => [
                 'class'    => AdminOrderSearchController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 4 (orders-invoices-receipts plan): the bounded streamed CSV export sharing
+            // AdminOrderSearchQuery/AdminOrderSearchFilter with the search controller above (see
+            // AdminOrderExportController's own docblock). Same autowired-controller shape.
+            AdminOrderExportController::class => [
+                'class'    => AdminOrderExportController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
