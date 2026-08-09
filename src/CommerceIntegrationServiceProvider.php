@@ -61,6 +61,7 @@ use Thallo\Commerce\Http\Shop\ShopWishlistController;
 use Thallo\Commerce\Listeners\EntryDeletedListener;
 use Thallo\Commerce\Listeners\ProductDeletedListener;
 use Thallo\Commerce\Purge\CommercePurgeHandler;
+use Thallo\Commerce\Settings\InvoiceLogoResolver;
 use Thallo\Commerce\Shop\CapabilityFlipPurge;
 use Thallo\Commerce\Shop\Contribution\ShopReservedPathContributor;
 use Thallo\Commerce\Shop\Contribution\ShopTemplatePathContributor;
@@ -189,6 +190,17 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // can_view/can_manage flags and the route's own gate can never disagree.
             CommerceMetaController::class => [
                 'class'    => CommerceMetaController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 6 (orders-invoices-receipts plan): the one ownership+servability authority for
+            // the invoice logo blob uuid. Autowired -- Connection is framework core; the
+            // Glueful\Uploader\Contracts\BlobAccessPolicy and Thallo\Contracts\Delivery\
+            // MediaUrlResolver seams are both bound UNCONDITIONALLY at the app level (never
+            // behind this pack's own thallo.commerce gate), so this resolves regardless of
+            // capability state -- CommerceSettingsController itself decides when to call it.
+            InvoiceLogoResolver::class => [
+                'class'    => InvoiceLogoResolver::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

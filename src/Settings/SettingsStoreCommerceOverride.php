@@ -42,6 +42,17 @@ final class SettingsStoreCommerceOverride implements CommerceSettingsOverride
         'commerce.seller.name',
         'commerce.seller.address',
         'commerce.seller.tax_id',
+        // Invoice & receipt branding (orders-invoices-receipts spec, Task 6): logo/footer plus
+        // the three optional-section toggles and the print paper preset. The logo uuid's
+        // ownership + servability is validated at save time through InvoiceLogoResolver — this
+        // whitelist only decides what CommerceSettingsController is willing to accept a body key
+        // for at all.
+        'commerce.invoice.logo_blob_uuid',
+        'commerce.invoice.footer_text',
+        'commerce.invoice.show_sku',
+        'commerce.invoice.show_addresses',
+        'commerce.invoice.show_tax_id',
+        'commerce.invoice.paper_preset',
     ];
 
     public function value(ApplicationContext $context, string $key): ?string
