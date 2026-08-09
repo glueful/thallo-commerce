@@ -33,6 +33,7 @@ use Thallo\Commerce\Email\CommerceEmailTemplates;
 use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\AdminOrderExportController;
+use Thallo\Commerce\Http\AdminOrderPaymentsController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
@@ -44,6 +45,7 @@ use Thallo\Commerce\Links\LinkReconciler;
 use Thallo\Commerce\Links\ProductLinkRepository;
 use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Orders\AdminOrderSearchQuery;
+use Thallo\Commerce\Payments\OrderPaymentSummaryRepository;
 use Thallo\Commerce\Http\Shop\CartCookie;
 use Thallo\Commerce\Http\Shop\GuestOrderCookie;
 use Thallo\Commerce\Http\Shop\ShopAssetController;
@@ -233,6 +235,20 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // AdminOrderExportController's own docblock). Same autowired-controller shape.
             AdminOrderExportController::class => [
                 'class'    => AdminOrderExportController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 5 (orders-invoices-receipts plan): the admin order payment summary. Autowired
+            // -- OrderPaymentSummaryRepository takes only Connection (see its own docblock for
+            // why it never depends on any Payvia-provided service), so this is resolvable whether
+            // or not glueful/payvia's own provider happens to be booted.
+            OrderPaymentSummaryRepository::class => [
+                'class'    => OrderPaymentSummaryRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            AdminOrderPaymentsController::class => [
+                'class'    => AdminOrderPaymentsController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],

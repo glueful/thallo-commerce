@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\AdminOrderExportController;
+use Thallo\Commerce\Http\AdminOrderPaymentsController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
@@ -127,6 +128,17 @@ $router->group(
         $router->get('/orders/export', [AdminOrderExportController::class, 'export'])
             ->middleware('content_permission:commerce.view,commerce.manage')
             ->name('thallo.commerce.admin.orders.export');
+        // Task 5 (orders-invoices-receipts plan): the admin order payment summary, reading
+        // Payvia's own `payments`/`payment_intents` tables (see
+        // AdminOrderPaymentsController/OrderPaymentSummaryRepository's own docblocks). Registered
+        // in THIS group -- before AdminRouteCatalog::mount() below -- so it can never be shadowed
+        // by the vendor catalog's own `/orders/{uuid}` mount; the vendor catalog declares no
+        // `/orders/{uuid}/payments` key of its own (AdminRouteCatalog's own route table has no
+        // "payments" entry under the `orders` domain), so there is nothing to collide with either
+        // way. Same view authority as every other read in this pack's own group.
+        $router->get('/orders/{uuid}/payments', [AdminOrderPaymentsController::class, 'payments'])
+            ->middleware('content_permission:commerce.view,commerce.manage')
+            ->name('thallo.commerce.admin.orders.payments');
     },
 );
 
