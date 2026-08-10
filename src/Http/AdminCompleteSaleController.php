@@ -48,6 +48,10 @@ final class AdminCompleteSaleController
     private const TRACKING_REF_KEY = 'tracking_ref';
     private const TRACKING_REF_MAX = 191;
 
+    /** Bounds on how much of a rejected body is echoed back — see {@see self::echoKeys()}. */
+    private const ECHO_KEY_LIMIT = 5;
+    private const ECHO_KEY_MAX_LENGTH = 32;
+
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly OrderRepository $orders,
@@ -119,7 +123,7 @@ final class AdminCompleteSaleController
         $unknown = array_diff(array_keys($decoded), [self::TRACKING_REF_KEY]);
         if ($unknown !== []) {
             throw new ValidationException(['body' => [
-                'Unknown field(s): ' . implode(', ', array_map('strval', $unknown)) . '.',
+                'Unknown field(s): ' . $this->echoKeys($unknown) . '.',
             ]]);
         }
 
@@ -139,5 +143,27 @@ final class AdminCompleteSaleController
         }
 
         return $value === '' ? null : $value;
+    }
+
+    /**
+     * Bounded echo of the offending keys. A 422 exists to tell an operator WHICH field was wrong,
+     * not to mirror an arbitrarily large attacker-supplied body back into the response (and the
+     * log line that renders it): at most {@see self::ECHO_KEY_LIMIT} keys, each truncated to
+     * {@see self::ECHO_KEY_MAX_LENGTH} characters.
+     *
+     * @param array<int|string,int|string> $keys
+     */
+    private function echoKeys(array $keys): string
+    {
+        $shown = array_slice(array_values($keys), 0, self::ECHO_KEY_LIMIT);
+        $rendered = array_map(
+            static fn (int|string $key): string => mb_substr((string) $key, 0, self::ECHO_KEY_MAX_LENGTH),
+            $shown,
+        );
+        if (count($keys) > self::ECHO_KEY_LIMIT) {
+            $rendered[] = '…';
+        }
+
+        return implode(', ', $rendered);
     }
 }

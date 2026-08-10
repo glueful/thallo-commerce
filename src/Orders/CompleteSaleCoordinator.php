@@ -8,6 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Orders\OrderFulfillmentService;
 use Glueful\Extensions\Commerce\Orders\OrderPaymentService;
 use Glueful\Extensions\Commerce\Orders\OrderRepository;
+use Glueful\Http\Exceptions\Client\NotFoundException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -40,8 +41,12 @@ use Psr\Log\LoggerInterface;
  *      attempt at fulfillment. The reload decides the truth about step 1: still `pending_payment`
  *      ⇒ `failed` (the transaction rolled back with it); already `paid` ⇒ truthfully `done` (the
  *      payment committed and something after it threw).
- *   3. `fulfill()` raises `\DomainException` ⇒ 409, `mark_paid: done`, `fulfill: failed`,
- *      refreshed order.
+ *   3. `fulfill()` raises `\DomainException` (state-machine rejection / lost CAS) OR
+ *      `NotFoundException` (the order stopped resolving between the two steps — deleted,
+ *      re-tenanted, or reverted to a draft) ⇒ 409, `mark_paid: done`, `fulfill: failed`,
+ *      refreshed order. Both are concurrency outcomes this endpoint exists to classify, so
+ *      neither may masquerade as a server fault. When the order is genuinely gone the refreshed
+ *      `order` is `null` — the response still carries the full step shape.
  *   4. `fulfill()` raises anything else ⇒ logged, 500, same step shape.
  *   5. both succeed ⇒ 200, both `done`.
  *
@@ -70,14 +75,6 @@ final class CompleteSaleCoordinator
     /** The status a committed payment leaves behind — how step 1's truth is re-derived. */
     private const PAID_STATUS = 'paid';
 
-    /**
-     * The two points a test may inject a failure the engine cannot be made to produce on demand:
-     * a throw AFTER `markPaid()` has already committed, and a non-domain throw at the fulfillment
-     * boundary. See the `$stepBoundaryProbe` constructor parameter.
-     */
-    public const POINT_AFTER_MARK_PAID = 'after_mark_paid';
-    public const POINT_BEFORE_FULFILL = 'before_fulfill';
-
     public const MESSAGE_COMPLETED = 'Sale completed';
     public const MESSAGE_NOT_PENDING_PAYMENT = 'Order is not awaiting payment.';
     public const MESSAGE_NOT_IN_STORE = 'Order is not an in-store sale.';
@@ -88,22 +85,23 @@ final class CompleteSaleCoordinator
     public const ERROR_CONFLICT = 'The order changed before this step could complete.';
     public const ERROR_UNEXPECTED = 'An unexpected error prevented this step from completing.';
 
-    /** @var callable(string):void */
-    private $stepBoundaryProbe;
+    /** @var callable():void */
+    private $afterMarkPaidProbe;
 
     /**
-     * @param (callable(string):void)|null $stepBoundaryProbe
-     *     Invoked with {@see self::POINT_AFTER_MARK_PAID} once `markPaid()` has returned (i.e.
-     *     once its transaction has COMMITTED) and with {@see self::POINT_BEFORE_FULFILL} just
-     *     before `fulfill()` runs — both from inside the step's own `try`, so a throw is handled
-     *     exactly as a throw from the engine call itself would be.
+     * @param (callable():void)|null $afterMarkPaidProbe
+     *     Invoked once `markPaid()` has returned — i.e. once its transaction has COMMITTED —
+     *     from inside step 1's own `try`, so a throw is handled exactly as a throw from
+     *     `markPaid()` itself would be.
      *
-     *     This is a TEST-ONLY seam, the same convention the engine uses for
+     *     This is the class's ONE test-only seam, the same convention the engine uses for
      *     {@see OrderPaymentService}'s own `$afterPaidHook` and `CheckoutService`'s
-     *     `$afterOwnershipSnapshotHook`, and it exists because two of spec §2.8's outcomes are
-     *     otherwise unreachable: the framework's `TransactionManager` deliberately SWALLOWS
+     *     `$afterOwnershipSnapshotHook`. It exists because exactly one of spec §2.8's outcomes is
+     *     otherwise unreachable — "the payment transaction committed before an after-commit
+     *     callback threw" — since the framework's `TransactionManager` deliberately SWALLOWS
      *     after-commit callback failures and `EventService::dispatch()` is fault-isolated, so no
-     *     listener can make a committed `markPaid()` throw. Production never passes it — the
+     *     listener can make a committed `markPaid()` throw. Every OTHER failure outcome is reached
+     *     through a genuine engine seam and needs no probe. Production never passes it — the
      *     container factory constructs this class without it, and it defaults to a no-op.
      */
     public function __construct(
@@ -112,9 +110,9 @@ final class CompleteSaleCoordinator
         private readonly OrderPaymentService $payments,
         private readonly OrderFulfillmentService $fulfillment,
         private readonly ?LoggerInterface $logger = null,
-        ?callable $stepBoundaryProbe = null,
+        ?callable $afterMarkPaidProbe = null,
     ) {
-        $this->stepBoundaryProbe = $stepBoundaryProbe ?? static function (string $point): void {
+        $this->afterMarkPaidProbe = $afterMarkPaidProbe ?? static function (): void {
         };
     }
 
@@ -144,7 +142,7 @@ final class CompleteSaleCoordinator
 
         try {
             $this->payments->markPaid($this->context, $tenant, $uuid);
-            ($this->stepBoundaryProbe)(self::POINT_AFTER_MARK_PAID);
+            ($this->afterMarkPaidProbe)();
         } catch (\DomainException $e) {
             $this->log($e, $tenant, $uuid, self::STEP_MARK_PAID, 'conflict');
 
@@ -181,9 +179,17 @@ final class CompleteSaleCoordinator
         }
 
         try {
-            ($this->stepBoundaryProbe)(self::POINT_BEFORE_FULFILL);
             $fulfilled = $this->fulfillment->fulfill($this->context, $tenant, $uuid, $trackingRef);
-        } catch (\DomainException $e) {
+        } catch (\DomainException | NotFoundException $e) {
+            // BOTH are concurrency verdicts, not server faults: `\DomainException` is the engine's
+            // state-machine/CAS rejection, and `NotFoundException` is its tenant-safe precheck
+            // reporting that the order stopped resolving between the two steps. Matched on TYPE —
+            // never on message text. Residual gap, deliberately left uncaught: if an order vanishes
+            // in the sliver BETWEEN that precheck and `transition()`'s own re-read (inside one
+            // transaction), the engine raises a bare `\RuntimeException('Order not found.')` whose
+            // only distinguishing feature is its message. Sniffing that string would bind this pack
+            // to an unstable detail, so that case stays a logged 500 until the engine gives it a
+            // type.
             $this->log($e, $tenant, $uuid, self::STEP_FULFILL, 'conflict');
 
             return [
