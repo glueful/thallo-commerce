@@ -8,6 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Support\Money;
 use Glueful\Http\Response;
+use Glueful\Interfaces\Permission\PermissionStandards;
 use Glueful\Routing\Attributes\ApiOperation;
 use Symfony\Component\HttpFoundation\Request;
 use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
@@ -42,6 +43,14 @@ use function config;
  * `shop_index_url` is the absolute, selected-workspace storefront index URL from the SAME
  * {@see StorefrontPreviewUrlBuilder} the product-link projection uses (Task 5/7) — no storefront
  * URL template is ever exposed to the client.
+ *
+ * `can_attach_user` (admin-order-creation cycle 2, Task 12, design spec §2.3) is a CLOSED
+ * conjunction of two independent gates, both required — a `false` from either one is a `false`
+ * flag, no partial credit: the `users.user_lookup.list.enabled` config switch (the master switch
+ * for `GET /users`) AND the effective `users.view` permission, computed via the SAME
+ * {@see PermissionRequirementAuthority} mechanism as `can_view`/`can_manage` above — never a
+ * second, parallel authorization path. `PermissionStandards::PERMISSION_USERS_VIEW` is the
+ * framework's own CORE_PERMISSION slug (`'users.view'`), not a Thallo-local string literal.
  */
 final class CommerceMetaController
 {
@@ -60,6 +69,7 @@ final class CommerceMetaController
      *     low_stock_threshold:int,
      *     can_view:bool,
      *     can_manage:bool,
+     *     can_attach_user:bool,
      * }
      */
     #[ApiOperation(
@@ -77,6 +87,9 @@ final class CommerceMetaController
             );
         }
 
+        $userLookupListEnabled = (bool) config($this->context, 'users.user_lookup.list.enabled', false);
+        $canViewUsers = $this->authority->allows($request, [PermissionStandards::PERMISSION_USERS_VIEW]);
+
         return Response::success([
             'currency' => $currency,
             'currency_exponent' => $exponent,
@@ -84,6 +97,7 @@ final class CommerceMetaController
             'low_stock_threshold' => CommerceSettings::lowStockThreshold($this->context),
             'can_view' => $this->authority->allows($request, ['commerce.view']),
             'can_manage' => $this->authority->allows($request, ['commerce.manage']),
+            'can_attach_user' => $userLookupListEnabled && $canViewUsers,
         ]);
     }
 }

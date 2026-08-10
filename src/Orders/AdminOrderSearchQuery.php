@@ -6,6 +6,7 @@ namespace Thallo\Commerce\Orders;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Database\QueryBuilder;
+use Glueful\Extensions\Commerce\Orders\OrderScope;
 
 use function db;
 
@@ -20,6 +21,14 @@ use function db;
  * owner of report-time ordering (`applyOrder()`) — both list/count/export call sites share this
  * single definition of "which rows" and "what order" so they can never drift from one another.
  *
+ * Drafts are excluded by design (admin-order-creation cycle 2, Task 8/12): `builder()` applies
+ * the engine's ONE finalized-order predicate, {@see OrderScope::excludeDrafts()}, before returning
+ * — so the cycle-1 search endpoint, its COUNT, and the CSV export (all three built on this one
+ * choke point) are draft-blind under every filter combination, with no separate opt-in. A draft
+ * is not an order yet (no order number, no customer-visible existence); the dedicated admin draft
+ * surfaces (Tasks 9/10) read `commerce_orders` through the engine's own `OrderRepository`, which
+ * opts into drafts explicitly, never through this class.
+ *
  * Report-time ordering is deliberately the two-branch indexable form, never
  * `ORDER BY COALESCE(placed_at, created_at) DESC` (a computed expression an index on either
  * bare column cannot serve): a plain `id DESC` tie-break is sufficient here because within either
@@ -33,10 +42,16 @@ final class AdminOrderSearchQuery
     {
     }
 
-    /** The tenant-predicated `commerce_orders` builder — the sole entry point for this table. */
+    /**
+     * The tenant-predicated, draft-blind `commerce_orders` builder — the sole entry point for
+     * this table. {@see OrderScope::excludeDrafts()} is applied here, unconditionally, so every
+     * caller (search, its COUNT, and export) is draft-blind by construction.
+     */
     public function builder(string $tenantUuid): QueryBuilder
     {
-        return db($this->context)->table('commerce_orders')->where('tenant_uuid', $tenantUuid);
+        $query = db($this->context)->table('commerce_orders')->where('tenant_uuid', $tenantUuid);
+
+        return OrderScope::excludeDrafts($query);
     }
 
     /**
