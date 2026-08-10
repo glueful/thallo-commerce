@@ -19,6 +19,9 @@ use Glueful\Extensions\Commerce\Events\ProductSlugChanged;
 use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
 use Glueful\Extensions\Commerce\Contracts\OrderPaymentReturnUrlProvider;
 use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
+use Glueful\Extensions\Commerce\Orders\OrderFulfillmentService;
+use Glueful\Extensions\Commerce\Orders\OrderPaymentService;
+use Glueful\Extensions\Commerce\Orders\OrderRepository;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantPurge;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Extensions\Commerce\Support\CommerceSettingsOverride;
@@ -27,11 +30,13 @@ use Glueful\Extensions\Commerce\Tenancy\TenantAdopter;
 use Glueful\Extensions\Contracts\Tenancy\TenantTableRegistry;
 use Glueful\Extensions\ServiceProvider;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Email\CommerceEmailTemplates;
 use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
+use Thallo\Commerce\Http\AdminCompleteSaleController;
 use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderPaymentsController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
@@ -45,6 +50,7 @@ use Thallo\Commerce\Links\LinkReconciler;
 use Thallo\Commerce\Links\ProductLinkRepository;
 use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Orders\AdminOrderSearchQuery;
+use Thallo\Commerce\Orders\CompleteSaleCoordinator;
 use Thallo\Commerce\Payments\OrderPaymentSummaryRepository;
 use Thallo\Commerce\Http\Shop\CartCookie;
 use Thallo\Commerce\Http\Shop\GuestOrderCookie;
@@ -261,6 +267,24 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             ],
             AdminOrderPaymentsController::class => [
                 'class'    => AdminOrderPaymentsController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // Task 13 (admin-order-creation cycle 2, design spec §2.8): the complete-sale
+            // orchestration. The coordinator takes an explicit factory rather than autowiring
+            // because its last constructor parameter is an optional test-only `callable` seam
+            // (see its own docblock) that has no container type to resolve -- production must
+            // always get the no-op default, and a factory says so unambiguously. Its Commerce
+            // collaborators (OrderRepository/OrderPaymentService/OrderFulfillmentService) resolve
+            // lazily, exactly like AdminOrderPaymentsController's own autowired ones, so this
+            // definition stays harmless when Commerce's provider is inactive and the (capability-
+            // gated) route is unreachable anyway.
+            CompleteSaleCoordinator::class => [
+                'factory' => [self::class, 'makeCompleteSaleCoordinator'],
+                'shared'  => true,
+            ],
+            AdminCompleteSaleController::class => [
+                'class'    => AdminCompleteSaleController::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -729,6 +753,22 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $container,
             $container->get(SystemFlags::class),
             $container->has(EventService::class) ? $container->get(EventService::class) : null,
+        );
+    }
+
+    /**
+     * Task 13: {@see CompleteSaleCoordinator} with the production (absent) step-boundary probe.
+     * The logger is soft-resolved the same way `makeSendOrderEmails()` does below, so a host
+     * without a bound PSR logger still gets a working endpoint (it simply records nothing).
+     */
+    public static function makeCompleteSaleCoordinator(ContainerInterface $container): CompleteSaleCoordinator
+    {
+        return new CompleteSaleCoordinator(
+            $container->get(ApplicationContext::class),
+            $container->get(OrderRepository::class),
+            $container->get(OrderPaymentService::class),
+            $container->get(OrderFulfillmentService::class),
+            $container->has(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
         );
     }
 

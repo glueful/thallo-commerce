@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Thallo\Commerce\Http\AdminCompleteSaleController;
 use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderPaymentsController;
@@ -139,6 +140,16 @@ $router->group(
         $router->get('/orders/{uuid}/payments', [AdminOrderPaymentsController::class, 'payments'])
             ->middleware('content_permission:commerce.view,commerce.manage')
             ->name('thallo.commerce.admin.orders.payments');
+        // Task 13 (admin-order-creation cycle 2, design spec §2.8): the server-orchestrated
+        // walk-in finish -- markPaid() then fulfill(), each keeping its own CAS/audit/events (see
+        // AdminCompleteSaleController/CompleteSaleCoordinator's own docblocks). MANAGE authority:
+        // unlike the reads above it performs two real state transitions. Registered in THIS group
+        // -- before AdminRouteCatalog::mount() below -- for the same reason as
+        // `/orders/{uuid}/payments`: the vendor catalog declares no `complete-sale` key under the
+        // `orders` domain, so nothing can shadow it or be shadowed by it either way.
+        $router->post('/orders/{uuid}/complete-sale', [AdminCompleteSaleController::class, 'completeSale'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.orders.complete_sale');
     },
 );
 
