@@ -116,6 +116,17 @@ final class AdminMountAllowlist
             'orders.invoice_data',
             'refunds.list',
             'refunds.show',
+            // — Draft orders (admin-order-creation cycle 2, Tasks 9 and 10) —
+            'orders.drafts.index',
+            'orders.drafts.store',
+            'orders.drafts.show',
+            'orders.drafts.update',
+            'orders.drafts.cancel',
+            'orders.drafts.finalize',
+            'orders.drafts.recalculate',
+            'orders.drafts.lines.store',
+            'orders.drafts.lines.update',
+            'orders.drafts.lines.destroy',
 
             // — Reviews —
             'reviews.index',

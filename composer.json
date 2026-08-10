@@ -15,7 +15,7 @@
     "glueful/thallo-contracts": "*",
     "glueful/thallo-tenancy": "*",
     "glueful/extension-contracts": "*",
-    "glueful/commerce": "^1.9.1",
+    "glueful/commerce": "^1.10.0",
     "glueful/framework": "^1.71.0"
   },
   "autoload": {
