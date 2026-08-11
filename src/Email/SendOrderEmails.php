@@ -9,6 +9,7 @@ use Glueful\Extensions\Commerce\Events\OrderCanceled;
 use Glueful\Extensions\Commerce\Events\OrderFulfilled;
 use Glueful\Extensions\Commerce\Events\OrderPaid;
 use Glueful\Extensions\Commerce\Events\OrderPlaced;
+use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Notifications\Contracts\Notifiable;
 use Glueful\Notifications\Services\NotificationService;
 use Psr\Log\LoggerInterface;
@@ -33,6 +34,13 @@ use Thallo\Commerce\Shop\ViewModels\ShopMoney;
  *
  * OrderPlaced AND OrderPaid firing near-simultaneously for card checkouts is accepted v1
  * behavior (Woo sends two as well); per-template on/off switches are the noted follow-up.
+ *
+ * This sender is registered ONLY when the engine's own {@see
+ * \Glueful\Extensions\Commerce\Mail\OrderMailListener} stands down (`commerce.email.enabled`
+ * false — the documented default; see `CommerceIntegrationServiceProvider::registerOrderEmails()`),
+ * so it is the ONE OrderPlaced sender an out-of-the-box install actually runs. {@see
+ * self::onOrderPlaced()} therefore mirrors that engine listener's admin-origin confirmation gate
+ * verbatim, so the toggle behaves identically regardless of which sender is live.
  */
 final class SendOrderEmails
 {
@@ -43,8 +51,23 @@ final class SendOrderEmails
     ) {
     }
 
+    /**
+     * The ONE handler the admin-origin confirmation toggle governs, mirroring
+     * {@see \Glueful\Extensions\Commerce\Mail\OrderMailListener::onOrderPlaced()}'s identical
+     * gate: an admin-created (walk-in) order is handed over in person, so a merchant may
+     * reasonably want no "we received your order" mail for it while the pack's own
+     * `thallo-commerce.email.order_confirmation.enabled` switch stays on. The engine-side
+     * `commerce.order_confirmation` key (default TRUE — {@see CommerceSettings::orderConfirmation()})
+     * is consulted ONLY for `origin === 'admin'`, so storefront/legacy orders (origin absent or
+     * `'storefront'`) are byte-identical to before this gate existed.
+     */
     public function onOrderPlaced(OrderPlaced $event): void
     {
+        $origin = (string) ($event->order['origin'] ?? 'storefront');
+        if ($origin === 'admin' && !CommerceSettings::orderConfirmation($this->context)) {
+            return;
+        }
+
         $this->send('commerce.order_confirmation', $event->order);
     }
 
