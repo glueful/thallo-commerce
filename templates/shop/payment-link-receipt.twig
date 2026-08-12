@@ -1,0 +1,25 @@
+{% extends 'layout.twig' %}
+{#
+  The NON-AUTHORIZING payment-link receipt (payment-links spec §2.3): what a payment provider
+  returns the browser to after a payment-link checkout.
+
+  It is reached only with a valid, purpose-bound signature, and it still shows NOTHING: no order
+  number, no link uuid, no totals, no status. A signature proves the handle was minted by this
+  store — it is not a credential for the order, and this page must never become one. Settlement
+  is decided by the provider webhook, never by a browser arriving here, which is why the copy
+  says "may take a moment" rather than asserting an outcome.
+
+  `receipt.purpose` is 'return' or 'cancel'; there is nothing else in the render context.
+#}
+{% block title %}Payment — {{ site.name }}{% endblock %}
+{% block content %}
+  <section class="shop-payment-receipt" data-payment-receipt="{{ receipt.purpose }}" aria-labelledby="shop-payment-receipt-heading">
+    {% if receipt.purpose == 'return' %}
+      <h1 id="shop-payment-receipt-heading">Payment submitted</h1>
+      <p class="shop-payment-receipt__body">Payment submitted; confirmation may take a moment. You can close this page — the merchant will confirm the payment.</p>
+    {% else %}
+      <h1 id="shop-payment-receipt-heading">Payment canceled</h1>
+      <p class="shop-payment-receipt__body">Payment canceled; reopen the original link to retry. Nothing has been charged.</p>
+    {% endif %}
+  </section>
+{% endblock %}

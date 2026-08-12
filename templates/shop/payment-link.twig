@@ -1,0 +1,61 @@
+{% extends 'layout.twig' %}
+{#
+  The PUBLIC payment-link landing page (payment-links spec §2.3). Rendered by
+  ShopPaymentLinkController for every state a link can be in, and by nothing else.
+
+  Rules this template must keep:
+   * ZERO third-party assets. Everything the layout loads is first-party and fingerprinted;
+     nothing here adds a font, a script, an image, or a stylesheet from another origin — a
+     payment page must not hand a bearer-token-bearing URL to anyone through a subresource.
+   * The ONLY appearance of the raw token is the Pay form's own `action`, which the controller
+     composes and passes in as `link.pay_action`, and only while the link is payable.
+   * Commercial content is rendered ONLY from `link.summary`, which the controller supplies
+     exclusively for the `active` and `paid` states. A REVOKED link resolves content-redacted
+     in the engine, so there is nothing to render and nothing here invents any of it back.
+#}
+{% block title %}Payment — {{ site.name }}{% endblock %}
+{% block content %}
+  <section class="shop-payment-link" data-payment-link-state="{{ link.state }}" data-payment-link-reason="{{ link.reason }}" aria-labelledby="shop-payment-link-heading">
+
+    {% if link.state == 'active' %}
+      <h1 id="shop-payment-link-heading">Pay order {{ link.summary.order_number }}</h1>
+      {% if link.summary.lines %}
+        <ul class="shop-payment-link__lines">
+          {% for line in link.summary.lines %}
+            <li class="shop-payment-link__line"><span class="shop-payment-link__line-name">{{ line.name }}</span> <span class="shop-payment-link__line-qty">× {{ line.quantity }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <dl class="shop-payment-link__totals">
+        <div class="shop-payment-link__row"><dt>Total</dt><dd>{{ link.summary.grand_total }} {{ link.summary.currency }}</dd></div>
+      </dl>
+      {% if link.pay_action %}
+        {# No-JS by construction: a plain form POST, no script, no fetch. #}
+        <form class="shop-payment-link__form" method="post" action="{{ link.pay_action }}">
+          <button type="submit" class="shop-payment-link__pay">Pay now</button>
+        </form>
+      {% endif %}
+      <p class="shop-payment-link__note">You will be taken to a secure payment page to complete this payment.</p>
+
+    {% elseif link.state == 'paid' %}
+      <h1 id="shop-payment-link-heading">Thank you</h1>
+      <p class="shop-payment-link__paid">This order has already been paid. No further payment is needed.</p>
+      {% if link.summary %}
+        <p class="shop-payment-link__ref">Order {{ link.summary.order_number }}</p>
+      {% endif %}
+
+    {% elseif link.state == 'invalid' %}
+      <h1 id="shop-payment-link-heading">This payment link is no longer valid</h1>
+      <p class="shop-payment-link__invalid">This payment link is no longer valid — please contact the merchant for a current one.</p>
+
+    {% else %}
+      <h1 id="shop-payment-link-heading">Payment cannot be started right now</h1>
+      {% if link.reason == 'rate_limited' %}
+        <p class="shop-payment-link__unavailable">This link has started too many payments in the past hour — please try again shortly.</p>
+      {% else %}
+        <p class="shop-payment-link__unavailable">We could not start a payment right now. Nothing has been charged — please try again later or contact the merchant.</p>
+      {% endif %}
+    {% endif %}
+
+  </section>
+{% endblock %}

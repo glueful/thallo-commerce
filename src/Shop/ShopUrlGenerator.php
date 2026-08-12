@@ -98,6 +98,46 @@ final class ShopUrlGenerator
     }
 
     /**
+     * The PUBLIC payment-link landing path (payment-links spec §2.3), and the one place the
+     * raw bearer token is ever spliced into a URL.
+     *
+     * The token is the FINAL path segment and appears exactly once — both are hard requirements
+     * of Commerce's own mint-time URL validator
+     * ({@see \Glueful\Extensions\Commerce\Orders\PaymentLinkService}'s `isValidPublicUrl()`),
+     * which additionally forbids a query string precisely because a token in one is copied into
+     * access logs, proxy logs, and `Referer` headers. Nothing here may ever grow a `?`.
+     *
+     * `rawurlencode()` is a no-op for the engine's 64-lowercase-hex tokens and stays for the
+     * same reason every other method here encodes: a path segment is composed, never trusted.
+     */
+    public function paymentLink(string $rawToken): string
+    {
+        return '/checkout/pay/' . rawurlencode($rawToken);
+    }
+
+    /** The no-JS Pay form's POST target for the same link (spec §2.3). */
+    public function paymentLinkInitiate(string $rawToken): string
+    {
+        return '/checkout/pay/' . rawurlencode($rawToken) . '/initiate';
+    }
+
+    /**
+     * The SIGNED, NON-AUTHORIZING return receipt handle (spec §2.3). It carries the link UUID
+     * and a signature and NOTHING else — never the token: this URL is handed to a payment
+     * provider, stored in its dashboard, and replayed through browser redirects.
+     */
+    public function paymentLinkReturn(string $linkUuid, string $signature): string
+    {
+        return '/checkout/pay/return/' . rawurlencode($linkUuid) . '/' . rawurlencode($signature);
+    }
+
+    /** The cancel sibling of {@see self::paymentLinkReturn()}, under its own signing purpose. */
+    public function paymentLinkCancel(string $linkUuid, string $signature): string
+    {
+        return '/checkout/pay/cancel/' . rawurlencode($linkUuid) . '/' . rawurlencode($signature);
+    }
+
+    /**
      * The ONE current fingerprinted `shop.css` URL. Same content-hash guarantee as
      * {@see self::assets()}: the theme links THIS from `<head>` (storefront-v1 follow-up),
      * so the storefront's own styling is present at first paint and costs no round trip —

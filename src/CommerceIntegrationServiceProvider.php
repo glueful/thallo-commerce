@@ -7,6 +7,8 @@ namespace Thallo\Commerce;
 use Glueful\Extensions\DeclaresLoadOrder;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
+use Glueful\Container\Container as GluefulContainer;
+use Glueful\Container\Definition\FactoryDefinition;
 use Glueful\Cache\Contracts\EdgeCacheInterface;
 use Glueful\Database\Connection;
 use Glueful\Database\Migrations\MigrationPriority;
@@ -18,6 +20,8 @@ use Glueful\Extensions\Commerce\Events\ProductDeleted;
 use Glueful\Extensions\Commerce\Events\ProductSlugChanged;
 use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
 use Glueful\Extensions\Commerce\Contracts\OrderPaymentReturnUrlProvider;
+use Glueful\Extensions\Commerce\Contracts\PaymentLinkPublicUrlProvider;
+use Glueful\Extensions\Commerce\Contracts\PaymentLinkReturnUrlProvider;
 use Glueful\Extensions\Commerce\Orders\CheckoutAttemptAuthority;
 use Glueful\Extensions\Commerce\Orders\OrderFulfillmentService;
 use Glueful\Extensions\Commerce\Orders\OrderPaymentService;
@@ -60,8 +64,14 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Thallo\Commerce\Payments\PaymentLinkReturnSigner;
 use Thallo\Commerce\Payments\ThalloOrderPaymentReturnUrlProvider;
+use Thallo\Commerce\Payments\ThalloPaymentLinkPublicUrlProvider;
+use Thallo\Commerce\Payments\ThalloPaymentLinkReturnUrlProvider;
 use Thallo\Commerce\Http\Shop\ShopPageRenderer;
+use Thallo\Commerce\Http\Shop\ShopPaymentLinkController;
+use Thallo\Commerce\Http\Shop\ShopPaymentLinkCsrfGuard;
+use Thallo\Commerce\Http\Shop\ShopPaymentLinkHeaders;
 use Thallo\Commerce\Http\Shop\ShopProductCardAssembler;
 use Thallo\Commerce\Http\Shop\ShopWishlistController;
 use Thallo\Commerce\Listeners\EntryDeletedListener;
@@ -434,6 +444,40 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'shared'   => true,
                 'autowire' => true,
             ],
+            // Payment links Task 11 (payment-links spec §2.3): the public landing/initiate/receipt
+            // surface. The signer is dependency-free (it derives app.key per call, never latches
+            // a key); the controller autowires over Commerce's own PaymentLinkService binding and
+            // this pack's ShopPageRenderer/ShopUrlGenerator.
+            PaymentLinkReturnSigner::class => [
+                'class'  => PaymentLinkReturnSigner::class,
+                'shared' => true,
+            ],
+            // The two engine seams themselves are bound by CONCRETE class here and re-pinned onto
+            // Commerce's contract ids at boot() — see rebindPaymentLinkSeams() for why the
+            // contract ids cannot be won from this array.
+            ThalloPaymentLinkPublicUrlProvider::class => [
+                'class'    => ThalloPaymentLinkPublicUrlProvider::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ThalloPaymentLinkReturnUrlProvider::class => [
+                'class'    => ThalloPaymentLinkReturnUrlProvider::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            ShopPaymentLinkHeaders::class => [
+                'class'  => ShopPaymentLinkHeaders::class,
+                'shared' => true,
+            ],
+            ShopPaymentLinkCsrfGuard::class => [
+                'factory' => [self::class, 'makeShopPaymentLinkCsrfGuard'],
+                'shared'  => true,
+            ],
+            ShopPaymentLinkController::class => [
+                'class'    => ShopPaymentLinkController::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ShopCartController::class => [
                 'class'    => ShopCartController::class,
                 'shared'   => true,
@@ -511,6 +555,16 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // CommerceIntegrationDiagnostics lazily inside execute()) and are picked up by
             // discoverCommands() in boot() below, matching the thallo-tenancy pack's convention.
         ];
+
+        // NOTE: Commerce's two PAYMENT-LINK host seams (PaymentLinkPublicUrlProvider /
+        // PaymentLinkReturnUrlProvider) are deliberately NOT bound in this array. Commerce binds
+        // its own "Unavailable" defaults for both ids, and
+        // ContainerFactory::loadExtensionDefinitions() merges provider definitions id-by-id with
+        // `$defs += $compiled` in resolver order — first writer wins — while this pack declares
+        // loadAfter(CommerceServiceProvider). A definition here would therefore be silently
+        // DROPPED, not applied. The seams are re-pinned at boot() instead
+        // ({@see self::rebindPaymentLinkSeams()}), the same idiom
+        // Thallo\Subscriptions\EnginePreemptionServiceProvider uses for the identical situation.
 
         // NOTE: Payvia's runtime-settings seam is deliberately NOT bound here any more.
         // Platform-payments-settings spec §2 (Task 4) moved gateway-credential ownership to the
@@ -609,6 +663,75 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $container->get(ApplicationContext::class),
             $container->get(CanonicalPublicOriginResolver::class),
         );
+    }
+
+    /**
+     * Payment links Task 11 (payment-links spec §2.3): re-pin Commerce's two payment-link host
+     * seams onto this pack's implementations.
+     *
+     * WHY THIS IS NOT IN `services()`. Commerce binds BOTH ids itself — to its engine-owned
+     * `UnavailablePaymentLink*Provider` defaults, so a generic host still compiles and receives a
+     * typed unavailable outcome. `ContainerFactory::loadExtensionDefinitions()` then merges
+     * provider definitions with `$defs += $compiled` in resolver order, which is FIRST-WRITER-WINS,
+     * and this pack declares `loadAfter(CommerceServiceProvider)`. A `services()` entry for either
+     * id would be silently discarded — the failure mode being a store that mints links nobody can
+     * open, with nothing anywhere saying why. (An `alias` on the concrete definition loses for the
+     * same reason: aliases are compiled into this provider's own map and merged identically.)
+     *
+     * Guarded three ways, all of which are real states rather than defensive noise:
+     *  - a non-{@see GluefulContainer} (a compiled container) has no `load()`; today compilation
+     *    always falls back, and `PaymentLinkSeamRebindTest`'s sibling reasoning in
+     *    thallo-subscriptions documents the day that changes;
+     *  - `interface_exists()` — an install pinned to a pre-payment-links Commerce must stay inert;
+     *  - `has()` — if Commerce's provider is not active at all, the id is unbound and binding it
+     *    would advertise an engine contract this boot cannot honour.
+     *
+     * The definitions are FACTORIES resolving this pack's own container-bound implementations, so
+     * the engine's lazily-constructed `PaymentLinkService` (itself a factory) picks them up on
+     * first resolution — which is always after boot.
+     */
+    private function rebindPaymentLinkSeams(): void
+    {
+        if (!$this->app instanceof GluefulContainer) {
+            return;
+        }
+
+        if (
+            interface_exists(PaymentLinkPublicUrlProvider::class)
+            && $this->app->has(PaymentLinkPublicUrlProvider::class)
+        ) {
+            $this->app->load([
+                PaymentLinkPublicUrlProvider::class => new FactoryDefinition(
+                    PaymentLinkPublicUrlProvider::class,
+                    static fn (ContainerInterface $c): ThalloPaymentLinkPublicUrlProvider
+                        => $c->get(ThalloPaymentLinkPublicUrlProvider::class),
+                ),
+            ]);
+        }
+
+        if (
+            interface_exists(PaymentLinkReturnUrlProvider::class)
+            && $this->app->has(PaymentLinkReturnUrlProvider::class)
+        ) {
+            $this->app->load([
+                PaymentLinkReturnUrlProvider::class => new FactoryDefinition(
+                    PaymentLinkReturnUrlProvider::class,
+                    static fn (ContainerInterface $c): ThalloPaymentLinkReturnUrlProvider
+                        => $c->get(ThalloPaymentLinkReturnUrlProvider::class),
+                ),
+            ]);
+        }
+    }
+
+    /**
+     * Payment links Task 11: an explicit factory (never autowiring) so the fact that this guard
+     * COMPOSES the established {@see ShopCsrfGuard} — rather than reimplementing origin
+     * comparison — is impossible to miss in a diff. See that class for the one narrow case it
+     * adds, and why the payment-link POST cannot rely on `Origin` alone.
+     */
+    public static function makeShopPaymentLinkCsrfGuard(ContainerInterface $container): ShopPaymentLinkCsrfGuard
+    {
+        return new ShopPaymentLinkCsrfGuard($container->get(ShopCsrfGuard::class));
     }
 
     /**
@@ -873,6 +996,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         if ($registry->isEnabled('thallo.commerce')) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/shop-routes.php');
+
+            // Payment links Task 11 (payment-links spec §2.3): re-pin Commerce's two payment-link
+            // host seams onto this pack's implementations, INSIDE the gate — the seams and the
+            // public routes they point at must appear and disappear together, or a minted link
+            // would carry a URL that 404s.
+            $this->rebindPaymentLinkSeams();
 
             // Capability-boundary pin: the pack template dir joins Render's resolution chain
             // ONLY while the capability is on. With it off, `blocks/product-grid.twig` etc.

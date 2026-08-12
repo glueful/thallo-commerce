@@ -204,6 +204,72 @@ the real freshness mechanism.
                                           // general expiry, so this pack defines its own instead)
 ```
 
+### Payment links: the public surface, and REDACTING THE TOKEN FROM LOGS
+
+The pack serves Commerce's payment links at four public paths:
+
+| Path | What it is |
+| --- | --- |
+| `GET /checkout/pay/{token}` | the payer's landing page (summary + a no-JS Pay form) |
+| `POST /checkout/pay/{token}/initiate` | starts a gateway checkout; `303` only to a re-validated absolute-HTTPS URL |
+| `GET /checkout/pay/return/{linkUuid}/{signature}` | a signed, **non-authorizing** receipt — reveals nothing |
+| `GET /checkout/pay/cancel/{linkUuid}/{signature}` | the cancel sibling, under its own signing purpose |
+
+Every response carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and
+`X-Robots-Tag: noindex, nofollow, noarchive`. The receipt handles carry a link uuid and a
+signature — **never** a token.
+
+**`{token}` is a bearer credential in a URL path.** Whoever reads it can open the page and start
+a checkout, so it must never be written to an access log, an APM trace, or an error report. The
+application never logs it (see `ShopPaymentLinkController` and
+`ThalloPaymentLinkPublicUrlProvider`: the parameter is overwritten the moment it is consumed, and
+it appears in exactly one place in the markup — the Pay form's own `action`). **Your reverse
+proxy does not know that**, and its access log is written before any PHP runs. Redact it there:
+
+**nginx** — rewrite the logged path, keeping everything else:
+
+```nginx
+# Replace the 64-hex token segment with a marker BEFORE the line is written.
+map $request_uri $request_uri_redacted {
+    "~^(?<pre>/checkout/pay/)[a-f0-9]{64}(?<post>.*)$"  "${pre}[REDACTED]${post}";
+    default                                             $request_uri;
+}
+
+log_format redacted '$remote_addr - $remote_user [$time_local] '
+                    '"$request_method $request_uri_redacted $server_protocol" '
+                    '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
+
+access_log /var/log/nginx/access.log redacted;
+```
+
+**Apache 2.4** — same idea, via an environment variable:
+
+```apache
+SetEnvIfExpr "%{REQUEST_URI} =~ m#^/checkout/pay/[a-f0-9]{64}#" PAYMENT_LINK=1
+LogFormat "%h %l %u %t \"%m %U\" %>s %b" nopath
+CustomLog logs/access_log combined env=!PAYMENT_LINK
+CustomLog logs/access_log nopath env=PAYMENT_LINK
+```
+
+**Caddy** — drop the URI from matching requests:
+
+```caddy
+@paymentlink path_regexp ^/checkout/pay/[a-f0-9]{64}
+log {
+    format filter {
+        request>uri delete
+    }
+}
+```
+
+Also worth pinning on any install that serves payment links:
+
+- `zend.exception_ignore_args=On` in php.ini — PHP records call arguments in exception
+  backtraces, and the framework's error handler writes `getTraceAsString()` to the error log.
+- No third-party analytics/RUM script on these pages. The templates ship zero third-party assets
+  and `Referrer-Policy: no-referrer` stops the token reaching the payment gateway through
+  `Referer`; a tag manager added later would undo both.
+
 ## Boundary
 
 Depends on `glueful/thallo-contracts`, `glueful/thallo-tenancy`, and (hard dependency, per the
