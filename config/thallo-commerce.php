@@ -25,6 +25,24 @@ return [
         'order_paid' => ['enabled' => true],
         'order_fulfilled' => ['enabled' => true],
         'order_canceled' => ['enabled' => true],
+        // Payment links Task 12 (payment-links spec §2.4): the ONE template here that defaults
+        // OFF, and the omission of this key is FORBIDDEN rather than merely untidy — the Emails
+        // tab's generic fallback is `true`, so leaving it out would silently arm a surface that
+        // emails a live bearer credential on an install that never opted in.
+        'payment_request' => ['enabled' => false],
+    ],
+
+    // Payment links Task 12 (payment-links spec §2.4): how long a `processing` delivery claim in
+    // `thallo_commerce_payment_link_deliveries` is still treated as "an attempt may genuinely be
+    // in flight" before it is reported `indeterminate`. Clamped 60-3600 by every consumer
+    // ({@see \Thallo\Commerce\Payments\PaymentLinkDeliveryRepository::staleSeconds()}), never
+    // trusted raw — a bad env value degrades to the nearest bound, never a boot error or a
+    // disabled send endpoint.
+    'payment_links' => [
+        'delivery_processing_stale_seconds' => (int) env(
+            'THALLO_COMMERCE_DELIVERY_PROCESSING_STALE_SECONDS',
+            300,
+        ),
     ],
 
     // Task 8 (storefront-rendering spec §9): the dimension-complete shop catalog page cache

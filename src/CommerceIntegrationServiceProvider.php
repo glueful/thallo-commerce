@@ -38,12 +38,15 @@ use Psr\Log\LoggerInterface;
 use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Email\CommerceEmailTemplates;
+use Thallo\Commerce\Email\PaymentRequestMailer;
+use Thallo\Commerce\Email\RichEmailAvailability;
 use Thallo\Commerce\Email\SendOrderEmails;
 use Thallo\Commerce\Events\ProductLinkChanged;
 use Thallo\Commerce\Http\AdminCompleteSaleController;
 use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderPaymentsController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
+use Thallo\Commerce\Http\AdminPaymentLinkSendController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
@@ -56,6 +59,7 @@ use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Orders\AdminOrderSearchQuery;
 use Thallo\Commerce\Orders\CompleteSaleCoordinator;
 use Thallo\Commerce\Payments\OrderPaymentSummaryRepository;
+use Thallo\Commerce\Payments\PaymentLinkDeliveryRepository;
 use Thallo\Commerce\Http\Shop\CartCookie;
 use Thallo\Commerce\Http\Shop\GuestOrderCookie;
 use Thallo\Commerce\Http\Shop\ShopAssetController;
@@ -143,6 +147,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
 
     /** The table this pack owns for product-to-entry enrichment links (spec §5.1). */
     private const PRODUCT_LINK_TABLE = 'thallo_commerce_product_links';
+
+    /**
+     * The payment-link delivery ledger (payment-links spec §2.4). Registered as tenant-owned
+     * alongside the link table and covered by this pack's purge handler + adoption contributor —
+     * §2.4 names tenant purge/adoption as part of this table's contract, so it is not left to the
+     * generic backstop.
+     */
+    private const PAYMENT_LINK_DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
 
     /**
      * Tenant resolution is infrastructure, not a user-facing surface: bound unconditionally
@@ -332,6 +344,40 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             ],
             CommerceAdoptionContributor::class => [
                 'factory' => [self::class, 'makeCommerceAdoptionContributor'],
+                'shared'  => true,
+            ],
+            // Payment links Task 12 (payment-links spec §2.4): the delivery-idempotency ledger,
+            // the shared rich-email availability authority, the dedicated payment-request mailer,
+            // and the pack's ONE payment-link route's controller.
+            //
+            // RichEmailAvailability gets an explicit factory rather than autowiring because its
+            // ONE dependency is OPTIONAL by contract: an install whose framework notification
+            // provider is inactive has no ChannelManager bound at all, and autowiring a nullable
+            // constructor parameter is exactly the situation where "it happened to work" and
+            // "it degrades correctly" are indistinguishable in a diff. Bound unconditionally —
+            // CommerceMetaController's MANDATORY `email_available` flag must resolve on every
+            // boot, including ones that can never send.
+            RichEmailAvailability::class => [
+                'factory' => [self::class, 'makeRichEmailAvailability'],
+                'shared'  => true,
+            ],
+            PaymentLinkDeliveryRepository::class => [
+                'class'    => PaymentLinkDeliveryRepository::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            PaymentRequestMailer::class => [
+                'class'    => PaymentRequestMailer::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            // An explicit factory, not autowiring: the controller's last two constructor
+            // parameters are the LAZY PaymentLinkService/PaymentLinkPublicUrlProvider seams (see
+            // its own docblock for why they must not be constructed on a request that refuses at
+            // validation), so production must always receive the null defaults and a factory says
+            // so unambiguously. Mirrors makeCompleteSaleCoordinator()'s identical reasoning.
+            AdminPaymentLinkSendController::class => [
+                'factory' => [self::class, 'makeAdminPaymentLinkSendController'],
                 'shared'  => true,
             ],
             // Task 11 (storefront-rendering spec §5.2): the boot-built content-hash allowlist
@@ -595,6 +641,43 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         return new ShopUrlGenerator(
             (string) config($context, 'thallo-commerce.shop_prefix', 'shop'),
             $container->get(ShopAssetMap::class),
+        );
+    }
+
+    /**
+     * Payment links Task 12: the shared rich-email availability authority. Soft-resolves the
+     * framework {@see \Glueful\Notifications\Services\ChannelManager} (a `has()` check, not a
+     * `class_exists()` one — the class always autoloads with the framework; what varies is
+     * whether the notifications provider bound it), so an install with no notification stack
+     * answers `email_available=false` instead of failing to boot.
+     */
+    public static function makeRichEmailAvailability(ContainerInterface $container): RichEmailAvailability
+    {
+        return new RichEmailAvailability(
+            $container->has(\Glueful\Notifications\Services\ChannelManager::class)
+                ? $container->get(\Glueful\Notifications\Services\ChannelManager::class)
+                : null,
+        );
+    }
+
+    /**
+     * Payment links Task 12: the send controller with its two LAZY engine seams left null (see
+     * the class's own docblock). Its six eager collaborators are all plain container-bound
+     * services; {@see PaymentLinkService} and {@see PaymentLinkPublicUrlProvider} are resolved
+     * per-request from inside the controller, long after boot — which also means this definition
+     * stays harmless when Commerce's provider is inactive and the (capability-gated) route is
+     * unreachable anyway.
+     */
+    public static function makeAdminPaymentLinkSendController(
+        ContainerInterface $container,
+    ): AdminPaymentLinkSendController {
+        return new AdminPaymentLinkSendController(
+            $container->get(ApplicationContext::class),
+            $container->get(OrderRepository::class),
+            $container->get(CommerceTenantResolution::class),
+            $container->get(PaymentLinkDeliveryRepository::class),
+            $container->get(PaymentRequestMailer::class),
+            $container->get(RichEmailAvailability::class),
         );
     }
 
@@ -1206,7 +1289,8 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     }
 
     /**
-     * Register {@see self::PRODUCT_LINK_TABLE} into the tenancy backstop — but only when
+     * Register {@see self::PRODUCT_LINK_TABLE} and {@see self::PAYMENT_LINK_DELIVERY_TABLE} into
+     * the tenancy backstop — but only when
      * TenantTableRegistry is bound (the glueful/tenancy extension is active). Unlike
      * {@see \Thallo\Tenancy\TenancyServiceProvider::registerTenantTables()}, this does NOT also
      * gate on tenancy-enforcement flags: the pack's own table is always declared tenant-owned
@@ -1233,7 +1317,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $registry = $container->get(TenantTableRegistry::class);
         }
 
-        $registry->register([self::PRODUCT_LINK_TABLE]);
+        $registry->register([self::PRODUCT_LINK_TABLE, self::PAYMENT_LINK_DELIVERY_TABLE]);
 
         return true;
     }

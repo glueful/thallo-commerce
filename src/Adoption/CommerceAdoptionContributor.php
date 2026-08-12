@@ -44,6 +44,15 @@ final class CommerceAdoptionContributor implements AdoptionContributor
 
     private const LINK_TABLE = 'thallo_commerce_product_links';
 
+    /**
+     * The payment-link delivery ledger (payment-links spec §2.4, which names tenant adoption as
+     * part of that table's contract). Adopted by the same sentinel rekey as the link table: a
+     * pre-tenancy install's delivery rows carry `tenant_uuid = ''` and must join the default
+     * tenant, or the ledger's tenant-scoped idempotency unique would arbitrate against rows the
+     * post-enablement request can no longer see — turning a replay into a fresh send.
+     */
+    private const DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
+
     public function __construct(
         private readonly Connection $connection,
         private readonly ?TenantAdopter $adopter,
@@ -69,17 +78,19 @@ final class CommerceAdoptionContributor implements AdoptionContributor
     public function tables(): array
     {
         if (!class_exists(DiagnosticsReport::class)) {
-            return [self::LINK_TABLE];
+            return [self::LINK_TABLE, self::DELIVERY_TABLE];
         }
 
-        return [self::LINK_TABLE, ...DiagnosticsReport::tenantTables()];
+        return [self::LINK_TABLE, self::DELIVERY_TABLE, ...DiagnosticsReport::tenantTables()];
     }
 
     public function adopt(ApplicationContext $context, string $tenantUuid): void
     {
-        $this->connection->table(self::LINK_TABLE)
-            ->where('tenant_uuid', '')
-            ->update(['tenant_uuid' => $tenantUuid]);
+        foreach ([self::LINK_TABLE, self::DELIVERY_TABLE] as $table) {
+            $this->connection->table($table)
+                ->where('tenant_uuid', '')
+                ->update(['tenant_uuid' => $tenantUuid]);
+        }
 
         // Soft-resolved: Commerce's provider may be inactive even though its composer package is
         // always present (design spec §3, "inactive-Commerce inertness"). Adoption is not

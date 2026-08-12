@@ -7,6 +7,7 @@ use Thallo\Commerce\Http\AdminMountAllowlist;
 use Thallo\Commerce\Http\AdminOrderExportController;
 use Thallo\Commerce\Http\AdminOrderPaymentsController;
 use Thallo\Commerce\Http\AdminOrderSearchController;
+use Thallo\Commerce\Http\AdminPaymentLinkSendController;
 use Thallo\Commerce\Http\CommerceMetaController;
 use Thallo\Commerce\Http\CommerceSettingsController;
 use Thallo\Commerce\Http\EmailSettingsController;
@@ -150,6 +151,19 @@ $router->group(
         $router->post('/orders/{uuid}/complete-sale', [AdminCompleteSaleController::class, 'completeSale'])
             ->middleware('content_permission:commerce.manage')
             ->name('thallo.commerce.admin.orders.complete_sale');
+        // Payment links Task 12 (payment-links spec §2.4): the ONE payment-link surface this pack
+        // owns. Mint (`POST /orders/{uuid}/payment-link`), revoke (`DELETE`) and status (`GET`)
+        // belong to the vendor catalog mounted below -- this pack must never redeclare that
+        // method/path triple, and `PaymentLinkSendTest`'s route-uniqueness assertions prove it
+        // doesn't. `/payment-link/send` is a DISTINCT path (one segment deeper), so it neither
+        // shadows nor is shadowed by the catalog's `/orders/{uuid}/payment-link` entry, and
+        // registering it HERE -- ahead of AdminRouteCatalog::mount() -- matches the identical
+        // posture of `/orders/{uuid}/payments` and `/orders/{uuid}/complete-sale` above.
+        // MANAGE authority: a send emails a bearer credential and, in regenerate mode,
+        // invalidates the order's existing link.
+        $router->post('/orders/{uuid}/payment-link/send', [AdminPaymentLinkSendController::class, 'send'])
+            ->middleware('content_permission:commerce.manage')
+            ->name('thallo.commerce.admin.orders.payment_link.send');
     },
 );
 

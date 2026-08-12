@@ -39,6 +39,14 @@ final class CommercePurgeHandler implements PurgeHandler
 {
     private const LINK_TABLE = 'thallo_commerce_product_links';
 
+    /**
+     * The payment-link delivery ledger (payment-links spec §2.4, which names tenant purge as part
+     * of that table's contract). Purged with the same unconditional `where tenant_uuid` delete as
+     * the link table above: its rows are tenant-owned by the same reasoning, and a leftover
+     * delivery row would keep a purged workspace's order uuids and recipient hashes on disk.
+     */
+    private const DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
+
     /** Minimal proof Commerce's schema exists — one of {@see CommerceTenantPurge}'s own tables. */
     private const SCHEMA_MARKER_TABLE = 'commerce_products';
 
@@ -75,6 +83,7 @@ final class CommercePurgeHandler implements PurgeHandler
 
         return [
             'link_count' => $this->linkCount($tenantUuid),
+            'delivery_count' => $this->rowCount(self::DELIVERY_TABLE, $tenantUuid),
             'commerce_counts' => $this->commercePurge?->countTenantRows($context, $tenantUuid) ?? [],
         ];
     }
@@ -88,6 +97,10 @@ final class CommercePurgeHandler implements PurgeHandler
             ->where('tenant_uuid', $tenantUuid)
             ->forceDelete();
 
+        $this->connection->table(self::DELIVERY_TABLE)
+            ->where('tenant_uuid', $tenantUuid)
+            ->forceDelete();
+
         $this->commercePurge?->purgeTenant($context, $tenantUuid);
     }
 
@@ -97,6 +110,10 @@ final class CommercePurgeHandler implements PurgeHandler
         $this->assertSafeToRun();
 
         if ($this->linkCount($tenantUuid) !== 0) {
+            return false;
+        }
+
+        if ($this->rowCount(self::DELIVERY_TABLE, $tenantUuid) !== 0) {
             return false;
         }
 
@@ -115,7 +132,12 @@ final class CommercePurgeHandler implements PurgeHandler
 
     private function linkCount(string $tenantUuid): int
     {
-        return (int) $this->connection->table(self::LINK_TABLE)
+        return $this->rowCount(self::LINK_TABLE, $tenantUuid);
+    }
+
+    private function rowCount(string $table, string $tenantUuid): int
+    {
+        return (int) $this->connection->table($table)
             ->where('tenant_uuid', $tenantUuid)
             ->count();
     }

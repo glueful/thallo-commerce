@@ -26,12 +26,21 @@ use Thallo\Commerce\Settings\CommerceSettingsStore;
  */
 final class EmailSettingsController
 {
-    /** Short template names (the request/response vocabulary) — registry keys are `commerce.{name}`. */
+    /**
+     * Short template names (the request/response vocabulary) — registry keys are `commerce.{name}`.
+     *
+     * `payment_request` (payment-links spec §2.4) is the one entry here whose PACK CONFIG default
+     * is FALSE rather than true: it emails a live payment-link bearer credential, so an install
+     * opts in deliberately. The `config(..., true)` fallback in {@see self::show()} below is a
+     * generic backstop for a missing key, which is exactly why the pack config sets this one
+     * explicitly (see `config/thallo-commerce.php`).
+     */
     public const TEMPLATES = [
         'order_confirmation',
         'order_paid',
         'order_fulfilled',
         'order_canceled',
+        'payment_request',
     ];
 
     public function __construct(

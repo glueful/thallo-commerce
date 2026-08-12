@@ -11,6 +11,7 @@ use Glueful\Http\Response;
 use Glueful\Interfaces\Permission\PermissionStandards;
 use Glueful\Routing\Attributes\ApiOperation;
 use Symfony\Component\HttpFoundation\Request;
+use Thallo\Commerce\Email\RichEmailAvailability;
 use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
 use Thallo\Contracts\Authorization\PermissionRequirementAuthority;
 
@@ -55,6 +56,14 @@ use function config;
  * mechanism as `can_view`/`can_manage` above — never a second, parallel authorization path.
  * `PermissionStandards::PERMISSION_USERS_VIEW` is the framework's own CORE_PERMISSION slug
  * (`'users.view'`), not a Thallo-local string literal.
+ *
+ * `email_available` (payment links Task 12, payment-links spec §2.4) is MANDATORY — it is emitted
+ * on every response, unconditionally, and is not contingent on any SPA implementation preference.
+ * It is computed through the SAME {@see RichEmailAvailability} authority
+ * {@see \Thallo\Commerce\Email\PaymentRequestMailer} refuses on, so the admin card's
+ * disabled-with-reason Send control and the endpoint's own 503 can never disagree about whether
+ * this install can email a payment link. Absence of a rich email channel is a `false` here, never
+ * a boot failure and never a missing key.
  */
 final class CommerceMetaController
 {
@@ -62,6 +71,7 @@ final class CommerceMetaController
         private readonly ApplicationContext $context,
         private readonly PermissionRequirementAuthority $authority,
         private readonly StorefrontPreviewUrlBuilder $previewUrls,
+        private readonly RichEmailAvailability $email,
     ) {
     }
 
@@ -74,6 +84,7 @@ final class CommerceMetaController
      *     can_view:bool,
      *     can_manage:bool,
      *     can_attach_user:bool,
+     *     email_available:bool,
      * }
      */
     #[ApiOperation(
@@ -103,6 +114,7 @@ final class CommerceMetaController
             'can_view' => $this->authority->allows($request, ['commerce.view']),
             'can_manage' => $this->authority->allows($request, ['commerce.manage']),
             'can_attach_user' => $userLookupEnabled && $userLookupListEnabled && $canViewUsers,
+            'email_available' => $this->email->isAvailable(),
         ]);
     }
 }
