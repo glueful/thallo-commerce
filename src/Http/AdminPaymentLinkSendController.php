@@ -311,9 +311,13 @@ final class AdminPaymentLinkSendController
         );
 
         if ($result->sent) {
+            // markSent() is a compare-and-set that RE-READS, so this row is the post-CAS truth —
+            // including the case where a concurrent replay transitioned it to `indeterminate`
+            // first and this CAS therefore changed nothing. respond() derives the whole answer
+            // from it, so the message can never contradict the receipt beside it.
             $row = $this->deliveries->markSent($deliveryUuid, $result->providerMessageId, $this->now());
 
-            return $this->respond(200, 'Payment link sent.', $row, $link, null);
+            return $this->respond($row, $link, null);
         }
 
         $row = $this->deliveries->markFailed(
@@ -324,13 +328,7 @@ final class AdminPaymentLinkSendController
 
         // Spec §2.4: the link STAYS active and its one-time URL comes back HERE so the operator
         // can copy it by hand. This is the single place a composed URL crosses this boundary.
-        return $this->respond(
-            502,
-            'The payment link was created but could not be emailed; copy the link and send it manually.',
-            $row,
-            $link,
-            $exposeUrlOnFailure ? $url : null,
-        );
+        return $this->respond($row, $link, $exposeUrlOnFailure ? $url : null);
     }
 
     /**
@@ -374,31 +372,50 @@ final class AdminPaymentLinkSendController
             /** @var array<string,mixed> $row */
             $row = $claim->row;
 
-            return $this->respond(200, 'Payment link delivery replayed.', $row, null, null, replayed: true);
+            // No URL and no link view: a replay re-mints nothing and the plaintext of whatever the
+            // first attempt sent is gone. Everything else about the answer -- HTTP status,
+            // `success`, message, recovery -- is derived from the RECORDED row by respond(), so a
+            // replayed failure reads as a failure rather than as a 200 carrying a failed receipt.
+            return $this->respond($row, null, null, replayed: true);
         }
 
         return $claim;
     }
 
     /**
-     * The CLOSED response payload. `link` is the freshly observed link view (absent on a replay,
-     * which re-mints and re-reads nothing); `url` is non-null only for a regenerate-mode delivery
-     * failure; `recovery` is non-null only for an `indeterminate` replay.
+     * The CLOSED response payload, derived ENTIRELY from the recorded ledger row.
+     *
+     * Nothing here reads the branch that produced the call. That is the whole point: a response
+     * whose `success` flag, HTTP status, or message came from "which code path am I on" can
+     * contradict the receipt it carries, and there are two real ways for that to happen.
+     *
+     *  1. A REPLAY of a key whose first attempt FAILED. The literal-200 version answered
+     *     `200 success:true` carrying `receipt.status = failed` — precisely where the operator has
+     *     lost the URL (the original 502 body was its only copy) and most needs to be told what to
+     *     do next.
+     *  2. A CAS LOSS on the happy path. {@see PaymentLinkDeliveryRepository::markSent()} is a
+     *     compare-and-set on `processing` and re-reads afterwards, so a concurrent replay that
+     *     transitioned the row to `indeterminate` first leaves this method holding a row that says
+     *     `indeterminate` while the branch believes it just sent.
+     *
+     * `link` is the freshly observed link view (absent on a replay, which re-mints and re-reads
+     * nothing); `url` is non-null only for a regenerate-mode attempt THIS request owned whose
+     * delivery did not succeed — never on a replay.
      *
      * @param array<string,mixed> $row
      */
     private function respond(
-        int $status,
-        string $message,
         array $row,
         ?PaymentLinkAdminView $link,
         ?string $url,
         bool $replayed = false,
     ): Response {
+        $recorded = (string) $row['status'];
+
         return new Response(
             [
-                'success' => $status === 200,
-                'message' => $message,
+                'success' => $recorded !== PaymentLinkDeliveryRepository::STATUS_FAILED,
+                'message' => $this->messageFor($row, $url, $replayed),
                 'data' => [
                     'receipt' => $this->receipt($row, $replayed),
                     'link' => $link?->toArray(),
@@ -406,8 +423,49 @@ final class AdminPaymentLinkSendController
                     'recovery' => $this->recoveryFor($row, $replayed),
                 ],
             ],
-            $status,
+            $this->httpStatusFor($row),
         );
+    }
+
+    /**
+     * The HTTP status the recorded state deserves, on a first attempt and on every replay of it
+     * alike.
+     *
+     * A `failed` row carries WHY it failed, and the two families answer differently: an engine
+     * refusal code ({@see PaymentLinkException}) keeps the status that refusal always had — a
+     * replayed `order_not_pending_payment` is still a 409 — while a delivery failure
+     * (`send_failed`) is the 502 spec §2.4's manual-copy case describes. Everything non-terminal
+     * or successful is a 200: `processing` and `indeterminate` are honest reports, not faults.
+     *
+     * @param array<string,mixed> $row
+     */
+    private function httpStatusFor(array $row): int
+    {
+        if ((string) $row['status'] !== PaymentLinkDeliveryRepository::STATUS_FAILED) {
+            return 200;
+        }
+
+        return self::STATUS_BY_ERROR_CODE[(string) ($row['error_code'] ?? '')] ?? 502;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private function messageFor(array $row, ?string $url, bool $replayed): string
+    {
+        $prefix = $replayed ? 'Replayed: ' : '';
+
+        return $prefix . match ((string) $row['status']) {
+            PaymentLinkDeliveryRepository::STATUS_SENT => 'the payment link was emailed.',
+            PaymentLinkDeliveryRepository::STATUS_PROCESSING =>
+                'a delivery for this Idempotency-Key is still in progress.',
+            PaymentLinkDeliveryRepository::STATUS_INDETERMINATE =>
+                'a previous delivery for this Idempotency-Key never completed, so whether it was '
+                . 'emailed is unknown.',
+            default => $url !== null
+                ? 'the payment link was created but could not be emailed; copy the link and send it manually.'
+                : 'the payment link could not be emailed.',
+        };
     }
 
     /**
@@ -437,16 +495,31 @@ final class AdminPaymentLinkSendController
     }
 
     /**
-     * The one instruction this endpoint gives. An `indeterminate` replay means a previous attempt
-     * claimed this key and vanished: whether its email went out is unknowable, and the URL it may
-     * have carried is gone. Re-minting silently under the same key would be a guess, so the
-     * operator is told to use a new key or regenerate.
+     * The one instruction this endpoint gives, on the two states where the operator's next step is
+     * not obvious from the response alone:
+     *
+     *  - `indeterminate` (any attempt). A previous claim vanished: whether its email went out is
+     *    unknowable and the URL it may have carried is gone. Re-minting silently under the same
+     *    key would be a guess.
+     *  - a REPLAYED `failed`. The first attempt's response carried the URL (or the client still
+     *    held it); this one carries neither, by design — a replay never re-exposes plaintext. So
+     *    the only way forward is a new key or a regenerate, and saying so is the difference
+     *    between an actionable answer and a dead end.
+     *
+     * A FIRST `failed` attempt gets no instruction because it does not need one: a regenerate
+     * failure returns the URL for manual copy, and a current-mode failure is a link the client is
+     * still displaying.
      *
      * @param array<string,mixed> $row
      */
     private function recoveryFor(array $row, bool $replayed): ?string
     {
-        return $replayed && (string) $row['status'] === PaymentLinkDeliveryRepository::STATUS_INDETERMINATE
+        $recorded = (string) $row['status'];
+        if ($recorded === PaymentLinkDeliveryRepository::STATUS_INDETERMINATE) {
+            return self::RECOVERY_NEW_KEY_OR_REGENERATE;
+        }
+
+        return $replayed && $recorded === PaymentLinkDeliveryRepository::STATUS_FAILED
             ? self::RECOVERY_NEW_KEY_OR_REGENERATE
             : null;
     }
