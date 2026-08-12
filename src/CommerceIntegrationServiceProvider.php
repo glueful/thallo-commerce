@@ -1285,10 +1285,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      *
      * {@see self::webhookOrderSettlementDefinitions()} decides from a live probe at COMPILE time
      * (frozen into a compiled container) while this runs on every boot. A container compiled
-     * before payvia was installed (or before it grew the strict lane) carries no
-     * `StrictPaymentEventListener::CONTAINER_TAG` entry, so payvia's `composeStrictLane()` sees
-     * an empty lane and webhook settlement is SILENTLY DEAD — the exact failure this whole lane
-     * exists to fix. Degraded delivery beats none, so the listener is attached to the ordinary
+     * before this listener existed leaves payvia's `composeStrictLane()` without it, and webhook
+     * settlement is SILENTLY DEAD — the exact failure this whole lane exists to fix. The probe is
+     * over the TAG'S CONTENTS, never over `has(id)`/`has(TAG)`; see
+     * {@see self::strictLaneCarriesSettlementListener()} for why both of those are unreachable or
+     * untrue in the realistic shapes. Degraded delivery beats none, so the listener is attached to the ordinary
      * `PaymentProviderEvent` bus instead, and the log says plainly what is degraded about it:
      * bus dispatch is fault-isolated, so a settlement that THROWS is caught and logged rather
      * than retried. The order simply stays `pending_payment` (recoverable through the
@@ -1306,19 +1307,42 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         }
 
         $container = $context->getContainer();
-        if (
-            !$container->has(EventService::class)
-            || !$container->has(WebhookOrderSettlementListener::class)
-            || $container->has(StrictPaymentEventListener::CONTAINER_TAG)
-        ) {
+        if (!$container->has(EventService::class)) {
+            return;
+        }
+
+        if (self::strictLaneCarriesSettlementListener($container)) {
+            return;
+        }
+
+        try {
+            // NOT `$container->get(WebhookOrderSettlementListener::class)`: on the stale-container
+            // shape the definition itself is what is missing, so the id is unbound. The public
+            // factory is used directly instead — its three collaborators all come from payvia's
+            // OWN definitions, which a container compiled while payvia was installed does have.
+            $listener = $container->has(WebhookOrderSettlementListener::class)
+                ? $container->get(WebhookOrderSettlementListener::class)
+                : self::makeWebhookOrderSettlementListener($container);
+        } catch (\Throwable $e) {
+            error_log(
+                '[Thallo\Commerce] CRITICAL: webhook order settlement is DEAD — the strict lane '
+                . 'does not carry ' . WebhookOrderSettlementListener::class . ' and the degraded '
+                . 'bus fallback could not be constructed either: ' . $e->getMessage()
+                . '. Provider webhooks will NOT settle orders; every payment must be confirmed '
+                . 'manually through POST /payvia/payments/confirm until the container is '
+                . 'recompiled (di:container:compile --force).'
+            );
+
             return;
         }
 
         error_log(
-            '[Thallo\Commerce] CRITICAL: payvia is installed but the container has no '
-            . StrictPaymentEventListener::CONTAINER_TAG . ' tag bound — this looks like a stale '
-            . 'compiled container built before payvia was present. Falling back to the DEGRADED '
-            . 'event-bus lane so provider webhooks still settle orders. That lane is '
+            '[Thallo\Commerce] CRITICAL: payvia is installed but the strict payment-event lane '
+            . 'does not carry ' . WebhookOrderSettlementListener::class . ' — this looks like a '
+            . 'stale compiled container built before this listener existed (the '
+            . StrictPaymentEventListener::CONTAINER_TAG . ' tag may still be bound by ANOTHER '
+            . 'contributor, which is why the tag being present proves nothing). Falling back to '
+            . 'the DEGRADED event-bus lane so provider webhooks still settle orders. That lane is '
             . 'fault-isolated: a settlement failure is swallowed and logged, never retried, and '
             . 'the order stays pending_payment until someone confirms it manually. Recompile the '
             . 'container (di:container:compile --force) to restore the strict lane.'
@@ -1326,10 +1350,50 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
 
         /** @var EventService $events */
         $events = $container->get(EventService::class);
-        $events->addListener(PaymentProviderEvent::class, [
-            $container->get(WebhookOrderSettlementListener::class),
-            'onProviderEvent',
-        ]);
+        $events->addListener(PaymentProviderEvent::class, [$listener, 'onProviderEvent']);
+    }
+
+    /**
+     * Does the live strict lane ACTUALLY carry this pack's settlement listener?
+     *
+     * The obvious probes are both wrong, and each is wrong in a way that silently disables the
+     * fallback in exactly the shape it was written for:
+     *
+     *  - `has(WebhookOrderSettlementListener::class) && !has(TAG)` can never be true. The
+     *    definition and its tag are emitted by the SAME interface_exists-guarded block, and
+     *    `ContainerFactory` binds a tagged-iterator entry for any tag with at least one
+     *    contributor — so the two always appear and disappear together.
+     *  - `has(TAG)` alone proves nothing about US: `SubscriptionsServiceProvider` tags its own
+     *    strict-lane bridge under the same id, so a container compiled before THIS listener
+     *    existed still answers `true` while carrying no settlement listener at all.
+     *
+     * Only the tag's CONTENTS answer the real question, which is what payvia's
+     * `composeStrictLane()` will actually iterate. An unbound tag, a non-iterable value, or a
+     * lane that simply does not include us all mean the same thing: settlement is not wired.
+     */
+    private static function strictLaneCarriesSettlementListener(ContainerInterface $container): bool
+    {
+        if (!$container->has(StrictPaymentEventListener::CONTAINER_TAG)) {
+            return false;
+        }
+
+        try {
+            $tagged = $container->get(StrictPaymentEventListener::CONTAINER_TAG);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (!is_iterable($tagged)) {
+            return false;
+        }
+
+        foreach ($tagged as $listener) {
+            if ($listener instanceof WebhookOrderSettlementListener) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -215,8 +215,11 @@ The pack serves Commerce's payment links at four public paths:
 | `GET /checkout/pay/return/{linkUuid}/{signature}` | a signed, **non-authorizing** receipt — reveals nothing |
 | `GET /checkout/pay/cancel/{linkUuid}/{signature}` | the cancel sibling, under its own signing purpose |
 
-Every response carries `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and
-`X-Robots-Tag: noindex, nofollow, noarchive`. The receipt handles carry a link uuid and a
+Every response carries `Cache-Control: no-store`, `Referrer-Policy: strict-origin`, and
+`X-Robots-Tag: noindex, nofollow, noarchive`. Under `strict-origin` a cross-origin navigation
+discloses only the merchant's ORIGIN (`https://shop.example/`) and never the path, so the token
+cannot ride out in a `Referer` — while the same-origin form POST still sends a real `Origin`,
+which is what lets the stock `ShopCsrfGuard` stand alone here. The receipt handles carry a link uuid and a
 signature — **never** a token.
 
 **`{token}` is a bearer credential in a URL path.** Whoever reads it can open the page and start
@@ -290,8 +293,9 @@ Also worth pinning on any install that serves payment links:
 - `zend.exception_ignore_args=On` in php.ini — PHP records call arguments in exception
   backtraces, and the framework's error handler writes `getTraceAsString()` to the error log.
 - No third-party analytics/RUM script on these pages. The templates ship zero third-party assets
-  and `Referrer-Policy: no-referrer` stops the token reaching the payment gateway through
-  `Referer`; a tag manager added later would undo both.
+  and `Referrer-Policy: strict-origin` stops the token reaching the payment gateway through
+  `Referer` — only the merchant origin is disclosed, never the payment-link path; a tag manager
+  added later would undo both.
 
 ## Boundary
 
