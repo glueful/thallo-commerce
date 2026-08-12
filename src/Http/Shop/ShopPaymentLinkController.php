@@ -171,9 +171,12 @@ final class ShopPaymentLinkController
         } catch (\Throwable) {
             // The engine documents that a driver failure — and the ambient-transaction caller
             // bug — escape UNTYPED. Neither is a state, and neither may reach a payer as text.
+            // A driver that threw may have created a provider-side session before it did, so
+            // this lands in `provider_unknown` with the rest of the "we cannot say what the
+            // provider did" family — never in copy that asserts nothing was charged.
             $token = self::REDACTED_TOKEN;
 
-            return $this->renderState('unavailable', 'unavailable', null, null, 503);
+            return $this->renderState('unavailable', 'provider_unknown', null, null, 503);
         }
         $token = self::REDACTED_TOKEN;
 
@@ -182,7 +185,10 @@ final class ShopPaymentLinkController
         // deliberate — this is the single line in the whole surface that points a browser at a
         // third party, so it does not inherit its safety from another package's invariant.
         if (!self::isRedirectableCheckoutUrl($checkoutUrl)) {
-            return $this->renderState('unavailable', 'unavailable', null, null, 503);
+            // A URL came back and this surface refused it — the engine's own
+            // `checkout_url_untrusted` fault seen one layer out, so it renders that same
+            // configuration sub-state rather than a "try again" the payer cannot act on.
+            return $this->renderState('unavailable', 'misconfigured', null, null, 503);
         }
 
         return $this->headers(new RedirectResponse($checkoutUrl, 303));
@@ -220,9 +226,28 @@ final class ShopPaymentLinkController
      * `payment_link_not_payable` is the ONE generic refusal covering malformed/unknown/revoked/
      * superseded/expired/consumed/order-no-longer-payable AND the Phase-B race, so it renders
      * the same "no longer valid" page the landing route shows — the payer's remedy is identical.
-     * Everything else is a store-side configuration or gateway problem the payer can do nothing
-     * about, except the rate limit, which is the one genuinely transient refusal and the only
-     * one where "try again shortly" is honest advice.
+     *
+     * The remaining 503s were all one `unavailable` sub-state whose copy promised BOTH that a
+     * retry would help AND that nothing had been charged. Neither claim survives contact with
+     * the actual outcomes, so the sub-state now splits three ways along "what is true for the
+     * payer" (final-review Important 5):
+     *
+     *  - `manual` — {@see PaymentLinkException::CHECKOUT_MANUAL}. The store collects payment by
+     *    hand; there is no hosted session and there never will be for this order. Retrying is
+     *    permanently futile, so the copy says so and points at the merchant.
+     *  - `misconfigured` — `return_url_unavailable`, `checkout_url_missing`,
+     *    `checkout_url_untrusted`. A store-side/gateway configuration fault that no amount of
+     *    payer patience fixes; only an operator can. Same contact-the-merchant remedy, again
+     *    with no retry promise. All three are raised BEFORE or INSTEAD OF a usable session, so
+     *    the payer is genuinely unbilled — but the copy still does not lean on that, because it
+     *    is not the payer's decision to make.
+     *  - `provider_unknown` — `checkout_initiation_failed` and the untyped fall-through. The
+     *    collector THREW or answered outside the contract (payvia's renewal-unavailable modes
+     *    land here). We do not know what the provider did with the attempt, so we must NOT
+     *    assert that nothing was charged. Neutral copy: we could not confirm the session.
+     *
+     * `payment_link_rate_limited` keeps its own state: it is the one genuinely transient refusal
+     * and the only one where "try again shortly" is honest advice.
      *
      * @return array{0: string, 1: string, 2: int}
      */
@@ -231,7 +256,11 @@ final class ShopPaymentLinkController
         return match ($errorCode) {
             PaymentLinkException::PAYMENT_LINK_NOT_PAYABLE => ['invalid', 'not_payable', 410],
             PaymentLinkException::INITIATION_RATE_LIMITED => ['unavailable', 'rate_limited', 429],
-            default => ['unavailable', 'unavailable', 503],
+            PaymentLinkException::CHECKOUT_MANUAL => ['unavailable', 'manual', 503],
+            PaymentLinkException::RETURN_URL_UNAVAILABLE,
+            PaymentLinkException::CHECKOUT_URL_MISSING,
+            PaymentLinkException::CHECKOUT_URL_UNTRUSTED => ['unavailable', 'misconfigured', 503],
+            default => ['unavailable', 'provider_unknown', 503],
         };
     }
 

@@ -49,11 +49,28 @@
       <p class="shop-payment-link__invalid">This payment link is no longer valid — please contact the merchant for a current one.</p>
 
     {% else %}
-      <h1 id="shop-payment-link-heading">Payment cannot be started right now</h1>
-      {% if link.reason == 'rate_limited' %}
+      {#
+        One `unavailable` state, four sub-states, each with copy that is TRUE for it
+        (ShopPaymentLinkController::stateForErrorCode). The retired single message promised both
+        that retrying would help and that nothing had been charged; on half these outcomes the
+        first is permanently false and on the rest the second is unknowable. Only `rate_limited`
+        still promises a retry, and no branch here asserts what the provider did.
+      #}
+      {% if link.reason == 'manual' %}
+        <h1 id="shop-payment-link-heading">Online payment isn’t available for this order</h1>
+        <p class="shop-payment-link__unavailable">This order is paid directly with the merchant, so there is no online payment page to send you to — please contact the merchant to arrange payment.</p>
+      {% elseif link.reason == 'misconfigured' %}
+        <h1 id="shop-payment-link-heading">This payment link can’t start a payment</h1>
+        <p class="shop-payment-link__unavailable">Something on the merchant’s side needs fixing before this link can take a payment — please contact the merchant. Retrying won’t change it.</p>
+      {% elseif link.reason == 'rate_limited' %}
+        <h1 id="shop-payment-link-heading">Payment cannot be started right now</h1>
         <p class="shop-payment-link__unavailable">This link has started too many payments in the past hour — please try again shortly.</p>
+      {% elseif link.reason == 'provider_unknown' %}
+        <h1 id="shop-payment-link-heading">Payment cannot be started right now</h1>
+        <p class="shop-payment-link__unavailable">We couldn’t confirm the payment session — please try again shortly, or contact the merchant before paying another way.</p>
       {% else %}
-        <p class="shop-payment-link__unavailable">We could not start a payment right now. Nothing has been charged — please try again later or contact the merchant.</p>
+        <h1 id="shop-payment-link-heading">Payment cannot be started right now</h1>
+        <p class="shop-payment-link__unavailable">We couldn’t load this payment page right now — please try again shortly, or contact the merchant.</p>
       {% endif %}
     {% endif %}
 
