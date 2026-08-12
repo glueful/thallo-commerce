@@ -15,10 +15,16 @@ use Symfony\Component\HttpFoundation\Response;
  *  - `Cache-Control: no-store` — the landing URL carries a bearer token and the page states a
  *    payer's bill; nothing about it may be written to a disk cache, a shared proxy, or a back/
  *    forward cache entry on a borrowed machine.
- *  - `Referrer-Policy: no-referrer` — THE load-bearing one. Without it, the 303 that sends a
- *    payer to a hosted gateway would carry `Referer: https://.../checkout/pay/<token>` to that
- *    third party, handing a live bearer credential to the payment provider (and to every hop
- *    that logs it).
+ *  - `Referrer-Policy: strict-origin` — THE load-bearing one. Under it a cross-origin navigation
+ *    discloses ONLY the merchant's origin (`https://shop.example/`) and never the path, so the
+ *    303 that sends a payer to a hosted gateway can no longer carry
+ *    `Referer: https://.../checkout/pay/<token>` — the bearer credential stays on this side of
+ *    the redirect, while the merchant origin (which the PSP already knows: it is the account it
+ *    settles into and the host of the return URL it was handed) still reaches it. That last part
+ *    is why this is `strict-origin` and not `no-referrer`: a `Referer`-less same-origin form POST
+ *    serializes its `Origin` as opaque `null`, which forced a bespoke CSRF widening; an
+ *    origin-only referrer keeps the stock {@see ShopCsrfGuard} sufficient with nothing widened.
+ *    The `strict-` prefix additionally suppresses the header entirely on an HTTPS→HTTP downgrade.
  *  - `X-Robots-Tag: noindex, nofollow, noarchive` — a forwarded link must not become an indexed,
  *    archived, permanently-crawlable page.
  *
@@ -26,8 +32,8 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * The controller stamps these on every response it builds. This middleware exists because not
  * every payment-link response comes FROM the controller: a rejected provenance check
- * ({@see ShopPaymentLinkCsrfGuard}) and an exceeded IP ceiling (the framework's rate limiter)
- * both short-circuit before it. It is registered FIRST in the chain (after the tenant pair), so
+ * ({@see ShopCsrfGuard}) and an exceeded IP ceiling (the framework's rate limiter) both
+ * short-circuit before it. It is registered FIRST in the chain (after the tenant pair), so
  * it post-processes whatever the rest of the chain returns, and "all responses" is a structural
  * guarantee rather than a list of places somebody remembered.
  *
@@ -42,7 +48,7 @@ use Symfony\Component\HttpFoundation\Response;
 final class ShopPaymentLinkHeaders implements RouteMiddleware
 {
     public const CACHE_CONTROL = 'no-store';
-    public const REFERRER_POLICY = 'no-referrer';
+    public const REFERRER_POLICY = 'strict-origin';
     public const ROBOTS = 'noindex, nofollow, noarchive';
 
     public function handle(Request $request, callable $next, mixed ...$params): mixed

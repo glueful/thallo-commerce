@@ -80,7 +80,6 @@ use Thallo\Commerce\Payments\ThalloPaymentLinkPublicUrlProvider;
 use Thallo\Commerce\Payments\ThalloPaymentLinkReturnUrlProvider;
 use Thallo\Commerce\Http\Shop\ShopPageRenderer;
 use Thallo\Commerce\Http\Shop\ShopPaymentLinkController;
-use Thallo\Commerce\Http\Shop\ShopPaymentLinkCsrfGuard;
 use Thallo\Commerce\Http\Shop\ShopPaymentLinkHeaders;
 use Thallo\Commerce\Http\Shop\ShopProductCardAssembler;
 use Thallo\Commerce\Http\Shop\ShopWishlistController;
@@ -521,10 +520,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'class'  => ShopPaymentLinkHeaders::class,
                 'shared' => true,
             ],
-            ShopPaymentLinkCsrfGuard::class => [
-                'factory' => [self::class, 'makeShopPaymentLinkCsrfGuard'],
-                'shared'  => true,
-            ],
             ShopPaymentLinkController::class => [
                 'class'    => ShopPaymentLinkController::class,
                 'shared'   => true,
@@ -874,17 +869,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 ),
             ]);
         }
-    }
-
-    /**
-     * Payment links Task 11: an explicit factory (never autowiring) so the fact that this guard
-     * COMPOSES the established {@see ShopCsrfGuard} — rather than reimplementing origin
-     * comparison — is impossible to miss in a diff. See that class for the one narrow case it
-     * adds, and why the payment-link POST cannot rely on `Origin` alone.
-     */
-    public static function makeShopPaymentLinkCsrfGuard(ContainerInterface $container): ShopPaymentLinkCsrfGuard
-    {
-        return new ShopPaymentLinkCsrfGuard($container->get(ShopCsrfGuard::class));
     }
 
     /**

@@ -10,7 +10,6 @@ use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
 use Thallo\Commerce\Http\Shop\ShopPaymentLinkController;
-use Thallo\Commerce\Http\Shop\ShopPaymentLinkCsrfGuard;
 use Thallo\Commerce\Http\Shop\ShopPaymentLinkHeaders;
 use Thallo\Commerce\Http\Shop\ShopWishlistController;
 use Thallo\Commerce\Shop\ShopFrameEmbedding;
@@ -147,10 +146,13 @@ $router->get('/checkout/confirmation/{ref}', [ShopCheckoutController::class, 'co
  *     The windows are deliberately multi-minute (a real payer opens their bill a handful of
  *     times, not sixty times a minute) and keyed BY IP — never by endpoint, which would give a
  *     token enumerator a fresh bucket for every guess;
- *  4. ShopPaymentLinkCsrfGuard last on the POST, mirroring ShopCsrfGuard's own "runs LAST"
- *     ordering everywhere else in this file. See that class for why the payment-link POST needs
- *     the opaque-origin reconciliation: this page's own mandatory `Referrer-Policy: no-referrer`
- *     makes browsers serialize the form POST's `Origin` as `null`.
+ *  4. ShopCsrfGuard last on the POST — the STOCK guard, mirroring its own "runs LAST" ordering
+ *     everywhere else in this file, with nothing widened for this surface. That is a direct
+ *     consequence of §2.3's `Referrer-Policy: strict-origin`: a same-origin form POST from a
+ *     `strict-origin` page still sends a real `Origin` (and an origin-only `Referer`), so the
+ *     guard's ordinary Origin comparison decides it. Under the previous `no-referrer` the browser
+ *     serialized that `Origin` as opaque `null` and sent no `Referer`, which is why a bespoke
+ *     wrapper existed at all; it is deleted.
  *
  * Route shapes cannot collide with the guest-cookie checkout routes above: `/checkout/pay/...`
  * has a LITERAL second segment, so `/checkout/return/{ref}`, `/checkout/cancel/{ref}`, and
@@ -166,7 +168,7 @@ $router->post('/checkout/pay/{token}/initiate', [ShopPaymentLinkController::clas
         'tenant_bootstrap',
         ShopPaymentLinkHeaders::class,
         'rate_limit',
-        ShopPaymentLinkCsrfGuard::class,
+        ShopCsrfGuard::class,
     ])
     ->rateLimit(30, 10, by: 'ip');
 $router->get('/checkout/pay/return/{linkUuid}/{signature}', [ShopPaymentLinkController::class, 'paymentReturn'])
