@@ -679,9 +679,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * same reason: aliases are compiled into this provider's own map and merged identically.)
      *
      * Guarded three ways, all of which are real states rather than defensive noise:
-     *  - a non-{@see GluefulContainer} (a compiled container) has no `load()`; today compilation
-     *    always falls back, and `PaymentLinkSeamRebindTest`'s sibling reasoning in
-     *    thallo-subscriptions documents the day that changes;
+     *  - a non-{@see GluefulContainer} (a compiled container) has no `load()`, so this would
+     *    silently skip. Today container compilation always throws and falls back to the plain
+     *    container; `tests/Integration/Subscriptions/SubjectResolverCompiledContainerGateTest.php`
+     *    drives the real `ContainerFactory::create($context, prod: true)` path and turns red the
+     *    day that stops being true, which is the same day this re-pin needs another home;
      *  - `interface_exists()` — an install pinned to a pre-payment-links Commerce must stay inert;
      *  - `has()` — if Commerce's provider is not active at all, the id is unbound and binding it
      *    would advertise an engine contract this boot cannot honour.
@@ -689,6 +691,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * The definitions are FACTORIES resolving this pack's own container-bound implementations, so
      * the engine's lazily-constructed `PaymentLinkService` (itself a factory) picks them up on
      * first resolution — which is always after boot.
+     *
+     * SINGLETON-LATCH FRAGILITY, stated because it is invisible otherwise: both seam ids are
+     * SHARED, so anything that resolves `PaymentLinkService` (or either seam id directly) BEFORE
+     * this method runs would latch Commerce's `Unavailable*` default for the rest of the process,
+     * silently — a mint would then answer `public_url_unavailable` with nothing in any log saying
+     * why. Nothing does today (the only consumers are this pack's own HTTP routes and Commerce's
+     * admin routes, all of which resolve per-request, long after boot), and
+     * `PaymentLinkHostSeamsTest` asserts both ids resolve to the Thallo implementations. A future
+     * boot-time consumer of the payment-link service would have to load AFTER this provider.
      */
     private function rebindPaymentLinkSeams(): void
     {

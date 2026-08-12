@@ -242,25 +242,48 @@ log_format redacted '$remote_addr - $remote_user [$time_local] '
 access_log /var/log/nginx/access.log redacted;
 ```
 
-**Apache 2.4** — same idea, via an environment variable:
+**Apache 2.4** — build the request line from a pre-redacted environment variable. Apache has no
+"rewrite the logged URI" primitive, so the substitute path is set explicitly per shape and the
+format never uses `%r` or `%U` (both of which would print the real path, token and all):
 
 ```apache
-SetEnvIfExpr "%{REQUEST_URI} =~ m#^/checkout/pay/[a-f0-9]{64}#" PAYMENT_LINK=1
-LogFormat "%h %l %u %t \"%m %U\" %>s %b" nopath
-CustomLog logs/access_log combined env=!PAYMENT_LINK
-CustomLog logs/access_log nopath env=PAYMENT_LINK
+# mod_setenvif. Anchored, so exactly one of these can match; the value is the URI to log.
+SetEnvIfExpr "%{REQUEST_URI} =~ m#^/checkout/pay/[a-f0-9]{64}$#"          redacted_uri=/checkout/pay/[REDACTED]
+SetEnvIfExpr "%{REQUEST_URI} =~ m#^/checkout/pay/[a-f0-9]{64}/initiate$#" redacted_uri=/checkout/pay/[REDACTED]/initiate
+
+# NOTE: %r / %U are deliberately absent — this line is assembled from method + env var + protocol.
+LogFormat "%h %l %u %t \"%m %{redacted_uri}e %H\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" redacted
+
+CustomLog logs/access_log combined env=!redacted_uri
+CustomLog logs/access_log redacted  env=redacted_uri
 ```
 
-**Caddy** — drop the URI from matching requests:
+What it covers and what it does not: it covers the two token-bearing paths only (the receipt
+handles carry a link uuid and a signature, never a token, so they log normally through
+`combined`). A request that is neither shape is logged verbatim by the first `CustomLog`. It does
+NOT touch the error log, `mod_security`'s audit log, or anything an APM agent records — those need
+their own rules.
+
+**Caddy** — rewrite the logged URI with the `filter` encoder's `regexp` action. This is
+**site-wide** (Caddy's `log` directive accepts no request matcher — a `@matcher` next to it would
+be dead config), but it is a *substitution*, so non-payment-link URIs pass through untouched:
 
 ```caddy
-@paymentlink path_regexp ^/checkout/pay/[a-f0-9]{64}
 log {
     format filter {
-        request>uri delete
+        wrap console
+        fields {
+            request>uri regexp "^/checkout/pay/[0-9a-f]+" "/checkout/pay/[REDACTED]"
+        }
     }
 }
 ```
+
+The pattern is `[0-9a-f]+` rather than an exact `{64}` quantifier because braces are placeholder
+syntax in a Caddyfile; the widened match only ever redacts MORE of this path prefix, never less.
+Only the matched prefix is replaced, so `/checkout/pay/<token>/initiate` still logs as
+`/checkout/pay/[REDACTED]/initiate`. If you would rather not log these requests at all, use
+`log_skip` with a `path_regexp` matcher instead — that directive does take one.
 
 Also worth pinning on any install that serves payment links:
 
