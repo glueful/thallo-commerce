@@ -68,6 +68,12 @@ use Thallo\Commerce\Http\Shop\ShopCartController;
 use Thallo\Commerce\Http\Shop\ShopCatalogController;
 use Thallo\Commerce\Http\Shop\ShopCheckoutController;
 use Thallo\Commerce\Http\Shop\ShopCsrfGuard;
+use Glueful\Extensions\Contracts\Tenancy\TenantContextRunner;
+use Glueful\Extensions\Payvia\Contracts\StrictPaymentEventListener;
+use Glueful\Extensions\Payvia\Events\PaymentProviderEvent;
+use Glueful\Extensions\Payvia\Repositories\PaymentIntentRepository;
+use Glueful\Extensions\Payvia\Services\ConfirmationDispatcher;
+use Thallo\Commerce\Payments\WebhookOrderSettlementListener;
 use Thallo\Commerce\Payments\PaymentLinkReturnSigner;
 use Thallo\Commerce\Payments\ThalloOrderPaymentReturnUrlProvider;
 use Thallo\Commerce\Payments\ThalloPaymentLinkPublicUrlProvider;
@@ -619,7 +625,60 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // tenant context exists, so they must not sit behind this pack's `thallo.commerce`
         // capability gate.
 
+        // The webhook -> order settlement lane (payment-links final review). Registered LAST and
+        // conditionally, because it is the one definition in this array that names a payvia type.
+        $services += self::webhookOrderSettlementDefinitions();
+
         return $services;
+    }
+
+    /**
+     * The strict-lane listener that turns a provider-verified `payment.succeeded` webhook into a
+     * paid order ({@see WebhookOrderSettlementListener} for the whole rationale).
+     *
+     * `interface_exists()` because payvia is a SOFT dependency of this pack (it is not in the
+     * package's composer requires; the app pulls it in). An install without payvia — or pinned to
+     * a payvia older than the strict lane — registers nothing at all rather than compiling a
+     * reference to a missing type.
+     *
+     * The `'tags'` key on the definition is what actually wires the tag: this is a `services()`
+     * (DSL) provider, and `ContainerFactory` only consults a provider's static `tags()` for
+     * typed `defs()`-based providers. A static `tags()` here would be dead code — the same trap
+     * `SubscriptionsServiceProvider` documents at length for its own strict-lane bridge.
+     *
+     * @return array<string, mixed>
+     */
+    private static function webhookOrderSettlementDefinitions(): array
+    {
+        if (!interface_exists(StrictPaymentEventListener::class)) {
+            return [];
+        }
+
+        return [
+            WebhookOrderSettlementListener::class => [
+                'factory' => [self::class, 'makeWebhookOrderSettlementListener'],
+                'shared'  => true,
+                'tags'    => [StrictPaymentEventListener::CONTAINER_TAG],
+            ],
+        ];
+    }
+
+    /**
+     * Explicit factory rather than autowiring: the tenant runner is an OPTIONAL contract (a
+     * single-store install binds none) and autowiring a nullable interface parameter is not a
+     * thing the container does. Everything else is a plain payvia-bound service.
+     */
+    public static function makeWebhookOrderSettlementListener(
+        ContainerInterface $container
+    ): WebhookOrderSettlementListener {
+        return new WebhookOrderSettlementListener(
+            $container->get(ApplicationContext::class),
+            $container->get(PaymentIntentRepository::class),
+            $container->get(ConfirmationDispatcher::class),
+            interface_exists(TenantContextRunner::class) && $container->has(TenantContextRunner::class)
+                ? $container->get(TenantContextRunner::class)
+                : null,
+        );
     }
 
     public static function makeCommerceTenantResolution(ContainerInterface $container): CommerceTenantResolution
@@ -1079,6 +1138,10 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // thallo.commerce can never leave a stale entry for the NEXT time it's re-enabled.
         $this->registerShopCachePurgeListeners($context);
 
+        // Money infrastructure, never behind the capability gate — a webhook for an order that
+        // was placed while thallo.commerce was on must still settle.
+        $this->registerWebhookOrderSettlement($context);
+
         // Capability-boundary pin: a flip of thallo.commerce between boots purges the rendered
         // page cache (+ edge) so previously cached shop shells/script tags — or, on re-enable,
         // cached missing-template fallbacks — disappear immediately. OUTSIDE the gate for the
@@ -1231,6 +1294,58 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         if (class_exists(ProductDeleted::class) && $container->has(CatalogReader::class)) {
             $events->addListener(ProductDeleted::class, app($context, ProductDeletedListener::class));
         }
+    }
+
+    /**
+     * The webhook -> order settlement lane's STALE-COMPILED-CONTAINER guard.
+     *
+     * {@see self::webhookOrderSettlementDefinitions()} decides from a live probe at COMPILE time
+     * (frozen into a compiled container) while this runs on every boot. A container compiled
+     * before payvia was installed (or before it grew the strict lane) carries no
+     * `StrictPaymentEventListener::CONTAINER_TAG` entry, so payvia's `composeStrictLane()` sees
+     * an empty lane and webhook settlement is SILENTLY DEAD — the exact failure this whole lane
+     * exists to fix. Degraded delivery beats none, so the listener is attached to the ordinary
+     * `PaymentProviderEvent` bus instead, and the log says plainly what is degraded about it:
+     * bus dispatch is fault-isolated, so a settlement that THROWS is caught and logged rather
+     * than retried. The order simply stays `pending_payment` (recoverable through the
+     * authenticated `POST /payvia/payments/confirm`); no money moves twice, because every CAS in
+     * the chain is unchanged. The real fix is recompiling the container.
+     */
+    private function registerWebhookOrderSettlement(ApplicationContext $context): void
+    {
+        if (
+            !interface_exists(StrictPaymentEventListener::class)
+            || !class_exists(PaymentProviderEvent::class)
+            || !$context->hasContainer()
+        ) {
+            return;
+        }
+
+        $container = $context->getContainer();
+        if (
+            !$container->has(EventService::class)
+            || !$container->has(WebhookOrderSettlementListener::class)
+            || $container->has(StrictPaymentEventListener::CONTAINER_TAG)
+        ) {
+            return;
+        }
+
+        error_log(
+            '[Thallo\Commerce] CRITICAL: payvia is installed but the container has no '
+            . StrictPaymentEventListener::CONTAINER_TAG . ' tag bound — this looks like a stale '
+            . 'compiled container built before payvia was present. Falling back to the DEGRADED '
+            . 'event-bus lane so provider webhooks still settle orders. That lane is '
+            . 'fault-isolated: a settlement failure is swallowed and logged, never retried, and '
+            . 'the order stays pending_payment until someone confirms it manually. Recompile the '
+            . 'container (di:container:compile --force) to restore the strict lane.'
+        );
+
+        /** @var EventService $events */
+        $events = $container->get(EventService::class);
+        $events->addListener(PaymentProviderEvent::class, [
+            $container->get(WebhookOrderSettlementListener::class),
+            'onProviderEvent',
+        ]);
     }
 
     /**
