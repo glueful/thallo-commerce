@@ -16,6 +16,8 @@ use Glueful\Encryption\EncryptionService;
 use Glueful\Events\EventService;
 use Glueful\Extensions\Commerce\Catalog\CatalogReader;
 use Glueful\Extensions\Commerce\Catalog\SlugLifecycleAuthority;
+use Glueful\Extensions\Audit\Contracts\AuditRecorderInterface;
+use Glueful\Extensions\Commerce\Events\LatePaymentRejected;
 use Glueful\Extensions\Commerce\Events\ProductDeleted;
 use Glueful\Extensions\Commerce\Events\ProductSlugChanged;
 use Glueful\Extensions\Commerce\Events\StorefrontCatalogChanged;
@@ -73,6 +75,7 @@ use Glueful\Extensions\Payvia\Contracts\StrictPaymentEventListener;
 use Glueful\Extensions\Payvia\Events\PaymentProviderEvent;
 use Glueful\Extensions\Payvia\Repositories\PaymentIntentRepository;
 use Glueful\Extensions\Payvia\Services\ConfirmationDispatcher;
+use Thallo\Commerce\Payments\LatePaymentVisibilityListener;
 use Thallo\Commerce\Payments\WebhookOrderSettlementListener;
 use Thallo\Commerce\Payments\PaymentLinkReturnSigner;
 use Thallo\Commerce\Payments\ThalloOrderPaymentReturnUrlProvider;
@@ -160,6 +163,23 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * generic backstop.
      */
     private const PAYMENT_LINK_DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
+
+    /**
+     * Every table this pack owns and declares tenant-owned, in registration order. Cleanup-train
+     * Task 10 added the last two: the storefront slug-history ledger and the checkout-attempt
+     * idempotency ledger are both `(tenant_uuid, …)`-keyed pack tables, but neither was ever
+     * registered here — so the tenancy backstop treated them as untenanted and the pack's own
+     * purge handler / adoption contributor (which must claim exactly what is registered) left
+     * their rows behind on a purge and their sentinel rows unadopted on enablement.
+     *
+     * @var list<string>
+     */
+    private const PACK_TENANT_TABLES = [
+        self::PRODUCT_LINK_TABLE,
+        self::PAYMENT_LINK_DELIVERY_TABLE,
+        'thallo_commerce_product_slugs',
+        'thallo_commerce_checkout_attempts',
+    ];
 
     /**
      * Tenant resolution is infrastructure, not a user-facing surface: bound unconditionally
@@ -1126,6 +1146,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // was placed while thallo.commerce was on must still settle.
         $this->registerWebhookOrderSettlement($context);
 
+        // Same category, same reasoning: the settlement lane above is precisely what makes late
+        // payments likelier, and a late payment that may need refunding must stay discoverable
+        // whether or not the capability is currently on.
+        $this->registerLatePaymentVisibility($context);
+
         // Capability-boundary pin: a flip of thallo.commerce between boots purges the rendered
         // page cache (+ edge) so previously cached shop shells/script tags — or, on re-enable,
         // cached missing-template fallbacks — disappear immediately. OUTSIDE the gate for the
@@ -1296,6 +1321,49 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * authenticated `POST /payvia/payments/confirm`); no money moves twice, because every CAS in
      * the chain is unchanged. The real fix is recompiling the container.
      */
+    /**
+     * Wire {@see LatePaymentVisibilityListener} onto the engine's `LatePaymentRejected`
+     * (cleanup-train Task 10). Registered OUTSIDE the capability gate for the same reason as the
+     * settlement listener above.
+     *
+     * Both collaborators are soft-resolved, and the audit one is soft in the stronger sense:
+     * `glueful/audit` is a host-app EXTENSION, not a dependency of this pack, so `interface_exists`
+     * comes first (the class may genuinely be absent) and the container check second (it may be
+     * present but its provider inactive). With no audit backend there is no operator-visible
+     * surface to write to, so nothing is registered at all — the engine's own
+     * `payment_late_rejected` order event is unaffected and remains the authoritative record.
+     */
+    private function registerLatePaymentVisibility(ApplicationContext $context): void
+    {
+        if (
+            !class_exists(LatePaymentRejected::class)
+            || !interface_exists(AuditRecorderInterface::class)
+            || !$context->hasContainer()
+        ) {
+            return;
+        }
+
+        $container = $context->getContainer();
+        if (
+            !$container->has(EventService::class)
+            || !$container->has(AuditRecorderInterface::class)
+            || !$container->has(OrderRepository::class)
+        ) {
+            return;
+        }
+
+        /** @var EventService $events */
+        $events = $container->get(EventService::class);
+        $events->addListener(LatePaymentRejected::class, [
+            new LatePaymentVisibilityListener(
+                $context,
+                $container->get(OrderRepository::class),
+                $container->get(AuditRecorderInterface::class),
+            ),
+            'onLatePaymentRejected',
+        ]);
+    }
+
     private function registerWebhookOrderSettlement(ApplicationContext $context): void
     {
         if (
@@ -1452,7 +1520,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     }
 
     /**
-     * Register {@see self::PRODUCT_LINK_TABLE} and {@see self::PAYMENT_LINK_DELIVERY_TABLE} into
+     * Register every pack-owned tenant table ({@see self::PACK_TENANT_TABLES}) into
      * the tenancy backstop — but only when
      * TenantTableRegistry is bound (the glueful/tenancy extension is active). Unlike
      * {@see \Thallo\Tenancy\TenancyServiceProvider::registerTenantTables()}, this does NOT also
@@ -1480,7 +1548,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $registry = $container->get(TenantTableRegistry::class);
         }
 
-        $registry->register([self::PRODUCT_LINK_TABLE, self::PAYMENT_LINK_DELIVERY_TABLE]);
+        $registry->register(self::PACK_TENANT_TABLES);
 
         return true;
     }

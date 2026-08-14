@@ -18,6 +18,9 @@
     "glueful/commerce": "^1.12.0",
     "glueful/framework": "^1.71.0"
   },
+  "suggest": {
+    "glueful/audit": "Gives LatePaymentVisibilityListener an operator-visible surface: without an audit backend a late provider payment stays recorded as a commerce order event only, discoverable by opening that one order."
+  },
   "autoload": {
     "psr-4": {
       "Thallo\\Commerce\\": "src/"

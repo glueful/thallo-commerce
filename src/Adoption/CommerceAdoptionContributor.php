@@ -53,6 +53,23 @@ final class CommerceAdoptionContributor implements AdoptionContributor
      */
     private const DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
 
+    /**
+     * Cleanup-train Task 10: every pack-owned tenant table, in registration order. The last two
+     * were the gap this task closed — both are keyed `(tenant_uuid, …)` UNIQUE, so a pre-tenancy
+     * install's `tenant_uuid = ''` rows that never joined the default tenant keep arbitrating
+     * against rows the post-enablement request can no longer see: a slug reservation the
+     * storefront cannot find but the unique still refuses, and a checkout idempotency key whose
+     * completed attempt is invisible, turning a replay into a SECOND order.
+     *
+     * @var list<string>
+     */
+    private const PACK_TABLES = [
+        self::LINK_TABLE,
+        self::DELIVERY_TABLE,
+        'thallo_commerce_product_slugs',
+        'thallo_commerce_checkout_attempts',
+    ];
+
     public function __construct(
         private readonly Connection $connection,
         private readonly ?TenantAdopter $adopter,
@@ -78,15 +95,15 @@ final class CommerceAdoptionContributor implements AdoptionContributor
     public function tables(): array
     {
         if (!class_exists(DiagnosticsReport::class)) {
-            return [self::LINK_TABLE, self::DELIVERY_TABLE];
+            return self::PACK_TABLES;
         }
 
-        return [self::LINK_TABLE, self::DELIVERY_TABLE, ...DiagnosticsReport::tenantTables()];
+        return [...self::PACK_TABLES, ...DiagnosticsReport::tenantTables()];
     }
 
     public function adopt(ApplicationContext $context, string $tenantUuid): void
     {
-        foreach ([self::LINK_TABLE, self::DELIVERY_TABLE] as $table) {
+        foreach (self::PACK_TABLES as $table) {
             $this->connection->table($table)
                 ->where('tenant_uuid', '')
                 ->update(['tenant_uuid' => $tenantUuid]);

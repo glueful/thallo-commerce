@@ -224,10 +224,23 @@ signature — **never** a token.
 
 **`{token}` is a bearer credential in a URL path.** Whoever reads it can open the page and start
 a checkout, so it must never be written to an access log, an APM trace, or an error report. The
-application never logs it (see `ShopPaymentLinkController` and
-`ThalloPaymentLinkPublicUrlProvider`: the parameter is overwritten the moment it is consumed, and
-it appears in exactly one place in the markup — the Pay form's own `action`). **Your reverse
-proxy does not know that**, and its access log is written before any PHP runs. Redact it there:
+engine stores only a hash of it, so a raw token exists at exactly **three egress points**, all
+sanctioned and all deliberate:
+
+1. **the one-time mint/regenerate response** — the only time the value is ever returned to an
+   operator, and it is not recoverable afterwards;
+2. **the send-time email body** — `PaymentRequestMailer` renders the URL into the message and
+   keeps it out of the delivery ledger, which has no column that could hold it;
+3. **the landing page's Pay-form `action` attribute** — its ONE legitimate appearance in markup,
+   and only while the link is payable. The form posts the token back to
+   `POST /checkout/pay/{token}/initiate`, so a no-JS payer needs it there;
+   `ShopPaymentLinkController::landing()` says as much, and a test pins that the token appears
+   exactly once in the rendered page.
+
+It reaches no database row, queue payload, log line, or audit record from any other path (see
+`ShopPaymentLinkController` and `ThalloPaymentLinkPublicUrlProvider`: the parameter is overwritten
+the moment it is consumed). **Your reverse proxy does not know that**, and its access log is
+written before any PHP runs. Redact it there:
 
 **nginx** — rewrite the logged path, keeping everything else:
 

@@ -11,9 +11,10 @@ use Thallo\Tenancy\Purge\PurgeHandler;
 
 /**
  * Commerce-Slice-1 Task 10: the pack's {@see PurgeHandler} (design spec §8.2). Deletes the
- * tenant's `thallo_commerce_product_links` rows, then delegates Commerce-table purging to
- * {@see CommerceTenantPurge} — the pack never re-lists Commerce's tenant/child tables itself,
- * so that inventory stays owned by Commerce and can never drift out of lockstep.
+ * tenant's rows from every PACK-OWNED table ({@see self::PACK_TABLES}), then delegates
+ * Commerce-table purging to {@see CommerceTenantPurge} — the pack never re-lists Commerce's
+ * tenant/child tables itself, so that inventory stays owned by Commerce and can never drift out
+ * of lockstep.
  *
  * Registered with `PurgeResourceRegistry` OUTSIDE the `thallo.commerce` capability gate
  * (mirrors `CollectionsPurgeHandler`'s precedent — an aliased shared service, picked up by
@@ -46,6 +47,25 @@ final class CommercePurgeHandler implements PurgeHandler
      * delivery row would keep a purged workspace's order uuids and recipient hashes on disk.
      */
     private const DELIVERY_TABLE = 'thallo_commerce_payment_link_deliveries';
+
+    /**
+     * Cleanup-train Task 10: the two remaining pack-owned tenant tables, registered here for the
+     * first time. Both predate the payment-links cycle and were silently left behind by every
+     * purge run until now — `thallo_commerce_product_slugs` keeps a deleted workspace's whole slug
+     * history (product names it once used, still resolvable as 301 sources), and
+     * `thallo_commerce_checkout_attempts` keeps its checkout-attempt ledger INCLUDING the
+     * encrypted guest credentials that ledger stores for replay. Purged with the same
+     * unconditional `where tenant_uuid` delete as the two tables above, for the same reason: the
+     * rows are tenant-owned, and nothing else in the tree deletes them per-tenant.
+     *
+     * @var list<string>
+     */
+    private const PACK_TABLES = [
+        self::LINK_TABLE,
+        self::DELIVERY_TABLE,
+        'thallo_commerce_product_slugs',
+        'thallo_commerce_checkout_attempts',
+    ];
 
     /** Minimal proof Commerce's schema exists — one of {@see CommerceTenantPurge}'s own tables. */
     private const SCHEMA_MARKER_TABLE = 'commerce_products';
@@ -82,8 +102,10 @@ final class CommercePurgeHandler implements PurgeHandler
         $this->assertSafeToRun();
 
         return [
-            'link_count' => $this->linkCount($tenantUuid),
+            'link_count' => $this->rowCount(self::LINK_TABLE, $tenantUuid),
             'delivery_count' => $this->rowCount(self::DELIVERY_TABLE, $tenantUuid),
+            'slug_count' => $this->rowCount('thallo_commerce_product_slugs', $tenantUuid),
+            'attempt_count' => $this->rowCount('thallo_commerce_checkout_attempts', $tenantUuid),
             'commerce_counts' => $this->commercePurge?->countTenantRows($context, $tenantUuid) ?? [],
         ];
     }
@@ -93,13 +115,11 @@ final class CommercePurgeHandler implements PurgeHandler
     {
         $this->assertSafeToRun();
 
-        $this->connection->table(self::LINK_TABLE)
-            ->where('tenant_uuid', $tenantUuid)
-            ->forceDelete();
-
-        $this->connection->table(self::DELIVERY_TABLE)
-            ->where('tenant_uuid', $tenantUuid)
-            ->forceDelete();
+        foreach (self::PACK_TABLES as $table) {
+            $this->connection->table($table)
+                ->where('tenant_uuid', $tenantUuid)
+                ->forceDelete();
+        }
 
         $this->commercePurge?->purgeTenant($context, $tenantUuid);
     }
@@ -109,12 +129,10 @@ final class CommercePurgeHandler implements PurgeHandler
     {
         $this->assertSafeToRun();
 
-        if ($this->linkCount($tenantUuid) !== 0) {
-            return false;
-        }
-
-        if ($this->rowCount(self::DELIVERY_TABLE, $tenantUuid) !== 0) {
-            return false;
+        foreach (self::PACK_TABLES as $table) {
+            if ($this->rowCount($table, $tenantUuid) !== 0) {
+                return false;
+            }
         }
 
         if ($this->commercePurge === null) {
@@ -128,11 +146,6 @@ final class CommercePurgeHandler implements PurgeHandler
         }
 
         return true;
-    }
-
-    private function linkCount(string $tenantUuid): int
-    {
-        return $this->rowCount(self::LINK_TABLE, $tenantUuid);
     }
 
     private function rowCount(string $table, string $tenantUuid): int

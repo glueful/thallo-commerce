@@ -95,14 +95,81 @@ final class AdminPaymentLinkSendController
     public const REASON_NO_EMAIL = 'order_has_no_email';
     public const REASON_EMAIL_DISABLED = 'payment_request_email_disabled';
 
-    /** Engine refusal code -> HTTP status, mirroring the engine controller's own closed map. */
-    private const STATUS_BY_ERROR_CODE = [
+    /**
+     * Error code -> HTTP status, over the FULL closed vocabulary that can reach this controller —
+     * every {@see PaymentLinkException::ERROR_CODES} entry plus every
+     * {@see PaymentRequestSendResult} code (cleanup-train Task 10). It used to name five codes
+     * while describing itself as mirroring the delivery vocabulary, which meant three of the four
+     * mailer codes and all seven initiation-family engine codes fell through to a generic answer
+     * that looked deliberate and was not.
+     *
+     * Two consumers, one table:
+     *  - {@see self::refuseEngine()}, for a refusal raised in THIS request;
+     *  - {@see self::httpStatusFor()}, for a `failed` row recorded by this request or by the first
+     *    attempt a replay is reproducing — which is why a code that can only be RECORDED still
+     *    needs a status here.
+     *
+     * ## The mint family (engine)
+     *
+     * Verbatim from {@see PaymentLinkException}'s own docblock, which pins the intended controller
+     * mapping so the engine's payment-link controller and this one cannot answer differently.
+     *
+     * ## The initiation family (engine)
+     *
+     * `initiateByToken()` refusals belong to the PUBLIC pay route, not to this admin one, so no
+     * path here can raise them today. They are mapped anyway rather than left to the fallback:
+     * they are part of the same closed `ERROR_CODES` domain this map claims to cover, and if a
+     * future engine reuses one on the mint path the honest status is the one that refusal has
+     * always had (`payment_link_not_payable` -> 404, the non-revealing answer of the two the
+     * engine sanctions; rate limiting -> 429; every provider-side failure -> 503).
+     *
+     * ## The delivery family (this pack)
+     *
+     * Three of the mailer's four codes have a PREFLIGHT twin: `send()` refuses `no_recipient` 422
+     * and `template_disabled` 409 and `email_unavailable` 503 before any key is claimed. When the
+     * same condition is instead observed at send time and recorded, the replay of that row must
+     * report the SAME status — an operator who meets one wall twice must not be told two
+     * different things about it. `send_failed` is the 502 spec §2.4's manual-copy case describes.
+     *
+     * @var array<string, int>
+     */
+    public const STATUS_BY_ERROR_CODE = [
+        // Mint family (engine).
         PaymentLinkException::ORDER_NOT_FOUND => 404,
         PaymentLinkException::ORDER_NOT_ADMIN_ORIGIN => 409,
         PaymentLinkException::ORDER_NOT_PENDING_PAYMENT => 409,
         PaymentLinkException::LINK_CHANGED => 409,
         PaymentLinkException::PUBLIC_URL_UNAVAILABLE => 503,
+        // Initiation family (engine) — unreachable from this route, mapped for completeness.
+        PaymentLinkException::PAYMENT_LINK_NOT_PAYABLE => 404,
+        PaymentLinkException::INITIATION_RATE_LIMITED => 429,
+        PaymentLinkException::RETURN_URL_UNAVAILABLE => 503,
+        PaymentLinkException::CHECKOUT_MANUAL => 503,
+        PaymentLinkException::CHECKOUT_URL_MISSING => 503,
+        PaymentLinkException::CHECKOUT_URL_UNTRUSTED => 503,
+        PaymentLinkException::CHECKOUT_INITIATION_FAILED => 503,
+        // Delivery family (this pack) — each agreeing with its preflight refusal.
+        PaymentRequestSendResult::EMAIL_UNAVAILABLE => 503,
+        PaymentRequestSendResult::TEMPLATE_DISABLED => 409,
+        PaymentRequestSendResult::NO_RECIPIENT => 422,
+        PaymentRequestSendResult::SEND_FAILED => 502,
     ];
+
+    /**
+     * The STATED fallback for a recorded `failed` row whose `error_code` is outside
+     * {@see self::STATUS_BY_ERROR_CODE} — which, the map being exhaustive over both closed
+     * vocabularies, means a code written by a NEWER build of either package into a ledger row
+     * this one is now replaying. "A delivery failed for a reason I cannot classify" is a failure,
+     * so it answers with the same upstream-failure status a transport failure gets, never a 200.
+     */
+    private const STATUS_UNCLASSIFIED_FAILURE = 502;
+
+    /**
+     * The STATED fallback for a LIVE {@see PaymentLinkException} outside the map — same
+     * reasoning, different lane: an unrecognized typed refusal keeps `\DomainException`'s
+     * conventional 409 rather than being promoted to a server-fault status.
+     */
+    private const STATUS_UNCLASSIFIED_REFUSAL = 409;
 
     public function __construct(
         private readonly ApplicationContext $context,
@@ -437,6 +504,10 @@ final class AdminPaymentLinkSendController
      * (`send_failed`) is the 502 spec §2.4's manual-copy case describes. Everything non-terminal
      * or successful is a 200: `processing` and `indeterminate` are honest reports, not faults.
      *
+     * {@see self::STATUS_BY_ERROR_CODE} covers both closed vocabularies exhaustively, so the
+     * fallback below is reached only by a code this build has never heard of; see
+     * {@see self::STATUS_UNCLASSIFIED_FAILURE} for why it is a failure status and not a 200.
+     *
      * @param array<string,mixed> $row
      */
     private function httpStatusFor(array $row): int
@@ -445,7 +516,8 @@ final class AdminPaymentLinkSendController
             return 200;
         }
 
-        return self::STATUS_BY_ERROR_CODE[(string) ($row['error_code'] ?? '')] ?? 502;
+        return self::STATUS_BY_ERROR_CODE[(string) ($row['error_code'] ?? '')]
+            ?? self::STATUS_UNCLASSIFIED_FAILURE;
     }
 
     /**
@@ -644,7 +716,11 @@ final class AdminPaymentLinkSendController
 
     private function refuseEngine(PaymentLinkException $e): Response
     {
-        return $this->refuse($e->getMessage(), self::STATUS_BY_ERROR_CODE[$e->errorCode] ?? 409, $e->errorCode);
+        return $this->refuse(
+            $e->getMessage(),
+            self::STATUS_BY_ERROR_CODE[$e->errorCode] ?? self::STATUS_UNCLASSIFIED_REFUSAL,
+            $e->errorCode,
+        );
     }
 
     private function refuse(string $message, int $status, string $reason): Response
