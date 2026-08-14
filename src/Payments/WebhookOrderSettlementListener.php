@@ -101,6 +101,7 @@ final class WebhookOrderSettlementListener implements StrictPaymentEventListener
         private readonly PaymentIntentRepository $intents,
         private readonly ConfirmationDispatcher $confirmations,
         private readonly ?TenantContextRunner $tenants = null,
+        private readonly ?\Psr\Log\LoggerInterface $logger = null,
     ) {
     }
 
@@ -229,6 +230,25 @@ final class WebhookOrderSettlementListener implements StrictPaymentEventListener
         $payableType = self::stringField($intent, 'payable_type');
         $payableId = self::stringField($intent, 'payable_id');
         if ($payableType !== OrderPayable::TYPE || $payableId === '') {
+            return true;
+        }
+
+        // Closed-intent replay skip — the composed-system mirror of payvia 2.7.0's guard 3.
+        // `closed` means THIS reference's own confirmation has already been delivered and
+        // settled: re-dispatching would run the engine handler against a paid order and record
+        // a spurious `payment_late_rejected` for a payment that was applied, not late. The
+        // reachable case is the FIRST manual replay of an already-settled reference: payvia's
+        // confirm route suppresses its OWN dispatch (guard 3), but its `recordVerifyEvent()`
+        // first drives this strict lane under a `verify:{providerId}` delivery key the webhook's
+        // own event-id key never claimed, so the lease dedupe cannot absorb it. SUPERSEDED rows
+        // deliberately KEEP dispatching: a late settlement of a retired attempt must still reach
+        // the engine's paid-order CAS to be refused and recorded — that is the payment-links
+        // reference-aware design, not noise.
+        if (self::stringField($intent, 'status') === 'closed') {
+            $this->logger?->info(
+                'Webhook settlement skipped: intent already closed (replayed confirmation).',
+                ['gateway' => $gateway, 'order_uuid' => $payableId]
+            );
             return true;
         }
 
