@@ -8,7 +8,9 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Audit\Contracts\AuditRecorderInterface;
 use Glueful\Extensions\Audit\Support\AuditEntry;
 use Glueful\Extensions\Commerce\Events\LatePaymentRejected;
-use Glueful\Extensions\Commerce\Orders\OrderRepository;
+use Psr\Log\LoggerInterface;
+
+use function db;
 
 /**
  * Cleanup-train Task 10: the subscriber `LatePaymentRejected` never had.
@@ -47,23 +49,40 @@ use Glueful\Extensions\Commerce\Orders\OrderRepository;
  * order somebody else had already settled. So this records at most one entry per
  * `(order, reference)` pair.
  *
- * The memory is the order-event trail itself — the engine writes `payment_late_rejected` BEFORE
- * it dispatches, so by the time this listener runs the current rejection is already recorded and
- * a SECOND matching row means an earlier one had already been surfaced. That keeps the de-dupe
- * durable across processes and restarts without inventing a table to hold it, and it keeps this
- * class a display decision rather than a filter: every rejection stays in the engine's trail
- * whether or not it is echoed here.
+ * **The memory is our own audit writes, not the engine's order-event trail.** An earlier version
+ * counted matching `payment_late_rejected` order events (durable, no new table) — but the engine
+ * records that event UNCONDITIONALLY and SYNCHRONOUSLY, before it dispatches. Two concurrent
+ * rejections of the same reference therefore both land their order-event row before either
+ * listener invocation gets to check anything: both then see two matching rows, both conclude
+ * "already surfaced", and BOTH skip — zero audit entries for a genuinely refund-relevant
+ * occurrence. Counting our own audit rows instead means the same interleaving can produce at
+ * worst a DUPLICATE entry (both racers see none yet, both write) — never a dropped one. A
+ * duplicate is an operator re-reading the same fact twice; a silent drop is the fact never
+ * reaching them at all. That asymmetry is accepted, not eliminated: this check is a best-effort
+ * display decision, not a lock, and the engine's own order-event trail remains the complete,
+ * un-de-duped record regardless of what lands here.
+ *
+ * One more residual worth naming: because the check only looks at what THIS listener has already
+ * written, the very FIRST entry for a reference can itself be the benign race-loser concession
+ * described above rather than a genuine second payment — de-duping only ever suppresses the
+ * SECOND-and-later delivery of a reference, never the first. The audit `summary` text is worded
+ * to hedge accordingly rather than assert a refund is owed.
  *
  * ## Best-effort, always
  *
- * This runs on the webhook settlement lane. A throw here would turn a correctly-refused late
- * payment into a failed webhook the provider retries indefinitely, so every failure — an
- * unusable payload, an unreadable trail, an audit backend that is down — is swallowed. The
- * engine's own order event remains the authoritative record either way.
+ * Every failure — an unusable payload, a database error, an audit backend that is down — is
+ * caught and logged rather than allowed to propagate. This is NOT because an uncaught exception
+ * here would break anything upstream: `rejectLatePayment()` dispatches through the ordinary
+ * {@see \Glueful\Events\EventService::dispatch()} bus, which already fault-isolates and logs each
+ * listener independently (one broken listener cannot stop the others or bubble into the webhook
+ * request that triggered it). The catch exists so a failure here is logged with THIS listener's
+ * own context instead of only the dispatcher's generic "listener failed" line, and so a bug in
+ * this best-effort display decision can never turn into a bug in the payment it is decorating.
+ * The engine's own order event remains the authoritative record either way.
  */
 final class LatePaymentVisibilityListener
 {
-    /** The engine's own order-event type, which is also this listener's de-dupe substrate. */
+    /** The engine's own order-event type — recorded unconditionally, independent of this listener. */
     public const ORDER_EVENT_TYPE = 'payment_late_rejected';
 
     /** The audit `action` an operator filters/searches for. */
@@ -76,8 +95,8 @@ final class LatePaymentVisibilityListener
 
     public function __construct(
         private readonly ApplicationContext $context,
-        private readonly OrderRepository $orders,
         private readonly AuditRecorderInterface $audit,
+        private readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -85,9 +104,14 @@ final class LatePaymentVisibilityListener
     {
         try {
             $this->surface($event->payload);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             // Best-effort by construction — see the class docblock. The engine's
             // `payment_late_rejected` order event is unaffected and still records the fact.
+            // Logged (not silently swallowed) so a real defect here is still diagnosable.
+            $this->logger?->error('Late-payment visibility listener failed: ' . $e->getMessage(), [
+                'exception' => $e,
+                'payload' => $event->payload,
+            ]);
         }
     }
 
@@ -120,38 +144,45 @@ final class LatePaymentVisibilityListener
                 'status' => (string) ($payload['status'] ?? ''),
                 'amount' => (int) ($payload['amount'] ?? 0),
                 'currency' => (string) ($payload['currency'] ?? ''),
-                // Said in words, because an audit row is read by whoever is on call, not by code.
-                'summary' => 'A payment arrived for an order that was already settled; it was '
-                    . 'refused and may need refunding.',
+                // Said in words, because an audit row is read by whoever is on call, not by
+                // code. Deliberately hedged, not asserted: this can be the FIRST delivery of a
+                // race-loser concession that in fact settled the order correctly (see class
+                // docblock) as easily as a genuine second payment — an on-call reader must check,
+                // not assume.
+                'summary' => 'A late or duplicate payment confirmation was refused; verify '
+                    . 'whether a refund is due.',
             ],
         ));
     }
 
     /**
-     * Has THIS `(order, reference)` pair already produced an entry?
-     *
-     * The engine records its order event before dispatching, so the current rejection is one of
-     * the rows counted here: one match is this rejection, and anything beyond that is an earlier
-     * rejection of the same reference that was already surfaced. A trail this listener cannot
-     * read (an event dispatched outside the engine, a failed query) counts zero and is surfaced
-     * rather than dropped — under-reporting a possible refund is the worse failure.
+     * Has an AUDIT entry — not merely an engine order EVENT — already been written for this
+     * `(order, reference)` pair? See the class docblock for why counting our own writes, rather
+     * than the order-event trail, is the race-safe direction: worst case under concurrent
+     * delivery is a duplicate entry, never a dropped one.
      */
     private function alreadySurfaced(string $tenantUuid, string $orderUuid, string $reference): bool
     {
-        $matches = 0;
+        $rows = db($this->context)->table('audit_logs')
+            ->select(['context'])
+            ->where('action', self::AUDIT_ACTION)
+            ->where('target_type', self::AUDIT_TARGET_TYPE)
+            ->where('target_uuid', $orderUuid)
+            ->get();
 
-        foreach ($this->orders->eventsForOrder($this->context, $tenantUuid, $orderUuid) as $event) {
-            if ((string) ($event['type'] ?? '') !== self::ORDER_EVENT_TYPE) {
+        foreach ($rows as $row) {
+            $context = json_decode((string) ($row['context'] ?? ''), true);
+            if (!is_array($context)) {
                 continue;
             }
 
-            $payload = $event['payload'] ?? null;
-            $recorded = is_array($payload) ? trim((string) ($payload['reference'] ?? '')) : '';
-            if ($recorded === $reference) {
-                $matches++;
+            $sameReference = trim((string) ($context['reference'] ?? '')) === $reference;
+            $sameTenant = (string) ($context['tenant_uuid'] ?? '') === $tenantUuid;
+            if ($sameReference && $sameTenant) {
+                return true;
             }
         }
 
-        return $matches > 1;
+        return false;
     }
 }

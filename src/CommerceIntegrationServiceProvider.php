@@ -1326,12 +1326,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * (cleanup-train Task 10). Registered OUTSIDE the capability gate for the same reason as the
      * settlement listener above.
      *
-     * Both collaborators are soft-resolved, and the audit one is soft in the stronger sense:
-     * `glueful/audit` is a host-app EXTENSION, not a dependency of this pack, so `interface_exists`
-     * comes first (the class may genuinely be absent) and the container check second (it may be
-     * present but its provider inactive). With no audit backend there is no operator-visible
-     * surface to write to, so nothing is registered at all — the engine's own
-     * `payment_late_rejected` order event is unaffected and remains the authoritative record.
+     * The audit collaborator is soft-resolved in the stronger sense: `glueful/audit` is a
+     * host-app EXTENSION, not a dependency of this pack, so `interface_exists` comes first (the
+     * class may genuinely be absent) and the container check second (it may be present but its
+     * provider inactive). With no audit backend there is no operator-visible surface to write to,
+     * so nothing is registered at all — the engine's own `payment_late_rejected` order event is
+     * unaffected and remains the authoritative record. The logger is soft-resolved the same way
+     * `makeCompleteSaleCoordinator()` does above: a host without a bound PSR logger still gets a
+     * working listener, it just logs nothing on a failure it swallows.
      */
     private function registerLatePaymentVisibility(ApplicationContext $context): void
     {
@@ -1347,7 +1349,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         if (
             !$container->has(EventService::class)
             || !$container->has(AuditRecorderInterface::class)
-            || !$container->has(OrderRepository::class)
         ) {
             return;
         }
@@ -1357,8 +1358,8 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         $events->addListener(LatePaymentRejected::class, [
             new LatePaymentVisibilityListener(
                 $context,
-                $container->get(OrderRepository::class),
                 $container->get(AuditRecorderInterface::class),
+                $container->has(LoggerInterface::class) ? $container->get(LoggerInterface::class) : null,
             ),
             'onLatePaymentRejected',
         ]);
