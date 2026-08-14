@@ -106,6 +106,8 @@ final class AdminMountAllowlist
             'products.orders.index',
             'orders.index',
             'orders.show',
+            // — Order artifact (commerce cleanup train Task 8, commerce 1.12.0) —
+            'orders.artifact.destroy',
             'orders.cancel',
             'orders.mark_paid',
             'orders.fulfill',
