@@ -1157,9 +1157,20 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // same reason as every purge above: it must run precisely when the capability is OFF.
         $this->reconcileCapabilityState($context, $registry->isEnabled('thallo.commerce'));
 
-        // Gated by ENABLED state (spec §3): the user-facing surface only, mirroring pack
-        // conventions. Disabling thallo.commerce leaves migrations/tables/registration intact.
-        if ($registry->isEnabled('thallo.commerce')) {
+        // Gated by ENABLED state (spec §3) AND engine presence (distribution posture,
+        // 2026-08-15): capabilities default ENABLED, and in a fresh install the engine is
+        // tier-2 installed-but-disabled — so "capability on, engine absent" is the DEFAULT
+        // state of a distributed Thallo, not an edge case. Registering the user-facing routes
+        // there would violate the module's inertness contract: the controllers hard-depend on
+        // engine services the container (correctly) never binds, turning every /commerce and
+        // /checkout/pay request into a 500. The distribution smoke lane
+        // (`composer test:distribution`) pins this. NOTE the probe is CONTAINER-based, not
+        // `interface_exists()`: tier 2 means the engine's CODE ships (autoloadable — an
+        // interface probe is always true) while its PROVIDER is disabled — only a container
+        // binding proves the engine is actually active. Disabling thallo.commerce still
+        // leaves migrations/tables/registration intact.
+        $engineActive = $context->getContainer()->has(\Glueful\Extensions\Commerce\Catalog\CatalogService::class);
+        if ($registry->isEnabled('thallo.commerce') && $engineActive) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/shop-routes.php');
 
