@@ -1,35 +1,51 @@
 {
-  "name": "glueful/thallo-commerce",
-  "description": "Commerce adoption + product-to-entry content linkage for Thallo, as a removable capability pack.",
-  "type": "library",
-  "license": "MIT",
-  "authors": [
-    {
-      "name": "Michael Tawiah Sowah",
-      "email": "michael@glueful.dev"
-    }
-  ],
-  "version": "0.1.0",
-  "require": {
-    "php": "^8.3",
-    "glueful/thallo-contracts": "*",
-    "glueful/thallo-tenancy": "*",
-    "glueful/extension-contracts": "*",
-    "glueful/commerce": "^1.12.0",
-    "glueful/framework": "^1.71.0"
-  },
-  "suggest": {
-    "glueful/audit": "Gives LatePaymentVisibilityListener an operator-visible surface: without an audit backend a late provider payment stays recorded as a commerce order event only, discoverable by opening that one order."
-  },
-  "autoload": {
-    "psr-4": {
-      "Thallo\\Commerce\\": "src/"
-    }
-  },
-  "extra": {
-    "glueful": {
-      "provider": "Thallo\\Commerce\\CommerceIntegrationServiceProvider"
-    }
-  },
-  "minimum-stability": "stable"
+    "name": "glueful/thallo-commerce",
+    "description": "Commerce adoption + product-to-entry content linkage for Thallo, as a removable capability pack.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Michael Tawiah Sowah",
+            "email": "michael@glueful.dev"
+        }
+    ],
+    "version": "0.1.0",
+    "require": {
+        "php": "^8.3",
+        "glueful/thallo-contracts": "*",
+        "glueful/thallo-tenancy": "*",
+        "glueful/extension-contracts": "*",
+        "glueful/commerce": "^1.12.0",
+        "glueful/framework": "^1.71.0"
+    },
+    "suggest": {
+        "glueful/audit": "Gives LatePaymentVisibilityListener an operator-visible surface: without an audit backend a late provider payment stays recorded as a commerce order event only, discoverable by opening that one order."
+    },
+    "autoload": {
+        "psr-4": {
+            "Thallo\\Commerce\\": "src/"
+        }
+    },
+    "extra": {
+        "glueful": {
+            "provider": "Thallo\\Commerce\\CommerceIntegrationServiceProvider",
+            "requires": {
+                "glueful": ">=1.79.0",
+                "extensions": []
+            },
+            "migrations": [
+                {
+                    "id": "default",
+                    "path": "migrations",
+                    "priority": "dependent",
+                    "mode": "core",
+                    "legacyAliases": [
+                        "thallo-commerce"
+                    ],
+                    "verifier": "Thallo\\Commerce\\Schema\\CommerceLinkSchemaVerifier"
+                }
+            ]
+        }
+    },
+    "minimum-stability": "stable"
 }
