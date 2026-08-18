@@ -39,9 +39,6 @@
                     "path": "migrations",
                     "priority": "dependent",
                     "mode": "core",
-                    "legacyAliases": [
-                        "thallo-commerce"
-                    ],
                     "verifier": "Thallo\\Commerce\\Schema\\CommerceLinkSchemaVerifier"
                 }
             ]
