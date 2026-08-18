@@ -1096,6 +1096,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             'thallo.commerce',
             label: 'Commerce',
             description: 'Adopts glueful/commerce and links Commerce products to Thallo entries.',
+            owningPackage: 'glueful/commerce',
         ));
 
         // Migrations register on INSTALL, not enable (outside the gate below), so disabling
