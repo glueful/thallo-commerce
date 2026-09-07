@@ -1388,6 +1388,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             return;
         }
 
+        // Payvia is a SOFT dependency (tier 2, off by default). Without its provider there is
+        // no settlement lane to be dead — payments degrade to manual collection by design.
+        if (!self::payviaIsActive($container)) {
+            return;
+        }
+
         if (self::strictLaneCarriesSettlementListener($container)) {
             return;
         }
@@ -1448,6 +1454,12 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * `composeStrictLane()` will actually iterate. An unbound tag, a non-iterable value, or a
      * lane that simply does not include us all mean the same thing: settlement is not wired.
      */
+    /** Payvia's provider is loaded iff its own services are bound (autoload alone proves nothing). */
+    public static function payviaIsActive(ContainerInterface $container): bool
+    {
+        return class_exists(PaymentIntentRepository::class) && $container->has(PaymentIntentRepository::class);
+    }
+
     private static function strictLaneCarriesSettlementListener(ContainerInterface $container): bool
     {
         if (!$container->has(StrictPaymentEventListener::CONTAINER_TAG)) {
