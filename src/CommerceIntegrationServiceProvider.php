@@ -7,7 +7,7 @@ namespace Thallo\Commerce;
 use Glueful\Extensions\DeclaresLoadOrder;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
-use Glueful\Container\Container as GluefulContainer;
+use Glueful\Container\RebindableContainer;
 use Glueful\Container\Definition\FactoryDefinition;
 use Glueful\Cache\Contracts\EdgeCacheInterface;
 use Glueful\Database\Connection;
@@ -835,7 +835,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * same reason: aliases are compiled into this provider's own map and merged identically.)
      *
      * Guarded three ways, all of which are real states rather than defensive noise:
-     *  - a non-{@see GluefulContainer} (a compiled container) has no `load()`, so this would
+     *  - before framework 1.82.1 a compiled container had no `load()`, so this would
      *    silently skip. Today container compilation always throws and falls back to the plain
      *    container; `tests/Integration/Subscriptions/SubjectResolverCompiledContainerGateTest.php`
      *    drives the real `ContainerFactory::create($context, prod: true)` path and turns red the
@@ -859,7 +859,8 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      */
     private function rebindPaymentLinkSeams(): void
     {
-        if (!$this->app instanceof GluefulContainer) {
+        // Interface guard (framework ≥ 1.82.1) so the re-pin also reaches the compiled container.
+        if (!$this->app instanceof RebindableContainer) {
             return;
         }
 
