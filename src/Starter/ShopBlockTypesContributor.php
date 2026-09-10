@@ -42,6 +42,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
         return [
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_PRODUCT_GRID,
+                requiresCapability: 'thallo.commerce',
                 slug: self::SLUG_PRODUCT_GRID,
                 label: 'Product grid',
                 icon: 'i-lucide-layout-grid',
@@ -59,6 +60,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_FEATURED_PRODUCT,
+                requiresCapability: 'thallo.commerce',
                 slug: self::SLUG_FEATURED_PRODUCT,
                 label: 'Featured product',
                 icon: 'i-lucide-star',
@@ -70,6 +72,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_ADD_TO_CART,
+                requiresCapability: 'thallo.commerce',
                 slug: self::SLUG_ADD_TO_CART,
                 label: 'Add to cart',
                 icon: 'i-lucide-shopping-cart',
@@ -84,6 +87,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_MINI_CART,
+                requiresCapability: 'thallo.commerce',
                 slug: self::SLUG_MINI_CART,
                 label: 'Mini cart',
                 icon: 'i-lucide-shopping-bag',
@@ -96,6 +100,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
             // exactly (capability-gated, cacheable zero-count shell, JS-hydrated badge).
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_WISHLIST_LINK,
+                requiresCapability: 'thallo.commerce',
                 slug: self::SLUG_WISHLIST_LINK,
                 label: 'Wishlist link',
                 icon: 'i-lucide-heart',

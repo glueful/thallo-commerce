@@ -159,6 +159,13 @@ content types, generalized to block types:
 - **`mini-cart`** — a stable, cacheable shell whose contents hydrate client-side via
   `GET /_shop/cart`; a plain `/cart` link without JavaScript.
 
+The block types are declared whether or not `thallo.commerce` is on; the capability decides
+what happens with them. While it is on, the first request seeds any that are missing (a
+single-store install needs no command; with workspaces on, run
+`php glueful thallo:tenant:sync --all --kind=block_type`). While it is off, their rows stay in
+the table but Settings › Block types and the picker leave them out, and stored instances fall
+to the missing-template fallback.
+
 All four render a themed, parameter-carrying shell server-side and hydrate live data via
 `shop.js` + the `/_shop/blocks/*`/`/_shop/cart` endpoints above — never a live Commerce lookup at
 Twig-render time, so a builder page carrying one of these blocks stays safely cacheable by

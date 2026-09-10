@@ -1166,6 +1166,15 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // interface probe is always true) while its PROVIDER is disabled — only a container
         // binding proves the engine is actually active. Disabling thallo.commerce still
         // leaves migrations/tables/registration intact.
+        // The starter shop block types are DECLARED regardless of the switch: every definition
+        // carries `requiresCapability: thallo.commerce`, and the app applies the gate — seeding
+        // them only while the capability is on (the first request after it turns on seeds them;
+        // with workspaces on, `thallo:tenant:sync --all --kind=block_type`), and hiding their
+        // rows from Settings › Block types (never deleting them) while it is off. Declaring
+        // unconditionally is what lets the app know which rows are this pack's when the
+        // capability is off. Registration itself never writes a row.
+        $this->registerShopBlockTypeContributor($context);
+
         $engineActive = $context->getContainer()->has(\Glueful\Extensions\Commerce\Catalog\CatalogService::class);
         if ($registry->isEnabled('thallo.commerce') && $engineActive) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/admin-routes.php');
@@ -1193,14 +1202,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // explicit, retryable `php glueful thallo:tenant:sync --all --kind=content_type` step
             // documented in this pack's README, run once after enabling the capability.
             $this->registerStarterContributor($context);
-
-            // Slice-2 Task 11 (storefront-rendering spec §5.2/§10): the 4 starter shop block
-            // types (product-grid/featured-product/add-to-cart/mini-cart) are equally
-            // user-facing batteries-included content — registered ONLY while the capability is
-            // on, mirroring registerStarterContributor() immediately above exactly. Adopting
-            // them into pre-existing tenants is the same explicit, retryable
-            // `php glueful thallo:tenant:sync --all --kind=block_type` step.
-            $this->registerShopBlockTypeContributor($context);
 
             // Store-settings spec §4: transactional order emails are USER-FACING capability
             // behavior — definitions register into the email extension's registry (they then
@@ -1676,13 +1677,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * Slice-2 Task 11 (storefront-rendering spec §5.2/§10): register
      * {@see ShopBlockTypesContributor} with the shared {@see StarterBlockTypeRegistry} — the
      * exact {@see self::registerStarterContributor()} pattern immediately above, applied to
-     * block types instead of content types. Called ONLY from inside the `thallo.commerce`
-     * capability-enabled branch of {@see boot()} — the 4 shop blocks are user-facing
-     * batteries-included content, not maintenance infrastructure.
+     * block types instead of content types. Called UNCONDITIONALLY from {@see boot()}: the
+     * definitions carry `requiresCapability: thallo.commerce`, and the app applies that gate
+     * (seeded only while on; hidden from the listing, never deleted, while off).
      *
      * A pure in-memory registry mutation (no `Connection`/query-builder dependency reaches this
-     * method): it makes the 4 definitions ELIGIBLE for the next fresh-tenant provisioning run or
-     * `thallo:tenant:sync --kind=block_type` sweep, and never itself writes a `block_types` row.
+     * method): it makes the definitions ELIGIBLE for seeding (first request after the capability
+     * turns on; fresh-tenant provisioning; `thallo:tenant:sync --kind=block_type`), and never
+     * itself writes a `block_types` row.
      *
      * The registry is an injectable seam (defaults to a container lookup) so this is
      * unit-testable without a full capability-enabled boot, mirroring
@@ -1692,9 +1694,9 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         ApplicationContext $context,
         ?StarterBlockTypeRegistry $registry = null,
     ): bool {
-        if (!interface_exists(CommerceTenantResolution::class)) {
-            return false; // Commerce package itself absent — none of this pack's services are bound.
-        }
+        // No engine probe: the contributor is a pure list of definitions (no engine service is
+        // touched), and it must be declared even when the engine is absent or disabled so the
+        // app can hide the pack's rows — the definitions' `requiresCapability` carries the gate.
         if ($registry === null) {
             $container = $context->getContainer();
             if (!$container->has(StarterBlockTypeRegistry::class)) {
