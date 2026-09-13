@@ -336,3 +336,10 @@ repo's `composer boundaries` check enforces this at both the Composer-dependency
 `./thallo extensions:disable thallo-commerce`, then `composer remove glueful/thallo-commerce`. The
 CMS core boots unchanged; the `thallo.commerce` capability disappears from
 `GET /v1/admin/capabilities`.
+
+## Contributing
+
+This repository is a read-only mirror, published from
+[glueful/thallo](https://github.com/glueful/thallo) on every release; its `main` is overwritten
+by the next split, so nothing can land here. Issues and pull requests belong in glueful/thallo,
+where this code lives at `packages/thallo-commerce/`.
