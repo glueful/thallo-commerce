@@ -980,7 +980,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $container->get(CacheStore::class),
             $container->get(CommerceTenantResolution::class),
             $container->get(ThemeLocator::class)->activePaths()['name'],
-            $appearance->accent() . '-' . $appearance->neutral(),
+            $appearance->fingerprint(),
             (bool) config($context, 'thallo-commerce.shop_cache.enabled', true),
             (int) config($context, 'thallo-commerce.shop_cache.ttl', 3600),
             $context,
