@@ -8,7 +8,7 @@
    hydrated inside a route-less BUILDER page find their store from the nearest root, with no
    metadata fetch. The scope is deterministic within an already tenant-segmented page cache. #}
 {% set wishlist_scope = shop_wishlist_scope() %}
-<div class="thallo-block thallo-block-mini-cart" data-shop-mini-cart{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+<div class="thallo-block thallo-block-mini-cart{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-mini-cart{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
   {# Icon button with a corner count badge (the standard storefront pattern). The SVG is
      commerce-owned inline (shopping bag, fill: currentColor so it follows the theme) —
      no cross-pack icon dependency — and aria-hidden; the sr-only span keeps the

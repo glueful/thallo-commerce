@@ -12,7 +12,7 @@
    entirely (never empty) when the seam answers null. The cards this block hydrates carry
    hearts, and they resolve their store from this root without any metadata fetch. #}
 {% set wishlist_scope = shop_wishlist_scope() %}
-<div class="thallo-block thallo-block-product-grid" data-shop-block="product-grid"
+<div class="thallo-block thallo-block-product-grid{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-block="product-grid"
      {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
      data-source="{{ source }}"
      data-category-slug="{{ data.category_slug|default('') }}"

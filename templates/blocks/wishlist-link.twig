@@ -11,7 +11,7 @@
 {% set wishlist_url = shop_wishlist_url() %}
 {% set wishlist_scope = shop_wishlist_scope() %}
 {% set wishlist_label = data.label|default('') %}
-<div class="thallo-block thallo-block-wishlist-link" data-shop-wishlist-link{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+<div class="thallo-block thallo-block-wishlist-link{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-wishlist-link{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
   {% if wishlist_url %}
     <a class="thallo-block-wishlist-link__link" href="{{ wishlist_url }}">
       {# width/height are the PRE-CSS intrinsic size, same reasoning as the mini cart's icon:
