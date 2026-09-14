@@ -29,6 +29,13 @@ final class PurgeShopCacheOnCatalogChange
         if (!$event instanceof StorefrontCatalogChanged) {
             return;
         }
-        $this->container->get(CacheStore::class)->invalidateTags(['thallo:shop:catalog:' . $event->tenantUuid]);
+        $cache = $this->container->get(CacheStore::class);
+        if ($cache->invalidateTags(['thallo:shop:catalog:' . $event->tenantUuid])) {
+            return;
+        }
+        // A driver without tag invalidation (the default file driver): every shop page goes,
+        // so the catalog change is visible on the next request instead of after the TTL.
+        $cache->deletePattern('shop:*');
+        $cache->deletePattern('tenant:*:shop:*');
     }
 }

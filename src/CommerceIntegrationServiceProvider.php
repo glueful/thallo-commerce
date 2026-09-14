@@ -1796,6 +1796,9 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         $edge = $container->has(EdgeCacheInterface::class)
             ? $container->get(EdgeCacheInterface::class)
             : null;
-        (new CapabilityFlipPurge($container->get(CacheStore::class), $edge))->reconcile($enabled);
+        $pages = $container->has(\Thallo\Contracts\Delivery\RenderedPageCachePurge::class)
+            ? $container->get(\Thallo\Contracts\Delivery\RenderedPageCachePurge::class)
+            : null;
+        (new CapabilityFlipPurge($container->get(CacheStore::class), $edge, $pages))->reconcile($enabled);
     }
 }

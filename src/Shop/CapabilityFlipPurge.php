@@ -6,6 +6,7 @@ namespace Thallo\Commerce\Shop;
 
 use Glueful\Cache\CacheStore;
 use Glueful\Cache\Contracts\EdgeCacheInterface;
+use Thallo\Contracts\Delivery\RenderedPageCachePurge;
 
 /**
  * Boot-time capability-flip reconciler: when the `thallo.commerce` enabled state changes
@@ -36,6 +37,8 @@ final class CapabilityFlipPurge
     public function __construct(
         private readonly CacheStore $cache,
         private readonly ?EdgeCacheInterface $edge = null,
+        /** The render pack's purge: tags, or every page on a driver without tag invalidation. */
+        private readonly ?RenderedPageCachePurge $pages = null,
     ) {
     }
 
@@ -48,7 +51,11 @@ final class CapabilityFlipPurge
         }
 
         if (is_string($last)) {
-            $this->cache->invalidateTags(['thallo:render:page']);
+            if ($this->pages !== null) {
+                $this->pages->purge(['thallo:render:page']);
+            } else {
+                $this->cache->invalidateTags(['thallo:render:page']);
+            }
             if ($this->edge !== null && $this->edge->isEnabled()) {
                 $this->edge->purgeAll();
             }
