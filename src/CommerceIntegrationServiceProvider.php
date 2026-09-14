@@ -91,6 +91,7 @@ use Thallo\Commerce\Purge\CommercePurgeHandler;
 use Thallo\Commerce\Settings\InvoiceLogoResolver;
 use Thallo\Commerce\Shop\CapabilityFlipPurge;
 use Thallo\Commerce\Shop\Contribution\ShopReservedPathContributor;
+use Thallo\Commerce\Shop\Contribution\ShopStylesheetContributor;
 use Thallo\Commerce\Shop\Contribution\ShopTemplatePathContributor;
 use Thallo\Commerce\Shop\ShopAssetMap;
 use Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnAppearanceChange;
@@ -1770,6 +1771,8 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         /** @var RenderContributionRegistry $registry */
         $registry = $container->get(RenderContributionRegistry::class);
         $registry->registerTemplatePaths(new ShopTemplatePathContributor());
+        // The storefront stylesheet rides inside the theme artifact (visual builder spec §2.2).
+        $registry->registerStylesheets(new ShopStylesheetContributor());
     }
 
     /**

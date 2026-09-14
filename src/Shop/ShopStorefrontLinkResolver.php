@@ -21,14 +21,6 @@ final class ShopStorefrontLinkResolver implements StorefrontLinkResolver
     ) {
     }
 
-    public function stylesheetUrl(): ?string
-    {
-        if ($this->capabilityEnabled !== null && !($this->capabilityEnabled)()) {
-            return null;
-        }
-
-        return $this->urls->stylesheet();
-    }
 
     public function productUrl(string $slug): string
     {
