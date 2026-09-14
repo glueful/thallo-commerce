@@ -60,7 +60,6 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 ],
                 styleCapabilities: ['spacing', 'width', 'visibility'],
                 styleTargets: StyleTargets::root('box', ['spacing', 'width', 'visibility']),
-                flags: ['legacy_presentation' => true],
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_FEATURED_PRODUCT,
@@ -77,7 +76,6 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 styleTargets: StyleTargets::root('box', [
                     'spacing', 'radius', 'shadow', 'colors', 'border', 'visibility',
                 ]),
-                flags: ['legacy_presentation' => true],
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_ADD_TO_CART,
@@ -95,7 +93,6 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 ],
                 styleCapabilities: ['spacing', 'visibility'],
                 styleTargets: StyleTargets::root('box', ['spacing', 'visibility']),
-                flags: ['legacy_presentation' => true],
             ),
             new StarterBlockTypeDefinition(
                 sourceId: 'thallo-commerce:' . self::SLUG_MINI_CART,
@@ -109,7 +106,6 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 schema: [],
                 styleCapabilities: ['spacing', 'visibility'],
                 styleTargets: StyleTargets::root('box', ['spacing', 'visibility']),
-                flags: ['legacy_presentation' => true],
             ),
             // Storefront-v1 spec §5: a LINK to the wishlist page, mirroring the mini cart
             // exactly (capability-gated, cacheable zero-count shell, JS-hydrated badge).
@@ -128,7 +124,6 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 ],
                 styleCapabilities: ['spacing', 'visibility'],
                 styleTargets: StyleTargets::root('box', ['spacing', 'visibility']),
-                flags: ['legacy_presentation' => true],
             ),
         ];
     }
