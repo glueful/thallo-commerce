@@ -61,7 +61,8 @@ final class ShopPageCache implements RouteMiddleware
         private readonly CommerceTenantResolution $tenants,
         private readonly string $theme,
         /** Validated accent-neutral fingerprint (mirrors RenderPageCache's identity). */
-        private readonly string $appearance,
+        /** Evaluated per request: the key names the style class snapshot the request renders from. */
+        private readonly \Closure $appearance,
         private readonly bool $enabled,
         private readonly int $ttl,
         private readonly ApplicationContext $context,
@@ -183,7 +184,8 @@ final class ShopPageCache implements RouteMiddleware
      */
     private function key(string $tenant, string $locale, string $path, int $page): string
     {
-        return "shop:{$tenant}:{$locale}:{$this->theme}:{$this->appearance}:{$page}:"
+        $appearance = ($this->appearance)();
+        return "shop:{$tenant}:{$locale}:{$this->theme}:{$appearance}:{$page}:"
             . rawurlencode(RenderPageCache::normalizePath($path));
     }
 
