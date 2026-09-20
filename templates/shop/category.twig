@@ -3,7 +3,7 @@
 {% block content %}
   <link rel="canonical" href="{{ canonical }}">
   {# Baseline shop styling (same fingerprinted asset the product page loads). #}
-  <link rel="stylesheet" href="/_shop/assets/shop.css">
+  <link rel="stylesheet" href="/_thallo/shop/shop.css">
   {# data-shop-scope (storefront-v1 spec §5): omitted entirely when the seam answers null —
      same rule as shop/index.twig. #}
   {% set wishlist_scope = shop_wishlist_scope() %}

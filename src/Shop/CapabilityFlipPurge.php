@@ -12,7 +12,7 @@ use Thallo\Contracts\Delivery\RenderedPageCachePurge;
  * Boot-time capability-flip reconciler: when the `thallo.commerce` enabled state changes
  * between boots (the capability is deploy-time config — there is no runtime toggle event to
  * listen for), previously cached rendered pages still carry the OLD boundary: shop block
- * shells + the `/_shop/assets/shop.js` script tag after a disable, or the missing-template
+ * shells + the `/_thallo/shop/shop.js` script tag after a disable, or the missing-template
  * fallback comments after a re-enable. Neither may keep serving — "capability off" means
  * commerce absent from the rendered page, immediately.
  *

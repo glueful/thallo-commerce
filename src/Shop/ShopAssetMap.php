@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Thallo\Commerce\Shop;
 
 /**
- * The boot-built content-hash allowlist for `GET /_shop/assets/{file}` (storefront-rendering
+ * The boot-built content-hash allowlist for `GET /_thallo/shop/{file}` (storefront-rendering
  * spec §5.2/§10 task-11 brief). Built ONCE, from the pack's own `assets/` directory — never from
  * request input — mapping a fingerprinted filename (`shop-{hash}.js`) to its absolute path on
  * disk. {@see \Thallo\Commerce\Http\Shop\ShopAssetController} resolves ONLY through

@@ -13,8 +13,8 @@ use Thallo\Render\Contribution\ReservedPathContributor;
  * {@see \Thallo\Commerce\CommerceIntegrationServiceProvider::boot()}) so disabling the
  * capability still keeps every one of them reserved rather than un-shadowing a stray page.
  * `{prefix}`, `_shop`, and `checkout` are PATH-SEGMENT prefixes (reserving `/{prefix}/...`,
- * `/_shop/...` — the catalog namespace and every `/_shop/cart/*`, `/_shop/checkout/*`,
- * `/_shop/assets/*` endpoint alike — and `/checkout/...`, task 10's `GET /checkout` page plus
+ * `/_shop/...` — the catalog namespace and every `/_shop/cart/*` and `/_shop/checkout/*`
+ * endpoint alike — and `/checkout/...`, task 10's `GET /checkout` page plus
  * its `/checkout/return/{ref}`, `/checkout/cancel/{ref}`, `/checkout/confirmation/{ref}`
  * children); `cart` is a single EXACT root-level path (task 9's `GET /cart` page only, no
  * children).

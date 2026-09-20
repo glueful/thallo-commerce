@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Shop\ShopAssetMap;
 
 /**
- * `GET /_shop/assets/{file}` (storefront-rendering spec §5.2/§10 task-11 brief): serves the
+ * `GET /_thallo/shop/{file}` (storefront-rendering spec §5.2/§10 task-11 brief): serves the
  * pack's fingerprinted static assets (currently just `shop.js`). Resolution is ALWAYS a single
  * exact lookup against the boot-built {@see ShopAssetMap} allowlist — `{file}` is NEVER
  * concatenated into a filesystem path, so an unknown name, a `../` traversal attempt, or any
@@ -37,7 +37,7 @@ final class ShopAssetController
     {
         $alias = $this->assets->fingerprintedName($file);
         if ($alias !== null) {
-            return new RedirectResponse('/_shop/assets/' . rawurlencode($alias), 302);
+            return new RedirectResponse('/_thallo/shop/' . rawurlencode($alias), 302);
         }
 
         $path = $this->assets->resolve($file);

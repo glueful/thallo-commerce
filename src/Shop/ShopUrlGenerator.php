@@ -14,7 +14,7 @@ namespace Thallo\Commerce\Shop;
  * `cart()`, `checkout()`, `paymentReturn()`, `paymentCancel()`, `confirmation()`, and `assets()`
  * describe the STABLE root-level workflow paths spec §3 pins (`/cart`, `/checkout`,
  * `/checkout/return/{ref}`, `/checkout/cancel/{ref}`, `/checkout/confirmation/{ref}`,
- * `/_shop/assets/shop-{fingerprint}.js`) — the URL SHAPE is fixed so nothing built against this
+ * `/_thallo/shop/shop-{fingerprint}.js`) — the URL SHAPE is fixed so nothing built against this
  * class has to change later.
  */
 final class ShopUrlGenerator
@@ -154,6 +154,6 @@ final class ShopUrlGenerator
             );
         }
 
-        return '/_shop/assets/' . rawurlencode($name);
+        return '/_thallo/shop/' . rawurlencode($name);
     }
 }

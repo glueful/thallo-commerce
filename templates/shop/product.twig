@@ -7,7 +7,7 @@
   {# Baseline shop styling shipped by this pack (product-editor mock parity, 2026-07-24) — the
      stable logical alias 302s to the fingerprinted immutable file, exactly like shop.js below.
      Themes layer their own rules over these `.shop-*` classes. #}
-  <link rel="stylesheet" href="/_shop/assets/shop.css">
+  <link rel="stylesheet" href="/_thallo/shop/shop.css">
   {% set structuredData = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -224,6 +224,6 @@
        ONCE, unconditionally: the add-to-cart interception AND the gallery swap both need it
        (previously it only rendered inside the purchasable branch, so a link-mode product's
        page shipped no JS at all). #}
-    <script src="/_shop/assets/shop.js" defer></script>
+    <script src="/_thallo/shop/shop.js" defer></script>
   </article>
 {% endblock %}

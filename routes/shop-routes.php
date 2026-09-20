@@ -199,8 +199,12 @@ $router->get('/_shop/blocks/featured-product', [ShopBlockDataController::class, 
 $router->get('/_shop/blocks/add-to-cart', [ShopBlockDataController::class, 'addToCart'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 
-// Fingerprinted, immutable, tenant-agnostic static asset (shop.js) — the SAME
-// tenant_profile:public + tenant_bootstrap pairing every other route in this file uses, mirroring
-// thallo-render's own static-asset routes (e.g. /custom.css, /_preview.css) for consistency.
-$router->get('/_shop/assets/{file}', [ShopAssetController::class, 'serve'])
+// Fingerprinted, immutable, tenant-agnostic static assets (shop.js, shop.css) — the SAME
+// tenant_profile:public + tenant_bootstrap pairing every other route in this file uses.
+//
+// Under /_thallo/, NOT with the rest of this pack's endpoints under /_shop/: these are `.js` and
+// `.css` URLs, and a host's static-file rule answers such a URL 404 itself unless its prefix is one
+// docs/production.md has it hand to PHP — `/_thallo/*` is; `/_shop/*` is not. At `/_shop/assets/…`
+// a storefront on such a host loaded without its script or its styles.
+$router->get('/_thallo/shop/{file}', [ShopAssetController::class, 'serve'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);

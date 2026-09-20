@@ -3,7 +3,7 @@
 {% block content %}
   <link rel="canonical" href="{{ canonical }}">
   {# Baseline shop styling (same fingerprinted asset every other shop page loads). #}
-  <link rel="stylesheet" href="/_shop/assets/shop.css">
+  <link rel="stylesheet" href="/_thallo/shop/shop.css">
   {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
      storage scope — OMITTED entirely (never empty) when the seam answers null, exactly like
      the index page's own root. The shell starts aria-busy="true" and both the empty state and
@@ -34,5 +34,5 @@
     </noscript>
   </section>
   {# Same stable, deploy-invariant asset alias the product page and shop blocks load. #}
-  <script src="/_shop/assets/shop.js" defer></script>
+  <script src="/_thallo/shop/shop.js" defer></script>
 {% endblock %}

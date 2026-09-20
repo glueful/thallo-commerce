@@ -104,7 +104,7 @@ GET  /_shop/cart                           JSON cart view model (mini-cart hydra
 POST /_shop/checkout/quote                 read-only checkout preview
 POST /_shop/checkout/place                 durable, idempotent order placement
 GET  /_shop/blocks/product-grid | featured-product | add-to-cart   block hydration data
-GET  /_shop/assets/{file}                  fingerprinted pack assets (shop.js)
+GET  /_thallo/shop/{file}                  fingerprinted pack assets (shop.js)
 ```
 
 Every mutating `/_shop` POST is a real HTML form: without JavaScript it mutates and 303-redirects
@@ -174,7 +174,7 @@ Render's own page cache.
 ### `shop.js` and assets
 
 One dependency-free `shop.js` — no framework, no build step — served at
-`GET /_shop/assets/shop-{fingerprint}.js` (a content hash computed at boot, so the URL changes
+`GET /_thallo/shop/shop-{fingerprint}.js` (a content hash computed at boot, so the URL changes
 automatically whenever the shipped file changes; `public, max-age=31536000, immutable` response
 headers). It intercepts every `/_shop` form, re-submits with JSON negotiation, updates the cart
 drawer/count/line totals/quote results inline, manages focus + `aria-live` announcements, and
