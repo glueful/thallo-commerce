@@ -286,7 +286,7 @@ final class ShopCartController
         $this->extension->setThemeAppearanceOverride(null, null);
         $this->extension->setLocale($locale);
 
-        return $env->render('shop/cart.twig', [
+        return $this->extension->finish($env->render('shop/cart.twig', [
             'site' => [
                 'name' => (string) config($this->context, 'render.site_name', 'Thallo'),
                 'locale' => $locale,
@@ -301,6 +301,6 @@ final class ShopCartController
             ],
             'cart' => $vm,
             'shop_index_url' => $this->urls->shopIndex(),
-        ]);
+        ]));
     }
 }

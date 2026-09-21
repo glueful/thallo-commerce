@@ -587,7 +587,7 @@ final class ShopCheckoutController
             ],
         ] + $extra;
 
-        $html = $env->render($template, $context);
+        $html = $this->extension->finish($env->render($template, $context));
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
