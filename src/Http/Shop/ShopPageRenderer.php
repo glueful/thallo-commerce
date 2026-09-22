@@ -8,6 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Render\Http\Middleware\RenderPageCache;
+use Thallo\Render\SiteContext;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
 
@@ -49,11 +50,7 @@ final class ShopPageRenderer
         $this->extension->setLocale($locale);
 
         $context = [
-            'site' => [
-                'name' => (string) config($this->context, 'render.site_name', 'Thallo'),
-                'locale' => $locale,
-                'locales' => [],
-            ],
+            'site' => SiteContext::build($this->context, $locale),
             'current_path' => RenderPageCache::normalizePath($request->getPathInfo()),
             'presentation' => [
                 'show_title' => true,

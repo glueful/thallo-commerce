@@ -26,6 +26,7 @@ use Thallo\Commerce\Shop\ViewModels\CheckoutViewModel;
 use Thallo\Commerce\Shop\ViewModels\ConfirmationViewModel;
 use Thallo\Contracts\Account\StorefrontAccountIdentityReader;
 use Thallo\Render\Http\Middleware\RenderPageCache;
+use Thallo\Render\SiteContext;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
 
@@ -573,11 +574,7 @@ final class ShopCheckoutController
         $this->extension->setLocale($locale);
 
         $context = [
-            'site' => [
-                'name' => (string) config($this->context, 'render.site_name', 'Thallo'),
-                'locale' => $locale,
-                'locales' => [],
-            ],
+            'site' => SiteContext::build($this->context, $locale),
             'current_path' => RenderPageCache::normalizePath($request->getPathInfo()),
             'presentation' => [
                 'show_title' => true,

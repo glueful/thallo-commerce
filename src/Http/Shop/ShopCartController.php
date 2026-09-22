@@ -15,6 +15,7 @@ use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\CartViewModel;
 use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
 use Thallo\Render\Http\Middleware\RenderPageCache;
+use Thallo\Render\SiteContext;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
 
@@ -287,11 +288,7 @@ final class ShopCartController
         $this->extension->setLocale($locale);
 
         return $this->extension->finish($env->render('shop/cart.twig', [
-            'site' => [
-                'name' => (string) config($this->context, 'render.site_name', 'Thallo'),
-                'locale' => $locale,
-                'locales' => [],
-            ],
+            'site' => SiteContext::build($this->context, $locale),
             'current_path' => RenderPageCache::normalizePath($request->getPathInfo()),
             'presentation' => [
                 'show_title' => true,
