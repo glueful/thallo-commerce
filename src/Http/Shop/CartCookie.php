@@ -19,8 +19,8 @@ use function config;
  * {@see \Glueful\Extensions\Commerce\Cart\CartService::create()} uses for the cart row's own
  * `expires_at`, so the cookie and the row it points at expire together.
  *
- * `Secure` is set unconditionally (never conditioned on the current request's own scheme):
- * spec §6 pins the cookie's attributes, not a dev-mode relaxation.
+ * `Secure` follows the site's setting ({@see ShopCookieSecurity}), never the current request's
+ * own scheme: on by default, off only where the site is served over plain http.
  */
 final class CartCookie
 {
@@ -44,7 +44,7 @@ final class CartCookie
             time() + $days * 86400,
             '/',
             null,
-            true,  // Secure
+            ShopCookieSecurity::secure($context),
             true,  // HttpOnly
             false, // raw (URL-encode the value)
             Cookie::SAMESITE_LAX,

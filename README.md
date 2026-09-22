@@ -339,7 +339,8 @@ version, and the project's `config/serviceproviders.php` loads its provider. To 
 
 1. `php glueful extensions:enable glueful/commerce` (and `glueful/payvia` to take card payments).
 2. `php glueful migrate:run` to create the link table, slug ledger and checkout-attempt ledger.
-3. `php glueful thallo:provision` to grant the declared `commerce.*` permissions.
+3. `php glueful thallo:provision`. The `commerce.*` permissions are part of Thallo's catalogue, so
+   the install roles already hold them from install.
 4. For workspaces that already existed before this step, run the sync command above.
 
 Switching the capability off (Extensions › Capabilities) drops `thallo.commerce` from

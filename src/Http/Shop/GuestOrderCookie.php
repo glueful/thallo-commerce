@@ -115,7 +115,7 @@ final class GuestOrderCookie
             time() + $days * 86400,
             '/',
             null,
-            true,  // Secure
+            ShopCookieSecurity::secure($context),
             true,  // HttpOnly
             false, // raw (URL-encode the value)
             Cookie::SAMESITE_LAX,
