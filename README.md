@@ -1,8 +1,8 @@
 # glueful/thallo-commerce
 
 Commerce adoption + product-to-entry content linkage for [Thallo](https://thallo.dev), packaged as
-a **removable capability pack**. It installs `glueful/commerce` (commercial truth — products,
-variants, price, stock, cart, checkout, orders) and adds an optional Thallo-side editorial layer:
+a **capability pack**. It requires `glueful/commerce` (commercial truth — products, variants,
+price, stock, cart, checkout, orders) and adds an optional Thallo-side editorial layer:
 a Thallo entry (blocks, localized fields) linked to a Commerce product. A product with no linked
 entry still renders from Commerce data alone.
 
@@ -32,8 +32,12 @@ entry still renders from Commerce data alone.
 
 ## The capability
 
-The provider registers a single capability in `boot()`: `thallo.commerce`, enabled by default
-(toggle via `'thallo.commerce' => false` in `config/thallo.php`'s `capabilities` switchboard).
+The provider registers a single capability in `boot()`: `thallo.commerce`, whose owning package is
+`glueful/commerce`. **It is off in a new install**, because `glueful/commerce` ships installed but
+not enabled. Left untouched, the capability follows that extension: `php glueful extensions:enable
+glueful/commerce` (then `php glueful migrate:run`) turns it on. An operator can also switch it off
+or on in the admin under **Extensions › Capabilities**; enabling there is refused while
+`glueful/commerce` is not enabled and schema-ready. See `docs/guides/18-commerce.md`.
 Disabling it removes the user-facing admin routes, the storefront routes (shop/cart/checkout/
 `/_shop/*`), and the starter content-type + block-type contributions; migrations, the link
 table's tenancy registration, cleanup listeners, the purge handler, and the shop prefix's
@@ -60,8 +64,8 @@ existing tenant on its own. Two provisioning paths follow from that:
 
 ## Storefront
 
-Commerce data rendered as real, themed pages — catalog browsing, cart, and checkout — plus four
-builder blocks. Commerce stays authoritative for every business fact (price, stock, orders); a
+Commerce data rendered as real, themed pages — catalog browsing, a wishlist, cart, and
+checkout — plus five builder blocks. Commerce stays authoritative for every business fact (price, stock, orders); a
 linked Thallo entry is optional editorial enrichment only, never routing authority.
 
 ### Routes
@@ -74,8 +78,10 @@ provider boot order):
 GET  /{shop-prefix}                       shop index
 GET  /{shop-prefix}/products/{slug}       product detail (301s from an old slug, see below)
 GET  /{shop-prefix}/categories/{slug}     category archive
+GET  /{shop-prefix}/wishlist              wishlist page (saved items live in the browser)
 GET  /cart                                 cart page
 GET  /checkout                             checkout page
+POST /checkout                             no-JS checkout quote (re-renders the page)
 GET  /checkout/return/{ref}                payment-provider return (read-only, redirects)
 GET  /checkout/cancel/{ref}                payment-provider cancel (read-only, redirects)
 GET  /checkout/confirmation/{ref}          order confirmation (ownership-protected)
@@ -101,6 +107,7 @@ single non-revealing 404 in every case.
 ```
 POST /_shop/cart/add | update | remove | discount
 GET  /_shop/cart                           JSON cart view model (mini-cart hydration, no-store)
+GET  /_shop/wishlist/items                 wishlist resolution for shop.js (no-store)
 POST /_shop/checkout/quote                 read-only checkout preview
 POST /_shop/checkout/place                 durable, idempotent order placement
 GET  /_shop/blocks/product-grid | featured-product | add-to-cart   block hydration data
@@ -147,7 +154,7 @@ evicted); `thallo:commerce:checkout:purge-attempts` sweeps expired attempt rows 
 
 ### Blocks
 
-Four starter block types ship via the same starter-contributor pattern slice 1 established for
+Five starter block types ship via the same starter-contributor pattern slice 1 established for
 content types, generalized to block types:
 
 - **`product-grid`** — a category, tag, manual list (newline-delimited product slugs, deduped and
@@ -158,6 +165,8 @@ content types, generalized to block types:
   controls (or a link to the full product page) rather than ever building an invalid cart line.
 - **`mini-cart`** — a stable, cacheable shell whose contents hydrate client-side via
   `GET /_shop/cart`; a plain `/cart` link without JavaScript.
+- **`wishlist-link`** — a link to the wishlist page with a live saved-item count, and an optional
+  label; a plain wishlist link without JavaScript.
 
 The block types are declared whether or not `thallo.commerce` is on; the capability decides
 what happens with them. While it is on, the first request seeds any that are missing (a
@@ -166,8 +175,8 @@ single-store install needs no command; with workspaces on, run
 the table but Settings › Block types and the picker leave them out, and stored instances fall
 to the missing-template fallback.
 
-All four render a themed, parameter-carrying shell server-side and hydrate live data via
-`shop.js` + the `/_shop/blocks/*`/`/_shop/cart` endpoints above — never a live Commerce lookup at
+All five render a themed, parameter-carrying shell server-side and hydrate live data via
+`shop.js` + the `/_shop/blocks/*`, `/_shop/cart` and `/_shop/wishlist/items` endpoints above — never a live Commerce lookup at
 Twig-render time, so a builder page carrying one of these blocks stays safely cacheable by
 Render's own page cache.
 
@@ -325,17 +334,16 @@ repo's `composer boundaries` check enforces this at both the Composer-dependency
 
 ## Install
 
-1. `composer require glueful/thallo-commerce`
-2. `./thallo extensions:enable thallo-commerce` (writes the provider into the
-   `config/extensions.php` allow-list and recompiles the extension cache)
-3. `./thallo migrate:run` to create the link table.
+The pack ships with Thallo: `glueful/thallo-core` requires it (and `glueful/commerce`) at the same
+version, and the project's `config/serviceproviders.php` loads its provider. To turn the store on:
+
+1. `php glueful extensions:enable glueful/commerce` (and `glueful/payvia` to take card payments).
+2. `php glueful migrate:run` to create the link table, slug ledger and checkout-attempt ledger.
+3. `php glueful thallo:provision` to grant the declared `commerce.*` permissions.
 4. For workspaces that already existed before this step, run the sync command above.
 
-## Remove
-
-`./thallo extensions:disable thallo-commerce`, then `composer remove glueful/thallo-commerce`. The
-CMS core boots unchanged; the `thallo.commerce` capability disappears from
-`GET /v1/admin/capabilities`.
+Switching the capability off (Extensions › Capabilities) drops `thallo.commerce` from
+`GET /v1/admin/capabilities`; the data and the cleanup listeners stay, as described above.
 
 ## Contributing
 
