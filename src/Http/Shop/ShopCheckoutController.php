@@ -569,7 +569,7 @@ final class ShopCheckoutController
         $this->extension->resetTags();
         $this->extension->resetPerRenderState();
         $this->extension->setAssetContext(null, null);
-        $this->extension->setBlockAnnotations(false);
+        $this->extension->setAnnotationScope('none');
         $this->extension->setThemeAppearanceOverride(null, null);
         $this->extension->setLocale($locale);
 
