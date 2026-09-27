@@ -131,7 +131,8 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
      * Today's page in blocks: the breadcrumb; the gallery beside the information column — one
      * column below `md` (768px, the page's 48rem), two equal columns from it, 2.5rem apart (the
      * page uses 1.05fr / 1fr and 2rem, which the layout vocabulary has no values for: accepted,
-     * plan C1) — the information column's parts 0.5rem apart, as on the page; then the story.
+     * plan C1), aligned to the top as the page's grid is — the information column's parts 0.5rem
+     * apart, as on the page; then the story.
      */
     public function starter(string $target): array
     {
@@ -163,6 +164,7 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
                     'md' => ['type' => 'choice', 'value' => '2'],
                 ],
                 'gap' => ['column' => $token('spacing.xl'), 'row' => $token('spacing.xl')],
+                'align_items' => ['base' => ['type' => 'choice', 'value' => 'start']],
             ]]]],
             $block('product_story'),
         ];

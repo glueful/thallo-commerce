@@ -28,11 +28,33 @@
 }
 
 /* The product layout (type layouts plan C1): the page's parts are blocks there, and the theme gives
-   every block a vertical margin the page never had. Reset it inside the frame at one class of
-   specificity — after the theme's rule, before every `.shop-product__*` rule below, so each part
-   keeps the margins it has on the page — and authored spacing (`@layer settings`) wins over both. */
-.shop-product--layout :where(.thallo-block) {
+   every block a vertical margin the page never had. Reset it on the layout's own top-level blocks —
+   live, and on the stage inside its slot and selection wrappers — at one class of specificity: after
+   the theme's rule, before every `.shop-product__*` rule below, so each part keeps the margins it
+   has on the page. Blocks inside the linked story are the story's and keep theirs. Authored spacing
+   (`@layer settings`) wins over all of it. */
+:where(.shop-product--layout) > .thallo-block,
+:where(.shop-product--layout > .layout-blocks > .thallo-preview-block) > .thallo-block {
   margin-block: 0;
+}
+/* Inside a container the theme zeroes every child's vertical margin (its gap spaces them): the
+   product page's parts keep the margins they have on the page, over that rule — and over its stage
+   form, where each block sits in a selection wrapper, so the stage shows what the site serves. */
+.shop-product--layout .shop-product__gallery,
+.shop-product--layout .thallo-preview-block > .shop-product__gallery {
+  margin-bottom: 1.25rem;
+}
+.shop-product--layout .shop-product__name,
+.shop-product--layout .thallo-preview-block > .shop-product__name {
+  margin-block: 0 0.25rem;
+}
+.shop-product--layout .shop-product__price,
+.shop-product--layout .thallo-preview-block > .shop-product__price {
+  margin-block: 0 1rem;
+}
+.shop-product--layout .shop-product__description,
+.shop-product--layout .thallo-preview-block > .shop-product__description {
+  margin-block: 0 1.5rem;
 }
 /* Add to cart holds the buy area and the availability line, which sit in the information column's
    0.5rem grid on the page: the block keeps that rhythm between them. */
