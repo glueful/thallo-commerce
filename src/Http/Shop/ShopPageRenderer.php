@@ -8,6 +8,7 @@ use Glueful\Bootstrap\ApplicationContext;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Render\Http\Middleware\RenderPageCache;
+use Thallo\Render\Layouts\FramePresentation;
 use Thallo\Render\SiteContext;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
@@ -36,9 +37,16 @@ final class ShopPageRenderer
 
     /**
      * @param array<string,mixed> $extra
+     * @param array<string,mixed>|null $frame a product layout's Frame settings (type layouts plan C1);
+     *     null renders the shop's own presentation — centered, default header and footer
      */
-    public function render(Request $request, string $template, array $extra, int $status = 200): Response
-    {
+    public function render(
+        Request $request,
+        string $template,
+        array $extra,
+        int $status = 200,
+        ?array $frame = null,
+    ): Response {
         $env = $this->twigFactory->environment();
         $locale = $this->defaultLocale();
 
@@ -52,12 +60,7 @@ final class ShopPageRenderer
         $context = [
             'site' => SiteContext::build($this->context, $locale),
             'current_path' => RenderPageCache::normalizePath($request->getPathInfo()),
-            'presentation' => [
-                'show_title' => true,
-                'layout' => 'centered',
-                'header' => 'default',
-                'footer' => 'default',
-            ],
+            'presentation' => FramePresentation::fixed($frame),
         ] + $extra;
 
         $html = $this->extension->finish($env->render($template, $context));

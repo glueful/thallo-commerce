@@ -1558,6 +1558,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             app($context, PurgeShopCacheOnAppearanceChange::class),
             'onAppearanceChanged',
         ]);
+        // Type layouts plan C1: a product layout change purges that workspace's product pages.
+        $events->addListener(\Thallo\Contracts\Layouts\LayoutChanged::class, [
+            new \Thallo\Commerce\Shop\Listeners\PurgeShopCacheOnLayoutChange($container),
+            'onLayoutChanged',
+        ]);
     }
 
     /**

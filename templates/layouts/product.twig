@@ -1,0 +1,20 @@
+{# The product frame (type layouts spec §7.1, §7.3; plan C1): a product's page while the shop has a
+   product layout — the theme's shell around the layout's blocks. What the page must always carry
+   is here and not designable: the canonical URL (ShopUrlGenerator's, never a linked entry's), the
+   Product structured data, the wishlist scope and the shop script. The shop's stylesheet reaches
+   the page through the theme artifact's `@layer theme` only — never linked raw — so a value set on
+   a block (`@layer settings`) always wins over the product defaults. A theme may override this
+   file; an override keeps all of the above. #}
+{% extends 'layout.twig' %}
+{% block title %}{{ product.name }} — {{ site.name }}{% endblock %}
+{% block content %}
+  <link rel="canonical" href="{{ canonical }}">
+{% include 'shop/_product_structured_data.twig' %}
+  {# The layout stage's placeholder product (spec §5.2): named, so no one takes it for content. #}
+  {% if layout_placeholder|default(null) %}<div class="thallo-layout-placeholder-notice" data-thallo-placeholder>{{ layout_placeholder }}</div>{% endif %}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <article class="shop-product shop-product--layout"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+    {{ layout_blocks(layout.blocks|default([])) }}
+    <script src="/_thallo/shop/shop.js" defer></script>
+  </article>
+{% endblock %}

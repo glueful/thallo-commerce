@@ -29,6 +29,15 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
 
     private const SAMPLES = 50;
 
+    /**
+     * The tag every product page carries in the shop's cache, per workspace (type layouts plan C1):
+     * a product layout change in one purges that workspace's product pages and no other's.
+     */
+    public static function pageCacheTag(string $tenant): string
+    {
+        return 'thallo:shop:layout:product:' . $tenant;
+    }
+
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,

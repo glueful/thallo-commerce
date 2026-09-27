@@ -12,11 +12,13 @@ use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Thallo\Commerce\Layouts\ProductSurface;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
 use Thallo\Commerce\Shop\ShopProductPage;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\CategoryViewModel;
 use Thallo\Commerce\Shop\ViewModels\GridViewModel;
+use Thallo\Contracts\Layouts\LayoutReader;
 
 /**
  * The read-only storefront catalog surface (storefront-rendering spec §3/§6): shop index,
@@ -55,6 +57,9 @@ final class ShopCatalogController
         // What a product's page renders from, shared with the product layout's stage (type
         // layouts plan C1).
         private readonly ShopProductPage $productPage,
+        // The saved layouts (type layouts plan C1): with a product layout, every product renders
+        // through its frame. Nullable, as a pack never hard-requires an engine binding.
+        private readonly ?LayoutReader $layouts = null,
     ) {
     }
 
@@ -114,7 +119,22 @@ final class ShopCatalogController
         }
 
         $page = $this->productPage->forProduct($tenant, $product);
-        $response = $this->render($request, 'shop/product.twig', $page['vars']);
+        $layout = $this->layouts?->for(ProductSurface::KEY, ProductSurface::TARGET);
+        $response = $layout === null
+            ? $this->render($request, 'shop/product.twig', $page['vars'])
+            : $this->pages->render(
+                $request,
+                'layouts/product.twig',
+                $page['vars'] + [
+                    'layout' => $layout + ['surface' => ProductSurface::KEY, 'target' => ProductSurface::TARGET],
+                ],
+                200,
+                $layout['settings'],
+            );
+        // Every product page carries its workspace's product-layout tag, with a layout or without
+        // (spec §7.4): a first save purges pages cached from the theme's template, a removal the
+        // pages the layout rendered.
+        $tags = [ProductSurface::pageCacheTag($tenant)];
         if ($page['entry_uuid'] !== null) {
             // Commerce-Slice-2 Fix B (storefront-rendering spec §9 extension): tag the
             // cached product-detail response with the linked entry's uuid — the SAME
@@ -124,8 +144,9 @@ final class ShopCatalogController
             // controller's Cache-Tag header). Tagged even when the entry isn't CURRENTLY
             // publishable — a draft-linked entry that later publishes must still purge this
             // already-cached commerce-only page.
-            $response->headers->set('Cache-Tag', 'thallo:entry:' . $page['entry_uuid']);
+            $tags[] = 'thallo:entry:' . $page['entry_uuid'];
         }
+        $response->headers->set('Cache-Tag', implode(',', $tags));
         return $response;
     }
 
