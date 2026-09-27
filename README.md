@@ -196,7 +196,10 @@ Nine field blocks come with it (`ProductFieldBlocksContributor`, category **Fiel
 server-built, no-JS buy form; required exactly once per product layout) and `product_story` (the
 linked entry's blocks). They read the product from `layout_context`, which the frame hands its
 blocks. Seeding follows the shop blocks' rules below; on a site that switched Commerce on before
-they existed, `php glueful thallo:provision` adds them.
+they existed, `php glueful thallo:provision` adds them, and `php glueful thallo:tenant:sync --all
+--kind=block_type` adds them to every existing workspace. Until the site (or workspace) has all
+nine, core's `LayoutTargets` closes the product layout: the Layouts row has no Edit and names both
+commands, and its session and saves are refused with the same reason.
 
 Every product page's response carries the tag `thallo:shop:layout:product`, with a layout or
 without — naming no workspace, since the header reaches visitors. `ShopPageCache` stores the page
