@@ -131,10 +131,10 @@ final class ShopCatalogController
                 200,
                 $layout['settings'],
             );
-        // Every product page carries its workspace's product-layout tag, with a layout or without
-        // (spec §7.4): a first save purges pages cached from the theme's template, a removal the
-        // pages the layout rendered.
-        $tags = [ProductSurface::pageCacheTag($tenant)];
+        // Every product page carries the product-layout tag, with a layout or without (spec §7.4): a
+        // first save purges pages cached from the theme's template, a removal the pages the layout
+        // rendered. It names no workspace — ShopPageCache stores the workspace's own in its place.
+        $tags = [ProductSurface::PAGE_TAG];
         if ($page['entry_uuid'] !== null) {
             // Commerce-Slice-2 Fix B (storefront-rendering spec §9 extension): tag the
             // cached product-detail response with the linked entry's uuid — the SAME

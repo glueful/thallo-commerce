@@ -35,16 +35,24 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
         'layout.item',
     ];
 
+    /** A text block whose root is a flex row (breadcrumb, rating, price): text-align moves nothing. */
+    private const ROW = [
+        'spacing', 'width', 'alignment.self', 'typography', 'colors.text', 'visibility', 'layout.item',
+    ];
+
     private const BOX = ['spacing', 'width', 'visibility', 'layout.item'];
+
+    /** Add to cart: no visibility — every product page keeps its buy button, at every size. */
+    private const BUY = ['spacing', 'width', 'layout.item'];
 
     /**
      * slug => [label, icon, description, style kind, schema]
      *
-     * @var array<string, array{string, string, string, 'text'|'box'|'picture', list<array<string,mixed>>}>
+     * @var array<string, array{string, string, string, 'text'|'row'|'box'|'buy'|'picture', list<array<string,mixed>>}>
      */
     private const BLOCKS = [
         'product_breadcrumb' => ['Product breadcrumb', 'i-lucide-chevrons-right',
-            'Shop, the product\'s category and its name.', 'text', [
+            'Shop, the product\'s category and its name.', 'row', [
                 ['name' => 'hide_category', 'type' => 'boolean', 'label' => 'Hide the category'],
             ]],
         'product_gallery' => ['Product gallery', 'i-lucide-images',
@@ -60,17 +68,17 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
             ['name' => 'level', 'type' => 'enum', 'enum' => ['h1', 'h2', 'h3', 'h4']],
         ]],
         'product_rating' => ['Product rating', 'i-lucide-star',
-            'The product\'s stars and review count.', 'text', [
+            'The product\'s stars and review count.', 'row', [
                 ['name' => 'hide_when_none', 'type' => 'boolean', 'label' => 'Hide until it has reviews'],
             ]],
         'product_price' => ['Product price', 'i-lucide-badge-dollar-sign',
-            'The price, with the "was" price when it has one.', 'text', [
+            'The price, with the "was" price when it has one.', 'row', [
                 ['name' => 'hide_compare_at', 'type' => 'boolean', 'label' => 'Hide the "was" price'],
             ]],
         'product_description' => ['Product description', 'i-lucide-align-left',
             'The product\'s description.', 'text', []],
         'product_buy' => ['Add to cart', 'i-lucide-shopping-cart',
-            'Options, quantity and Add to cart — every product page has one.', 'box', [
+            'Options, quantity and Add to cart — every product page has one.', 'buy', [
                 ['name' => 'hide_wishlist', 'type' => 'boolean', 'label' => 'Hide the wishlist heart'],
                 ['name' => 'hide_availability', 'type' => 'boolean', 'label' => 'Hide "In stock"'],
             ]],
@@ -95,12 +103,16 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
                 schema: $schema,
                 styleCapabilities: match ($kind) {
                     'text' => self::TEXT,
+                    'row' => self::ROW,
                     'box' => self::BOX,
+                    'buy' => self::BUY,
                     'picture' => [...self::BOX, 'radius', 'shadow'],
                 },
                 styleTargets: match ($kind) {
                     'text' => StyleTargets::root('text', self::TEXT),
+                    'row' => StyleTargets::root('text', self::ROW),
                     'box' => StyleTargets::root('box', self::BOX),
+                    'buy' => StyleTargets::root('box', self::BUY),
                     // The gallery's cover takes the radius and shadow, as the entry cover's picture does.
                     'picture' => StyleTargets::root('box', self::BOX, [
                         'targets' => ['picture' => ['kind' => 'box', 'optional' => true]],

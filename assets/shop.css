@@ -56,6 +56,25 @@
 .shop-product--layout .thallo-preview-block > .shop-product__description {
   margin-block: 0 1.5rem;
 }
+/* A size or weight set on the Product price or Product rating block lands on its root: its parts
+   take theirs from it, in the proportions the page gives them — the amount the root's, the "was"
+   price four fifths of it at a normal weight, the stars as tall as the rating's text. */
+.shop-product--layout .shop-product__price {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.shop-product--layout .shop-product__price-current {
+  font-size: 1em;
+  font-weight: inherit;
+}
+.shop-product--layout .shop-product__price-compare {
+  font-size: 0.8em;
+  font-weight: 400;
+}
+.shop-product--layout .shop-product__star {
+  width: 1em;
+  height: 1em;
+}
 /* Add to cart holds the buy area and the availability line, which sit in the information column's
    0.5rem grid on the page: the block keeps that rhythm between them. */
 .thallo-block-product_buy {

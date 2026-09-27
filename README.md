@@ -198,10 +198,12 @@ linked entry's blocks). They read the product from `layout_context`, which the f
 blocks. Seeding follows the shop blocks' rules below; on a site that switched Commerce on before
 they existed, `php glueful thallo:provision` adds them.
 
-Every product page carries the cache tag `thallo:shop:layout:product:{tenant}`, with a layout or
-without; `PurgeShopCacheOnLayoutChange` invalidates it when a product layout changes (falling back
-to that workspace's `shop:*` keys on a driver without tag invalidation), so one workspace's save
-never evicts another's pages.
+Every product page's response carries the tag `thallo:shop:layout:product`, with a layout or
+without — naming no workspace, since the header reaches visitors. `ShopPageCache` stores the page
+under the workspace's own tag, `thallo:shop:layout:product:{tenant}`, in its place, and
+`PurgeShopCacheOnLayoutChange` invalidates that tag when a product layout changes (falling back to
+that workspace's `shop:*` keys on a driver without tag invalidation), so one workspace's save never
+evicts another's pages.
 
 ### `shop.js` and assets
 

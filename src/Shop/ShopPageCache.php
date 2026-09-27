@@ -10,6 +10,7 @@ use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Routing\RouteMiddleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Thallo\Commerce\Layouts\ProductSurface;
 use Thallo\Render\Http\Middleware\PreviewSessionMiddleware;
 use Thallo\Render\Http\Middleware\RenderPageCache;
 
@@ -120,7 +121,7 @@ final class ShopPageCache implements RouteMiddleware
             $this->cache->set($key, $entry, $this->ttl);
             $this->cache->addTags(
                 $key,
-                [...$this->surrogateTags($cacheTag), self::TENANT_TAG_PREFIX . $tenant, self::GLOBAL_TAG],
+                [...$this->surrogateTags($cacheTag, $tenant), self::TENANT_TAG_PREFIX . $tenant, self::GLOBAL_TAG],
             );
             return $this->respond($request, $entry);
         }
@@ -134,13 +135,24 @@ final class ShopPageCache implements RouteMiddleware
         return $response; // 500s etc: never cached, untouched.
     }
 
-    /** @return list<string> the surrogate keys from a Cache-Tag header value (mirrors RenderPageCache) */
-    private function surrogateTags(string $cacheTag): array
+    /**
+     * The surrogate keys from a Cache-Tag header value (mirrors RenderPageCache). The product page's
+     * tag names no workspace in the header, which reaches visitors; it is stored as the workspace's
+     * own (type layouts plan C1), so a product layout change purges that workspace only.
+     *
+     * @return list<string>
+     */
+    private function surrogateTags(string $cacheTag, string $tenant): array
     {
         if ($cacheTag === '') {
             return [];
         }
-        return array_values(array_filter(array_map('trim', explode(',', $cacheTag))));
+        return array_map(
+            static fn (string $tag): string => $tag === ProductSurface::PAGE_TAG
+                ? ProductSurface::pageCacheTag($tenant)
+                : $tag,
+            array_values(array_filter(array_map('trim', explode(',', $cacheTag)))),
+        );
     }
 
     /**
