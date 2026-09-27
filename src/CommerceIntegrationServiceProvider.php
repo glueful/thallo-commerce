@@ -467,6 +467,18 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'shared'   => true,
                 'autowire' => true,
             ],
+            // What a product's page renders from — the storefront's product route and the product
+            // layout's stage (type layouts plan C1).
+            \Thallo\Commerce\Shop\ShopProductPage::class => [
+                'class'    => \Thallo\Commerce\Shop\ShopProductPage::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            \Thallo\Commerce\Layouts\ProductSurface::class => [
+                'class'    => \Thallo\Commerce\Layouts\ProductSurface::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             ShopCatalogController::class => [
                 'class'    => ShopCatalogController::class,
                 'shared'   => true,
@@ -1205,6 +1217,11 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // documented in this pack's README, run once after enabling the capability.
             $this->registerStarterContributor($context);
 
+            // Type layouts plan C1: the product page is a layout surface only while the capability
+            // is on and the engine is bound — off, the Layouts page has no product row and no
+            // product page renders; a saved product layout stays and returns on re-enable.
+            $this->registerLayoutSurface($context);
+
             // Store-settings spec §4: transactional order emails are USER-FACING capability
             // behavior — definitions register into the email extension's registry (they then
             // appear, editable, in Settings › Email) and the listener sends through the
@@ -1692,6 +1709,17 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * unit-testable without a full capability-enabled boot, mirroring
      * registerStarterContributor() above.
      */
+    /** Add the product page to core's layout surfaces (type layouts plan C1); idempotent by key. */
+    private function registerLayoutSurface(ApplicationContext $context): void
+    {
+        $container = $context->getContainer();
+        if (!$container->has(\Thallo\Contracts\Layouts\LayoutSurfaceRegistry::class)) {
+            return;
+        }
+        $container->get(\Thallo\Contracts\Layouts\LayoutSurfaceRegistry::class)
+            ->register($container->get(\Thallo\Commerce\Layouts\ProductSurface::class));
+    }
+
     public function registerShopBlockTypeContributor(
         ApplicationContext $context,
         ?StarterBlockTypeRegistry $registry = null,

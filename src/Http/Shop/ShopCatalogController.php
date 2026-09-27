@@ -5,26 +5,18 @@ declare(strict_types=1);
 namespace Thallo\Commerce\Http\Shop;
 
 use Glueful\Bootstrap\ApplicationContext;
-use Glueful\Extensions\Commerce\Catalog\AddonRepository;
 use Glueful\Extensions\Commerce\Catalog\CategoryRepository;
-use Glueful\Extensions\Commerce\Catalog\ProductMediaRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductRepository;
 use Glueful\Extensions\Commerce\Catalog\ResolvedProductFilters;
-use Glueful\Extensions\Commerce\Catalog\VariantRepository;
-use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Thallo\Commerce\Links\ProductLinkService;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
+use Thallo\Commerce\Shop\ShopProductPage;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
-use Thallo\Contracts\Delivery\MediaUrlResolver;
-use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\CategoryViewModel;
 use Thallo\Commerce\Shop\ViewModels\GridViewModel;
-use Thallo\Commerce\Shop\ViewModels\ProductViewModel;
-use Thallo\Render\EntryBlocksRenderer;
 
 /**
  * The read-only storefront catalog surface (storefront-rendering spec §3/§6): shop index,
@@ -36,7 +28,8 @@ use Thallo\Render\EntryBlocksRenderer;
  * `asset()`, `menu()`, etc. all work identically inside shop templates).
  *
  * The product template's enrichment region (Commerce-Slice-2 Fix B) is rendered via
- * {@see EntryBlocksRenderer::renderPublishedBlocks()} — a route-INDEPENDENT read, unlike
+ * {@see \Thallo\Render\EntryBlocksRenderer::renderPublishedBlocks()}, through {@see ShopProductPage}
+ * — a route-INDEPENDENT read, unlike
  * {@see \Thallo\Contracts\Delivery\PublicRouteResolver::resolveEntry()} (which this
  * controller no longer calls for enrichment: that method requires a live `entry_routes` row
  * and returns `not_found` for the route-less "Product story" starter type, silently dropping
@@ -50,11 +43,7 @@ final class ShopCatalogController
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,
         private readonly ProductRepository $products,
-        private readonly VariantRepository $variants,
-        private readonly ProductMediaRepository $media,
         private readonly CategoryRepository $categories,
-        private readonly AddonRepository $addons,
-        private readonly ProductLinkService $links,
         private readonly PackSlugLifecycleAuthority $slugs,
         private readonly ShopUrlGenerator $urls,
         // The shared shop-page render seam (storefront-v1 Task 7) — this controller's old
@@ -63,23 +52,10 @@ final class ShopCatalogController
         // The shared batched card pipeline (extracted buildGrid() body) — also consumed by
         // ShopWishlistController so grid and wishlist cards can never drift.
         private readonly ShopProductCardAssembler $cards,
-        private readonly EntryBlocksRenderer $blocksRenderer,
-        // The ONE anonymous-media URL authority rendered pages already use (visibility-checked,
-        // API-prefix-correct) — the app binds it; autowiring injects it. Nullable so the pack
-        // never hard-requires an app-only binding: without it, pages honestly render imageless.
-        // (The batched companion now lives inside ShopProductCardAssembler; this per-row
-        // resolver remains for the product page's gallery reads.)
-        private readonly ?MediaUrlResolver $mediaUrls = null,
+        // What a product's page renders from, shared with the product layout's stage (type
+        // layouts plan C1).
+        private readonly ShopProductPage $productPage,
     ) {
-    }
-
-    /** Resolved anonymous URL for a media row's blob, or null (private/missing/unbound). */
-    private function mediaUrl(?array $row): ?string
-    {
-        if ($row === null || !isset($row['blob_uuid'])) {
-            return null;
-        }
-        return $this->mediaUrls?->url((string) $row['blob_uuid']);
     }
 
     public function index(Request $request): Response
@@ -137,59 +113,9 @@ final class ShopCatalogController
             return $this->notFound($request);
         }
 
-        $uuid = (string) $product['uuid'];
-        $variants = $this->variants->forProduct($this->context, $tenant, $uuid);
-
-        // The full gallery (product-editor mock parity, 2026-07-24), cover-role rows first, then
-        // position order. A cover row is OPTIONAL by design: the admin attaches images with role
-        // 'gallery' by default, so the first gallery image leads when no explicit cover exists —
-        // previously only a role='cover' row ever rendered, leaving admin-managed products
-        // imageless in the store. URLs resolve through the anonymous-media authority; rows whose
-        // blobs aren't publicly servable are skipped (never a broken <img>).
-        $mediaRows = $this->media->forProduct($this->context, $tenant, $uuid);
-        $coverRows = array_filter($mediaRows, static fn (array $r): bool => ($r['role'] ?? null) === 'cover');
-        $galleryRows = array_filter($mediaRows, static fn (array $r): bool => ($r['role'] ?? null) !== 'cover');
-        $gallery = [];
-        foreach ([...$coverRows, ...$galleryRows] as $row) {
-            $url = $this->mediaUrl($row);
-            if ($url === null) {
-                continue;
-            }
-            $gallery[] = [
-                'url' => $url,
-                'alt' => isset($row['alt']) && is_string($row['alt']) && $row['alt'] !== '' ? $row['alt'] : null,
-            ];
-        }
-
-        $addToCart = $this->buildAddToCart($product, $variants, $uuid, $tenant);
-        $vm = ProductViewModel::fromRow(
-            $product,
-            $variants,
-            $gallery[0]['url'] ?? null,
-            $this->urls,
-            $addToCart,
-            $gallery,
-        );
-
-        $enrichment = $this->resolveEnrichment($tenant, $uuid);
-
-        // Breadcrumb (storefront-v1 Task 6): the SAME deterministic first-category projection
-        // the grid tags use (Task 1's batched read — the single-product call is the same
-        // bounded query), or null when the product has no direct category assignment.
-        $breadcrumbCategory = $this->categories->firstCategoryProjectionsForProducts(
-            $this->context,
-            $tenant,
-            [$uuid],
-        )[$uuid] ?? null;
-
-        $response = $this->render($request, 'shop/product.twig', [
-            'product' => $vm,
-            'breadcrumb_category' => $breadcrumbCategory,
-            'enrichment_html' => $enrichment['html'] ?? null,
-            'canonical' => $this->urls->product($slug),
-            'shop_index' => $this->urls->shopIndex(),
-        ]);
-        if ($enrichment !== null) {
+        $page = $this->productPage->forProduct($tenant, $product);
+        $response = $this->render($request, 'shop/product.twig', $page['vars']);
+        if ($page['entry_uuid'] !== null) {
             // Commerce-Slice-2 Fix B (storefront-rendering spec §9 extension): tag the
             // cached product-detail response with the linked entry's uuid — the SAME
             // `thallo:entry:{uuid}` string InvalidateCacheTagsListener already invalidates on
@@ -198,62 +124,9 @@ final class ShopCatalogController
             // controller's Cache-Tag header). Tagged even when the entry isn't CURRENTLY
             // publishable — a draft-linked entry that later publishes must still purge this
             // already-cached commerce-only page.
-            $response->headers->set('Cache-Tag', 'thallo:entry:' . $enrichment['entry_uuid']);
+            $response->headers->set('Cache-Tag', 'thallo:entry:' . $page['entry_uuid']);
         }
         return $response;
-    }
-
-    /**
-     * The no-JS add-to-cart decision for the product detail page (Commerce-Slice-2 Fix A) —
-     * the SAME closed {@see AddToCartViewModel::build()} the add-to-cart BLOCK's own JSON
-     * endpoint uses ({@see ShopBlockDataController::addToCart()}), computed here instead of
-     * fetched over `/_shop/blocks/add-to-cart` so `shop/product.twig` can render a REAL,
-     * server-side `<form>` (or native `<select>`) that works with zero JavaScript — the pinned
-     * PRG promise a JS-only shell would otherwise break.
-     *
-     * @param array<string,mixed> $product
-     * @param list<array<string,mixed>> $variants ALL of the product's variants (not yet
-     *     filtered to active — mirrors {@see ShopBlockDataController::addToCart()}'s own filter)
-     */
-    private function buildAddToCart(array $product, array $variants, string $uuid, string $tenant): AddToCartViewModel
-    {
-        $activeVariants = array_values(array_filter(
-            $variants,
-            static fn (array $variant): bool => ($variant['status'] ?? null) === 'active',
-        ));
-        $hasRequiredAddons = array_reduce(
-            $this->addons->activeForProduct($this->context, $tenant, $uuid),
-            static fn (bool $carry, array $addon): bool => $carry || (bool) ($addon['required'] ?? false),
-            false,
-        );
-        $currency = CommerceSettings::currency($this->context);
-
-        return AddToCartViewModel::build($product, $activeVariants, $hasRequiredAddons, $this->urls, $currency);
-    }
-
-    /**
-     * The linked entry's rendered blocks-region HTML (Commerce-Slice-2 Fix B), or null when
-     * unlinked or the link itself fails closed (tombstoned product / missing entry —
-     * {@see ProductLinkService::resolveByProduct}). `html` inside the returned array is null
-     * when the link exists but the entry fails closed at
-     * {@see EntryBlocksRenderer::renderPublishedBlocks()} (missing/deleted/cross-tenant/
-     * unpublished/non-public-type) — a route-less entry now resolves here, unlike the
-     * previous PublicRouteResolver::resolveEntry()-based lookup this replaces. Either way the
-     * product page still renders — commerce data alone when `html` is null.
-     *
-     * @return array{entry_uuid: string, html: ?\Twig\Markup}|null
-     */
-    private function resolveEnrichment(string $tenant, string $productUuid): ?array
-    {
-        $link = $this->links->resolveByProduct($this->context, $productUuid);
-        if ($link === null) {
-            return null;
-        }
-
-        $entryUuid = (string) $link['entry_uuid'];
-        $html = $this->blocksRenderer->renderPublishedBlocks($this->context, $tenant, $entryUuid);
-
-        return ['entry_uuid' => $entryUuid, 'html' => $html];
     }
 
     /**
