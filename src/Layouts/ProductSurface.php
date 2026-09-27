@@ -15,8 +15,8 @@ use Thallo\Contracts\Layouts\LayoutSurface;
 /**
  * The shop's product page as a layout surface (type layouts spec §3, plan C1): one layout for the
  * whole site (`@site`), designed on the stage around one of the shop's active products — or an
- * in-memory placeholder while there are none — from the product field blocks, with **Add to cart**
- * required once. Its frame, `layouts/product.twig`, keeps what `shop/product.twig` guarantees.
+ * in-memory placeholder while there are none — from the product field blocks, with the **Product
+ * buy box** required once. Its frame, `layouts/product.twig`, keeps what `shop/product.twig` guarantees.
  *
  * Commerce registers it while its capability is on (and the commerce engine is bound). Its pages
  * live in the shop's page cache, which commerce purges on `LayoutChanged` (tenant by tenant), so it

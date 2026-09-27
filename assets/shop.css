@@ -75,7 +75,7 @@
   width: 1em;
   height: 1em;
 }
-/* Add to cart holds the buy area and the availability line, which sit in the information column's
+/* The Product buy box holds the buy area and the availability line, which sit in the information column's
    0.5rem grid on the page: the block keeps that rhythm between them. */
 .thallo-block-product_buy {
   display: grid;

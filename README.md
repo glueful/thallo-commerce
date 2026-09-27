@@ -192,7 +192,7 @@ their variables from `ShopProductPage`, which the layout stage uses too.
 
 Nine field blocks come with it (`ProductFieldBlocksContributor`, category **Fields**, flagged
 `layout_only`): `product_breadcrumb`, `product_gallery`, `product_category`, `product_name`,
-`product_rating`, `product_price`, `product_description`, `product_buy` (**Add to cart** — the
+`product_rating`, `product_price`, `product_description`, `product_buy` (**Product buy box** — the
 server-built, no-JS buy form; required exactly once per product layout) and `product_story` (the
 linked entry's blocks). They read the product from `layout_context`, which the frame hands its
 blocks. Seeding follows the shop blocks' rules below; on a site that switched Commerce on before

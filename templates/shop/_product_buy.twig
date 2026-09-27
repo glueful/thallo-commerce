@@ -1,5 +1,5 @@
 {# The product page's buy area — variant picker, quantity stepper, Add to cart, the wishlist heart —
-   and the availability line: shared by shop/product.twig and the Add to cart block (product_buy),
+   and the availability line: shared by shop/product.twig and the Product buy box block (product_buy),
    whose settings hide the heart (show_wishlist) and the line (show_availability). #}
     <div class="shop-product__buy">
     {% if product.addToCart.available and product.addToCart.mode in ['direct', 'select'] %}

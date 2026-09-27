@@ -12,7 +12,7 @@ use Thallo\Contracts\Style\StyleTargets;
  * The product page's field blocks (type layouts plan C1): the parts of `shop/product.twig`, placed
  * by the product layout (`product` surface) and nowhere else — `layout_only`, so entry, region and
  * saved-section saves refuse them. Each reads the product the frame hands it (`layout_context`).
- * **Add to cart** (`product_buy`) is the smart block: the variant picker, the quantity stepper, the
+ * **Product buy box** (`product_buy`) is the smart block: the variant picker, the quantity stepper, the
  * button, the wishlist heart and the availability line, with fixed internals; every product layout
  * holds it exactly once.
  *
@@ -42,7 +42,7 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
 
     private const BOX = ['spacing', 'width', 'visibility', 'layout.item'];
 
-    /** Add to cart: no visibility — every product page keeps its buy button, at every size. */
+    /** Product buy box: no visibility — every product page keeps its buy button, at every size. */
     private const BUY = ['spacing', 'width', 'layout.item'];
 
     /**
@@ -77,7 +77,7 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
             ]],
         'product_description' => ['Product description', 'i-lucide-align-left',
             'The product\'s description.', 'text', []],
-        'product_buy' => ['Add to cart', 'i-lucide-shopping-cart',
+        'product_buy' => ['Product buy box', 'i-lucide-shopping-cart',
             'Options, quantity and Add to cart — every product page has one.', 'buy', [
                 ['name' => 'hide_wishlist', 'type' => 'boolean', 'label' => 'Hide the wishlist heart'],
                 ['name' => 'hide_availability', 'type' => 'boolean', 'label' => 'Hide "In stock"'],
