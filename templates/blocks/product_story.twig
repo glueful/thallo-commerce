@@ -1,0 +1,9 @@
+{# product_story — the linked story's content (type layouts plan C1): its blocks, already rendered
+   by EntryBlocksRenderer before the page renders, so they are never selectable on the layout's
+   stage and their depth is their own. A product with no linked story renders nothing. #}
+{% set story = layout_context.enrichment_html|default(null) %}
+{% if story is not empty %}
+<div class="thallo-block thallo-block-product_story shop-product__enrichment{{ style_classes('root') }}"{{ style_attrs('root') }}>{{ story }}</div>
+{% elseif layout_context.product|default(null) and is_canvas() %}
+<div class="thallo-block thallo-block-product_story thallo-field-empty">Product story — this product has no linked story</div>
+{% endif %}

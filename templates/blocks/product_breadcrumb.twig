@@ -1,0 +1,15 @@
+{# product_breadcrumb — Shop / the product's category / the product (type layouts plan C1), as
+   shop/product.twig trails it. `hide_category` drops the middle step. #}
+{% set product = layout_context.product|default(null) %}
+{% set category = data.hide_category|default(false) ? null : layout_context.breadcrumb_category|default(null) %}
+{% if product %}
+<nav class="thallo-block thallo-block-product_breadcrumb shop-product__breadcrumb{{ style_classes('root') }}"{{ style_attrs('root') }} aria-label="Breadcrumb">
+  <a href="{{ layout_context.shop_index|default('/shop') }}">Shop</a>
+  <span aria-hidden="true">/</span>
+  {% if category %}
+  <a href="{{ shop_category_url(category.slug) }}">{{ category.name }}</a>
+  <span aria-hidden="true">/</span>
+  {% endif %}
+  <span>{{ product.name }}</span>
+</nav>
+{% endif %}

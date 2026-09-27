@@ -1,0 +1,34 @@
+{# product_gallery — the product's images (type layouts plan C1): the cover, and thumbnails that
+   swap it (shop.js) when there are more, as shop/product.twig shows them. Every URL came
+   pre-resolved through the anonymous-media authority; a product with none renders nothing. The
+   cover is 4:3 by default, as on the page; `aspect` makes it square or the image's own shape. #}
+{% set product = layout_context.product|default(null) %}
+{% set aspect = ({'4:3': null, '1:1': '1-1', 'natural': 'natural'}[data.aspect|default('4:3')] ?? null) %}
+{% if product and product.coverUrl %}
+<div class="thallo-block thallo-block-product_gallery shop-product__gallery{% if aspect %} shop-product__gallery--{{ aspect }}{% endif %}{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-gallery>
+  <img
+    class="shop-product__cover{{ style_classes('picture') }}"{{ style_attrs('picture') }}
+    src="{{ product.coverUrl }}"
+    alt="{{ product.name }}"
+    data-shop-cover
+  >
+  {% if not (data.hide_thumbnails|default(false)) and product.gallery|length > 1 %}
+    <div class="shop-product__thumbs">
+      {% for item in product.gallery %}
+        <button
+          type="button"
+          data-shop-thumb
+          data-src="{{ item.url }}"
+          data-alt="{{ item.alt ?? product.name }}"
+          aria-current="{{ loop.first ? 'true' : 'false' }}"
+          aria-label="Show image {{ loop.index }} of {{ product.gallery|length }}"
+        >
+          <img src="{{ item.url }}" alt="" loading="lazy">
+        </button>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_gallery thallo-field-empty">Gallery — this product has no images</div>
+{% endif %}

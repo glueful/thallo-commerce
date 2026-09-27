@@ -1,0 +1,11 @@
+{# product_category — the product's category above its name (type layouts plan C1): the same
+   deterministic first category the breadcrumb uses. `link` makes it the category page's link. #}
+{% set product = layout_context.product|default(null) %}
+{% set category = layout_context.breadcrumb_category|default(null) %}
+{% if product and category %}
+<p class="thallo-block thallo-block-product_category shop-product__eyebrow{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  {%- if data.link|default(false) %}<a href="{{ shop_category_url(category.slug) }}">{{ category.name }}</a>{% else %}{{ category.name }}{% endif -%}
+</p>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_category thallo-field-empty">Category — this product has none</div>
+{% endif %}

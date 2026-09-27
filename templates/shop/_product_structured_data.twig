@@ -1,0 +1,22 @@
+{# The product page's structured data (Product JSON-LD) — shared by shop/product.twig and the
+   product layout's frame, layouts/product.twig, so a redesigned page keeps it byte for byte. #}
+  {% set structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    'name': product.name,
+    'url': canonical,
+  } %}
+  {# JSON-LD wants plain text — descriptions are rich HTML now (admin RichText editor).
+     Sanitize BEFORE stripping: bare striptags would keep a dropped element's inner text
+     (e.g. script bodies); safe_html removes the whole element first. #}
+  {% if product.description %}{% set structuredData = structuredData|merge({description: product.description|safe_html|striptags|trim}) %}{% endif %}
+  {% if product.coverUrl %}{% set structuredData = structuredData|merge({image: product.coverUrl}) %}{% endif %}
+  {% if product.priceDecimal %}
+    {# schema.org wants the plain decimal number — never the symbol/display form. #}
+    {% set structuredData = structuredData|merge({offers: {
+      '@type': 'Offer',
+      price: product.priceDecimal,
+      priceCurrency: product.currency,
+    }}) %}
+  {% endif %}
+  <script type="application/ld+json">{{ json_script(structuredData) }}</script>

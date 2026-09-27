@@ -27,6 +27,21 @@
   line-height: 1.5;
 }
 
+/* The product layout (type layouts plan C1): the page's parts are blocks there, and the theme gives
+   every block a vertical margin the page never had. Reset it inside the frame at one class of
+   specificity — after the theme's rule, before every `.shop-product__*` rule below, so each part
+   keeps the margins it has on the page — and authored spacing (`@layer settings`) wins over both. */
+.shop-product--layout :where(.thallo-block) {
+  margin-block: 0;
+}
+/* Add to cart holds the buy area and the availability line, which sit in the information column's
+   0.5rem grid on the page: the block keeps that rhythm between them. */
+.thallo-block-product_buy {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+
 /* Media left, buy column right (artifact proportions); one column on small screens. */
 .shop-product__layout {
   display: grid;
@@ -101,6 +116,12 @@
 
 .shop-product__gallery {
   margin-bottom: 1.25rem;
+}
+.shop-product__gallery--1-1 .shop-product__cover {
+  aspect-ratio: 1 / 1;
+}
+.shop-product__gallery--natural .shop-product__cover {
+  aspect-ratio: auto;
 }
 .shop-product__cover {
   width: 100%;

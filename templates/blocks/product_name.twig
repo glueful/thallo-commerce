@@ -1,0 +1,6 @@
+{# product_name — the product's name (type layouts plan C1); the level is its only setting. #}
+{% set product = layout_context.product|default(null) %}
+{% set level = ({h1: 'h1', h2: 'h2', h3: 'h3', h4: 'h4'}[data.level|default('h1')] ?? 'h1') %}
+{% if product %}
+<{{ level }} class="thallo-block thallo-block-product_name shop-product__name{{ style_classes('root') }}"{{ style_attrs('root') }}>{{ product.name }}</{{ level }}>
+{% endif %}

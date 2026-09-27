@@ -1,0 +1,8 @@
+{# product_description — the product's description (type layouts plan C1): rich HTML through the
+   fail-closed sanitizer, as on shop/product.twig. #}
+{% set product = layout_context.product|default(null) %}
+{% if product and product.description %}
+<div class="thallo-block thallo-block-product_description shop-product__description{{ style_classes('root') }}"{{ style_attrs('root') }}>{{ product.description|safe_html }}</div>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_description thallo-field-empty">Description — this product has none</div>
+{% endif %}

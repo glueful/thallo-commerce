@@ -108,6 +108,7 @@ use Thallo\Commerce\Shop\ShopStorefrontLinkResolver;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ShopWishlistSurface;
 use Thallo\Commerce\Shop\StorefrontPreviewUrlBuilder;
+use Thallo\Commerce\Starter\ProductFieldBlocksContributor;
 use Thallo\Commerce\Starter\ProductStoryContributor;
 use Thallo\Commerce\Starter\ShopBlockTypesContributor;
 use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
@@ -1707,13 +1708,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $registry = $container->get(StarterBlockTypeRegistry::class);
         }
 
-        foreach ($registry->all() as $existing) {
-            if ($existing instanceof ShopBlockTypesContributor) {
-                return true; // already registered — idempotent no-op.
+        // The shop blocks, and the product page's field blocks the product layout places (type
+        // layouts plan C1) — each registered once.
+        $registered = array_map(static fn (object $c): string => $c::class, $registry->all());
+        foreach ([ShopBlockTypesContributor::class, ProductFieldBlocksContributor::class] as $class) {
+            if (!in_array($class, $registered, true)) {
+                $registry->register(new $class());
             }
         }
-
-        $registry->register(new ShopBlockTypesContributor());
 
         return true;
     }

@@ -1,0 +1,22 @@
+{# product_rating — the product's stars, average and review count (type layouts plan C1). As on
+   shop/product.twig it shows zeros before the first review, so the buy column keeps its rhythm;
+   `hide_when_none` hides it until there is one. #}
+{% set product = layout_context.product|default(null) %}
+{% if product and (product.rating or not data.hide_when_none|default(false)) %}
+{% set rating_average = product.rating ? product.rating.average : 0 %}
+{% set rating_count = product.rating ? product.rating.count : 0 %}
+<p class="thallo-block thallo-block-product_rating shop-product__rating{% if not product.rating %} shop-product__rating--none{% endif %}{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <span class="shop-product__stars" aria-hidden="true">
+    {% for i in [1, 2, 3, 4, 5] %}
+      <svg class="shop-product__star{% if i > rating_average|round %} shop-product__star--empty{% endif %}"
+           viewBox="0 0 24 24" fill="currentColor" focusable="false">
+        <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+      </svg>
+    {% endfor %}
+  </span>
+  <span>{{ rating_average }}</span>
+  <span class="shop-product__rating-count">· {{ rating_count }} review{{ rating_count == 1 ? '' : 's' }}</span>
+</p>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_rating thallo-field-empty">Rating — this product has no reviews yet</div>
+{% endif %}

@@ -1,0 +1,13 @@
+{# product_price — the price, and the struck "was" price when the product has one (type layouts
+   plan C1). `hide_compare_at` shows the price alone. #}
+{% set product = layout_context.product|default(null) %}
+{% if product and product.priceFormatted %}
+<p class="thallo-block thallo-block-product_price shop-product__price{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <span class="shop-product__price-current">{{ product.priceFormatted }}</span>
+  {% if product.compareAtFormatted and not (data.hide_compare_at|default(false)) %}
+    <s class="shop-product__price-compare">{{ product.compareAtFormatted }}</s>
+  {% endif %}
+</p>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_price thallo-field-empty">Price — this product has none</div>
+{% endif %}
