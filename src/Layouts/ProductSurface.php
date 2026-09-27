@@ -154,7 +154,10 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
                     $block('product_description'),
                     $block('product_buy'),
                 ]], 'settings' => ['style' => ['layout' => [
-                    'display' => $grid,
+                    // A column, not a one-column grid (the same geometry): the stage drops into a
+                    // column where the pointer is, and places a drop into a grid last.
+                    'display' => ['base' => ['type' => 'choice', 'value' => 'flex']],
+                    'direction' => ['base' => ['type' => 'choice', 'value' => 'column']],
                     'gap' => ['row' => $token('spacing.sm')],
                 ]]]],
             ]], 'settings' => ['style' => ['layout' => [
