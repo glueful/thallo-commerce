@@ -167,15 +167,19 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
                     'direction' => ['base' => ['type' => 'choice', 'value' => 'column']],
                     'gap' => ['row' => $token('spacing.sm')],
                 ]]]],
-            ]], 'settings' => ['style' => ['layout' => [
-                'display' => $grid,
-                'columns' => [
-                    'base' => ['type' => 'choice', 'value' => '1'],
-                    'md' => ['type' => 'choice', 'value' => '2'],
+            ]], 'settings' => ['style' => [
+                // The page's grid sits flush between the breadcrumb and the story: no theme margin.
+                'spacing' => ['margin' => ['top' => $token('spacing.none'), 'bottom' => $token('spacing.none')]],
+                'layout' => [
+                    'display' => $grid,
+                    'columns' => [
+                        'base' => ['type' => 'choice', 'value' => '1'],
+                        'md' => ['type' => 'choice', 'value' => '2'],
+                    ],
+                    'gap' => ['column' => $token('spacing.xl'), 'row' => $token('spacing.xl')],
+                    'align_items' => ['base' => ['type' => 'choice', 'value' => 'start']],
                 ],
-                'gap' => ['column' => $token('spacing.xl'), 'row' => $token('spacing.xl')],
-                'align_items' => ['base' => ['type' => 'choice', 'value' => 'start']],
-            ]]]],
+            ]]],
             $block('product_story'),
         ];
     }

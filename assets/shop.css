@@ -28,13 +28,15 @@
 }
 
 /* The product layout (type layouts plan C1): the page's parts are blocks there, and the theme gives
-   every block a vertical margin the page never had. Reset it on the layout's own top-level blocks —
-   live, and on the stage inside its slot and selection wrappers — at one class of specificity: after
-   the theme's rule, before every `.shop-product__*` rule below, so each part keeps the margins it
-   has on the page. Blocks inside the linked story are the story's and keep theirs. Authored spacing
-   (`@layer settings`) wins over all of it. */
-:where(.shop-product--layout) > .thallo-block,
-:where(.shop-product--layout > .layout-blocks > .thallo-preview-block) > .thallo-block {
+   every block a vertical margin the page never had. Reset it on the product blocks placed at the
+   layout's top level — live, and on the stage inside its slot and selection wrappers — at one class
+   of specificity: after the theme's rule, before every `.shop-product__*` rule below, so each part
+   keeps the margins it has on the page. Any other block placed there (a heading, text, an image)
+   keeps the theme's spacing, as on any page; the starter's own container sets its margins to none,
+   where the Style tab shows it. Blocks inside the linked story are the story's and keep theirs.
+   Authored spacing (`@layer settings`) wins over all of it. */
+:where(.shop-product--layout) > .thallo-block:where([class*="thallo-block-product_"]),
+:where(.shop-product--layout > .layout-blocks > .thallo-preview-block) > .thallo-block:where([class*="thallo-block-product_"]) {
   margin-block: 0;
 }
 /* Inside a container the theme zeroes every child's vertical margin (its gap spaces them): the
