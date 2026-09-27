@@ -180,6 +180,29 @@ All five render a themed, parameter-carrying shell server-side and hydrate live 
 Twig-render time, so a builder page carrying one of these blocks stays safely cacheable by
 Render's own page cache.
 
+### The product page's layout
+
+While `thallo.commerce` is on (and the Commerce engine is bound), the pack registers the product
+page as a layout surface — `product`, one layout per site (target `@site`) — so **Site › Layouts**
+lists **Products — product page**. `ProductSurface` supplies its samples (active, buyer-available
+products), an in-memory placeholder product, its starter (today's page in blocks) and its frame,
+`templates/layouts/product.twig`. `ShopCatalogController::product()` renders a product through
+that frame while a product layout exists, and through `shop/product.twig` otherwise; both take
+their variables from `ShopProductPage`, which the layout stage uses too.
+
+Nine field blocks come with it (`ProductFieldBlocksContributor`, category **Fields**, flagged
+`layout_only`): `product_breadcrumb`, `product_gallery`, `product_category`, `product_name`,
+`product_rating`, `product_price`, `product_description`, `product_buy` (**Add to cart** — the
+server-built, no-JS buy form; required exactly once per product layout) and `product_story` (the
+linked entry's blocks). They read the product from `layout_context`, which the frame hands its
+blocks. Seeding follows the shop blocks' rules below; on a site that switched Commerce on before
+they existed, `php glueful thallo:provision` adds them.
+
+Every product page carries the cache tag `thallo:shop:layout:product:{tenant}`, with a layout or
+without; `PurgeShopCacheOnLayoutChange` invalidates it when a product layout changes (falling back
+to that workspace's `shop:*` keys on a driver without tag invalidation), so one workspace's save
+never evicts another's pages.
+
 ### `shop.js` and assets
 
 One dependency-free `shop.js` — no framework, no build step — served at
