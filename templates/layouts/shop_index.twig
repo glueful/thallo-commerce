@@ -1,0 +1,17 @@
+{# The shop home's frame (type layouts spec §7.1, §7.3; plan C2): every page of the shop home while
+   the shop has a home layout — the theme's shell around the layout's blocks. What the page must
+   always carry is here and not designable: the canonical URL (ShopUrlGenerator's) and the wishlist
+   scope. The shop's stylesheet reaches the page through the theme artifact's `@layer theme` only —
+   never linked raw — so a value set on a block (`@layer settings`) always wins over the shop's
+   defaults. A theme may override this file; an override keeps all of the above. #}
+{% extends 'layout.twig' %}
+{% block title %}Shop — {{ site.name }}{% endblock %}
+{% block content %}
+  <link rel="canonical" href="{{ canonical }}">
+  {# The layout stage's placeholder page (spec §5.2): named, so no one takes it for content. #}
+  {% if layout_placeholder|default(null) %}<div class="thallo-layout-placeholder-notice" data-thallo-placeholder>{{ layout_placeholder }}</div>{% endif %}
+  {% set wishlist_scope = shop_wishlist_scope() %}
+  <section class="shop-index shop-index--layout"{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+    {{ layout_blocks(layout.blocks|default([])) }}
+  </section>
+{% endblock %}

@@ -38,19 +38,23 @@ use Thallo\Commerce\Shop\ShopUrlGenerator;
  */
 $prefix = $router->getContext()->getContainer()->get(ShopUrlGenerator::class)->prefix;
 
+// Type layouts plan C2: a layout surface's route names its surface (`ShopPageCache::class . ':shop_index'`),
+// so the cache keys its pages by that surface's layout generation.
 // Task 8 (storefront-rendering spec §9): ShopPageCache is the LAST middleware in the chain
 // (tenant context must already be resolved before the cache key can be built) — deliberately
 // NOT applied to any future /cart, /checkout, or /_shop route: those are private/no-store by
 // construction and must never enter this shared cache.
 $router->get('/' . $prefix, [ShopCatalogController::class, 'index'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class . ':shop_index']);
 // ShopFrameEmbedding sits BEFORE ShopPageCache so the frame-ancestors policy post-processes
 // BOTH the cache-miss render and the cache-hit short-circuit (composed-editor spec §5.4b,
 // phase 3 — the admin's Live Mirror embeds this page; product route ONLY).
 $router->get('/' . $prefix . '/products/{slug}', [ShopCatalogController::class, 'product'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopFrameEmbedding::class, ShopPageCache::class]);
+    ->middleware([
+        'tenant_profile:public', 'tenant_bootstrap', ShopFrameEmbedding::class, ShopPageCache::class . ':product',
+    ]);
 $router->get('/' . $prefix . '/categories/{slug}', [ShopCatalogController::class, 'category'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class]);
+    ->middleware(['tenant_profile:public', 'tenant_bootstrap', ShopPageCache::class . ':shop_category']);
 /*
  * Storefront-v1 Task 7 (spec §5): the wishlist page — a static, per-visitor-data-free
  * hydration shell, so it participates in ShopPageCache exactly like the catalog pages above

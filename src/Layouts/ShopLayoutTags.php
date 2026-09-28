@@ -31,4 +31,35 @@ final class ShopLayoutTags
     {
         return self::pageTag($surface) . ':' . $tenant;
     }
+
+    /**
+     * How long a generation token is kept. Only memory hygiene: a lost token is replaced by a fresh
+     * one, and every entry stored under the lost one is simply never read again.
+     */
+    public const GENERATION_TTL = 2592000;
+
+    /**
+     * Where a workspace's layout generation for a surface is kept (type layouts plan C2): the shop
+     * cache keys that surface's pages by it, and every layout change replaces it, so a render that
+     * read the old layout stores under a token nothing reads any more. Outside both of the shop's
+     * tag-less purge patterns (`shop:{tenant}:*`, `tenant:*:shop:{tenant}:*`): a purge never
+     * deletes one.
+     */
+    public static function generationKey(string $surface, string $tenant): string
+    {
+        self::pageTag($surface); // a shop layout surface, or it throws
+        return 'thallo:layoutgen:shop:' . $surface . ':' . $tenant;
+    }
+
+    /** A fresh generation: random, so no loss, race or clock can ever repeat one. */
+    public static function freshGeneration(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    /** Whether a value read back from the cache is a generation token. */
+    public static function isGeneration(mixed $value): bool
+    {
+        return is_string($value) && preg_match('/^[0-9a-f]{32}$/', $value) === 1;
+    }
 }

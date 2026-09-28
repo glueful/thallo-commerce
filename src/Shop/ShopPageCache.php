@@ -10,7 +10,6 @@ use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Glueful\Routing\RouteMiddleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Thallo\Commerce\Layouts\ProductSurface;
 use Thallo\Commerce\Layouts\ShopLayoutTags;
 use Thallo\Render\Http\Middleware\PreviewSessionMiddleware;
 use Thallo\Render\Http\Middleware\RenderPageCache;
@@ -96,7 +95,19 @@ final class ShopPageCache implements RouteMiddleware
 
         $tenant = $this->tenants->tenantUuid($this->context);
         $locale = (string) config($this->context, 'i18n.default_locale', 'en');
-        $key = $this->key($tenant, $locale, $request->getPathInfo(), $page);
+        // A layout surface's page (the route names its surface, type layouts plan C2) is keyed by the
+        // workspace's layout generation for that surface, read HERE — before the controller reads the
+        // layout. A change replaces the token after it commits, so a render that read the old layout
+        // stores under a token no request reads again. No readable token: served, never cached.
+        $surface = is_string($params[0] ?? null) && $params[0] !== '' ? $params[0] : null;
+        $generation = null;
+        if ($surface !== null) {
+            $generation = $this->generation($surface, $tenant);
+            if ($generation === null) {
+                return $next($request);
+            }
+        }
+        $key = $this->key($tenant, $locale, $request->getPathInfo(), $page, $surface, $generation);
 
         $hit = $this->cache->get($key);
         if (is_array($hit)) {
@@ -137,9 +148,9 @@ final class ShopPageCache implements RouteMiddleware
     }
 
     /**
-     * The surrogate keys from a Cache-Tag header value (mirrors RenderPageCache). The product page's
+     * The surrogate keys from a Cache-Tag header value (mirrors RenderPageCache). A layout surface's
      * tag names no workspace in the header, which reaches visitors; it is stored as the workspace's
-     * own (type layouts plan C1), so a product layout change purges that workspace only.
+     * own (type layouts plans C1, C2), so a layout change purges that workspace's pages only.
      *
      * @return list<string>
      */
@@ -148,9 +159,13 @@ final class ShopPageCache implements RouteMiddleware
         if ($cacheTag === '') {
             return [];
         }
+        $surfaces = [];
+        foreach (ShopLayoutTags::SURFACES as $surface) {
+            $surfaces[ShopLayoutTags::pageTag($surface)] = $surface;
+        }
         return array_map(
-            static fn (string $tag): string => $tag === ShopLayoutTags::pageTag(ProductSurface::KEY)
-                ? ShopLayoutTags::tenantTag(ProductSurface::KEY, $tenant)
+            static fn (string $tag): string => isset($surfaces[$tag])
+                ? ShopLayoutTags::tenantTag($surfaces[$tag], $tenant)
                 : $tag,
             array_values(array_filter(array_map('trim', explode(',', $cacheTag)))),
         );
@@ -191,14 +206,40 @@ final class ShopPageCache implements RouteMiddleware
     }
 
     /**
-     * shop:{tenant}:{locale}:{theme}:{appearance}:{page}:{rawurlencode(normalizedPath)} — the
-     * SAME rawurlencode discipline RenderPageCache documents (the Redis driver rejects
-     * PSR-16-reserved characters in raw keys).
+     * The workspace's layout generation for a surface: the stored token, or — when there is none
+     * (never written, evicted, expired) — a fresh one created atomically. Whether this request's
+     * `setNx` won or lost, the stored value is read back and used, so concurrent first requests agree
+     * on one token and a token a change has just written is never overwritten. Null when no valid
+     * token can be read back: the caller serves the page uncached.
      */
-    private function key(string $tenant, string $locale, string $path, int $page): string
+    private function generation(string $surface, string $tenant): ?string
     {
+        $key = ShopLayoutTags::generationKey($surface, $tenant);
+        $token = $this->cache->get($key);
+        if (ShopLayoutTags::isGeneration($token)) {
+            return $token;
+        }
+        $this->cache->setNx($key, ShopLayoutTags::freshGeneration(), ShopLayoutTags::GENERATION_TTL);
+        $token = $this->cache->get($key);
+        return ShopLayoutTags::isGeneration($token) ? $token : null;
+    }
+
+    /**
+     * shop:{tenant}:{locale}:{theme}:{appearance}:{page}:[{surface}g{generation}:]{rawurlencode(normalizedPath)}
+     * — the SAME rawurlencode discipline RenderPageCache documents (the Redis driver rejects
+     * PSR-16-reserved characters in raw keys). A layout surface's page carries its generation.
+     */
+    private function key(
+        string $tenant,
+        string $locale,
+        string $path,
+        int $page,
+        ?string $surface = null,
+        ?string $generation = null,
+    ): string {
         $appearance = ($this->appearance)();
-        return "shop:{$tenant}:{$locale}:{$this->theme}:{$appearance}:{$page}:"
+        $layout = $surface !== null && $generation !== null ? "{$surface}g{$generation}:" : '';
+        return "shop:{$tenant}:{$locale}:{$this->theme}:{$appearance}:{$page}:{$layout}"
             . rawurlencode(RenderPageCache::normalizePath($path));
     }
 

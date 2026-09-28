@@ -12,7 +12,10 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Layouts\ProductSurface;
+use Thallo\Commerce\Layouts\ShopCategorySurface;
+use Thallo\Commerce\Layouts\ShopIndexSurface;
 use Thallo\Commerce\Layouts\ShopLayoutTags;
+use Thallo\Commerce\Layouts\ShopPageSurface;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
 use Thallo\Commerce\Shop\ShopCatalogPage;
 use Thallo\Commerce\Shop\ShopProductPage;
@@ -63,9 +66,11 @@ final class ShopCatalogController
     public function index(Request $request): Response
     {
         $tenant = $this->tenants->tenantUuid($this->context);
-        return $this->render(
+        return $this->renderSurface(
             $request,
+            ShopIndexSurface::KEY,
             'shop/index.twig',
+            'layouts/shop_index.twig',
             $this->catalogPage->forIndex($tenant, $this->requestedPage($request)),
         );
     }
@@ -78,11 +83,43 @@ final class ShopCatalogController
             return $this->notFound($request);
         }
 
-        return $this->render(
+        return $this->renderSurface(
             $request,
+            ShopCategorySurface::KEY,
             'shop/category.twig',
+            'layouts/shop_category.twig',
             $this->catalogPage->forCategory($tenant, $category, $this->requestedPage($request)),
         );
+    }
+
+    /**
+     * A shop page through its surface's layout when there is one (type layouts spec §7.2, §7.3:
+     * the frame, whatever template the theme ships), else through the theme's template, as before.
+     * Either way the page carries its surface's tag (spec §7.4): a first save purges pages cached
+     * from the template, a removal the pages the layout rendered. The tag names no workspace —
+     * ShopPageCache stores the workspace's own in its place.
+     *
+     * @param array<string,mixed> $vars
+     */
+    private function renderSurface(
+        Request $request,
+        string $surface,
+        string $template,
+        string $frame,
+        array $vars,
+    ): Response {
+        $layout = $this->layouts?->for($surface, ShopPageSurface::TARGET);
+        $response = $layout === null
+            ? $this->render($request, $template, $vars)
+            : $this->pages->render(
+                $request,
+                $frame,
+                $vars + ['layout' => $layout + ['surface' => $surface, 'target' => ShopPageSurface::TARGET]],
+                200,
+                $layout['settings'],
+            );
+        $response->headers->set('Cache-Tag', ShopLayoutTags::pageTag($surface));
+        return $response;
     }
 
     public function product(Request $request, string $slug): Response
