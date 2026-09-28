@@ -66,6 +66,8 @@ final class ProductFieldBlocksContributor implements StarterBlockTypeContributor
             ]],
         'product_name' => ['Product name', 'i-lucide-heading-1', 'The product\'s name.', 'text', [
             ['name' => 'level', 'type' => 'enum', 'enum' => ['h1', 'h2', 'h3', 'h4']],
+            // A Product list card's name links to its product (type layouts plan C2); off on a page.
+            ['name' => 'link', 'type' => 'boolean', 'label' => 'Link to the product'],
         ]],
         'product_rating' => ['Product rating', 'i-lucide-star',
             'The product\'s stars and review count.', 'row', [

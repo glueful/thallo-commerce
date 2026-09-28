@@ -1,0 +1,15 @@
+{# product_tile — Product tile (type layouts plan C2): a Product list card's picture, first category
+   and quick Add to cart and wishlist buttons, exactly as a shop grid card's tile
+   (`shop/_product_tile.twig`, shared with `shop/_product_card.twig`). Its internals are fixed — the
+   grid's cart honesty decides the quick add — and `hide_tag` and `hide_actions` are its settings.
+   It reads the card's product, so it has something to show only inside a card. #}
+{% set product = layout_context.product|default(null) %}
+{% if product %}
+{% include 'shop/_product_tile.twig' with {
+  product: product,
+  show_tag: not data.hide_tag|default(false),
+  show_actions: not data.hide_actions|default(false),
+  tile_class: ' thallo-block thallo-block-product_tile' ~ style_classes('root'),
+  tile_attrs: style_attrs('root'),
+} only %}
+{% endif %}

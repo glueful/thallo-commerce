@@ -607,6 +607,24 @@
 .shop-grid__name:hover {
   text-decoration: underline;
 }
+/* A layout's Product list card (type layouts plan C2): the name is a heading holding the link to
+   the product. The heading takes the card name's own box — no heading margin, size or face — and
+   the link inside it reads as the name, underlined on hover. On today's card the link itself is
+   .shop-grid__name, so none of this matches there. */
+.shop-grid__name:is(h1, h2, h3, h4) {
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+}
+.shop-grid__name a {
+  color: inherit;
+  text-decoration: none;
+}
+.shop-grid__name a:hover {
+  text-decoration: underline;
+}
 .shop-grid__rating {
   display: flex;
   align-items: center;

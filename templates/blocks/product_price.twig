@@ -1,10 +1,17 @@
 {# product_price — the price, and the struck "was" price when the product has one (type layouts
-   plan C1). `hide_compare_at` shows the price alone. #}
+   plan C1). `hide_compare_at` shows the price alone. Inside a Product list card (plan C2: `item` is
+   set only there) it is the grid card's price row; elsewhere the product page's. #}
 {% set product = layout_context.product|default(null) %}
-{% if product and product.priceFormatted %}
+{% set compare = product and product.compareAtFormatted and not (data.hide_compare_at|default(false)) %}
+{% if product and product.priceFormatted and item|default(null) is not null %}
+<div class="thallo-block thallo-block-product_price shop-grid__price{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
+  {% if compare %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
+</div>
+{% elseif product and product.priceFormatted %}
 <p class="thallo-block thallo-block-product_price shop-product__price{{ style_classes('root') }}"{{ style_attrs('root') }}>
   <span class="shop-product__price-current">{{ product.priceFormatted }}</span>
-  {% if product.compareAtFormatted and not (data.hide_compare_at|default(false)) %}
+  {% if compare %}
     <s class="shop-product__price-compare">{{ product.compareAtFormatted }}</s>
   {% endif %}
 </p>

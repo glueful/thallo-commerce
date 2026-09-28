@@ -1,0 +1,17 @@
+{# product_loop — Product list (type layouts plan C2): every product on the shop page, each shown as
+   the card the layout designs once (`data.card`, repeated by loop_cards()). The root is the block's
+   own box; `cards` arranges the repeated cards and never the card's content, which sits in the
+   card's own block flow. Left alone, the cards are the shop stylesheet's adaptive grid
+   (`.shop-grid`; the block type declares it as the `cards` target's defaults). No products: the
+   page's empty text on the site, as today, and on the stage one placeholder card, so the card stays
+   editable. #}
+{% set products = layout_context.products|default([]) %}
+{% set empty = data.empty_text|default('') != '' ? data.empty_text
+  : (layout_context.category|default(null) ? 'No products in this category yet.' : 'No products yet.') %}
+<div class="thallo-block thallo-block-product_loop{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <ul class="thallo-block-product_loop__cards shop-grid{{ style_classes('cards') }}"{{ style_attrs('cards') }}>
+    {%- if products is empty and not is_canvas() %}
+    <li class="empty">{{ empty }}</li>
+    {%- else %}{{ loop_cards(data.card|default([]), products, 'product', 'card', 'shop-grid__item') }}{% endif %}
+  </ul>
+</div>

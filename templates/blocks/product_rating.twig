@@ -2,7 +2,20 @@
    shop/product.twig it shows zeros before the first review, so the buy column keeps its rhythm;
    `hide_when_none` hides it until there is one. #}
 {% set product = layout_context.product|default(null) %}
-{% if product and (product.rating or not data.hide_when_none|default(false)) %}
+{% if product and item|default(null) is not null and (product.rating or not data.hide_when_none|default(false)) %}
+{# Inside a Product list card (plan C2: `item` is set only there): the grid card's rating — one
+   star, the average to one decimal and the count, dimmed before the first review. #}
+{% set rating_average = product.rating ? product.rating.average : 0 %}
+{% set rating_count = product.rating ? product.rating.count : 0 %}
+<div class="thallo-block thallo-block-product_rating shop-grid__rating{% if not product.rating %} shop-grid__rating--none{% endif %}{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <svg class="shop-grid__star" viewBox="0 0 24 24" fill="currentColor"
+       aria-hidden="true" focusable="false">
+    <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+  </svg>
+  {% if product.rating %}<span class="sr-only">Rated </span>{% else %}<span class="sr-only">No reviews yet. </span>{% endif %}{{ rating_average|number_format(1) }}
+  <span class="shop-grid__rating-count">({{ rating_count }})</span>
+</div>
+{% elseif product and (product.rating or not data.hide_when_none|default(false)) %}
 {% set rating_average = product.rating ? product.rating.average : 0 %}
 {% set rating_count = product.rating ? product.rating.count : 0 %}
 <p class="thallo-block thallo-block-product_rating shop-product__rating{% if not product.rating %} shop-product__rating--none{% endif %}{{ style_classes('root') }}"{{ style_attrs('root') }}>

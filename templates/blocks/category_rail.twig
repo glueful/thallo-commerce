@@ -1,0 +1,17 @@
+{# category_rail — Category chips (type layouts plan C2): "All" and a chip for every category, as
+   `shop/index.twig` and `shop/category.twig` show them — "All" active on the shop home, the
+   category's own chip on a category. Every href came from ShopUrlGenerator through the page's closed
+   {name, url, active} projection. No categories: nothing on the site, and a named placeholder on the
+   stage. #}
+{% set chips = layout_context.categories|default([]) %}
+{% set home = layout_context.category|default(null) is null %}
+{% if chips %}
+<nav class="thallo-block thallo-block-category_rail shop-rail{{ style_classes('root') }}"{{ style_attrs('root') }} aria-label="Categories">
+  <a class="shop-rail__chip{% if home %} shop-rail__chip--active{% endif %}"{% if home %} aria-current="page"{% endif %} href="{{ layout_context.shop_index|default('/shop') }}">{{ data.all_label|default('') != '' ? data.all_label : 'All' }}</a>
+  {% for chip in chips %}
+    <a class="shop-rail__chip{% if chip.active %} shop-rail__chip--active{% endif %}"{% if chip.active %} aria-current="page"{% endif %} href="{{ chip.url }}">{{ chip.name }}</a>
+  {% endfor %}
+</nav>
+{% elseif is_canvas() %}
+<div class="thallo-block thallo-block-category_rail thallo-field-empty">Category chips — the shop has no categories</div>
+{% endif %}

@@ -1,0 +1,12 @@
+{# shop_title — Shop title (type layouts plan C2): the page's heading — "Shop" on the shop home, the
+   category's name on a category — and, beside it, the muted product count, as `shop/index.twig` and
+   `shop/category.twig` show them. The row is the block's box; the heading takes the text styles. #}
+{% set level = ({h1: 'h1', h2: 'h2', h3: 'h3', h4: 'h4'}[data.level|default('h1')] ?? 'h1') %}
+{% set category = layout_context.category|default(null) %}
+{% set total = layout_context.total|default(0) %}
+<div class="thallo-block thallo-block-shop_title shop-titlerow{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  <{{ level }} class="shop-titlerow__heading{{ style_classes('heading') }}"{{ style_attrs('heading') }}>{{ category ? category.name : 'Shop' }}</{{ level }}>
+  {% if not data.hide_count|default(false) %}
+  <span class="shop-titlerow__count">{{ total }} product{{ total == 1 ? '' : 's' }}</span>
+  {% endif %}
+</div>
