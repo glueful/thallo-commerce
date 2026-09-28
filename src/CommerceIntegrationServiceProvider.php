@@ -475,8 +475,25 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'shared'   => true,
                 'autowire' => true,
             ],
+            // What the shop home and a category page render from — the catalog routes and the shop
+            // layouts' stage (type layouts plan C2).
+            \Thallo\Commerce\Shop\ShopCatalogPage::class => [
+                'class'    => \Thallo\Commerce\Shop\ShopCatalogPage::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
             \Thallo\Commerce\Layouts\ProductSurface::class => [
                 'class'    => \Thallo\Commerce\Layouts\ProductSurface::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            \Thallo\Commerce\Layouts\ShopIndexSurface::class => [
+                'class'    => \Thallo\Commerce\Layouts\ShopIndexSurface::class,
+                'shared'   => true,
+                'autowire' => true,
+            ],
+            \Thallo\Commerce\Layouts\ShopCategorySurface::class => [
+                'class'    => \Thallo\Commerce\Layouts\ShopCategorySurface::class,
                 'shared'   => true,
                 'autowire' => true,
             ],
@@ -1715,15 +1732,26 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
      * unit-testable without a full capability-enabled boot, mirroring
      * registerStarterContributor() above.
      */
-    /** Add the product page to core's layout surfaces (type layouts plan C1); idempotent by key. */
+    /**
+     * Add the product page (type layouts plan C1), the shop home and the category pages (plan C2) to
+     * core's layout surfaces; idempotent by key.
+     */
     private function registerLayoutSurface(ApplicationContext $context): void
     {
         $container = $context->getContainer();
         if (!$container->has(\Thallo\Contracts\Layouts\LayoutSurfaceRegistry::class)) {
             return;
         }
-        $container->get(\Thallo\Contracts\Layouts\LayoutSurfaceRegistry::class)
-            ->register($container->get(\Thallo\Commerce\Layouts\ProductSurface::class));
+        $registry = $container->get(\Thallo\Contracts\Layouts\LayoutSurfaceRegistry::class);
+        foreach (
+            [
+                \Thallo\Commerce\Layouts\ProductSurface::class,
+                \Thallo\Commerce\Layouts\ShopIndexSurface::class,
+                \Thallo\Commerce\Layouts\ShopCategorySurface::class,
+            ] as $surface
+        ) {
+            $registry->register($container->get($surface));
+        }
     }
 
     public function registerShopBlockTypeContributor(

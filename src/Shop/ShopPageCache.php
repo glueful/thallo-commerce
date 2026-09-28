@@ -11,6 +11,7 @@ use Glueful\Routing\RouteMiddleware;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Layouts\ProductSurface;
+use Thallo\Commerce\Layouts\ShopLayoutTags;
 use Thallo\Render\Http\Middleware\PreviewSessionMiddleware;
 use Thallo\Render\Http\Middleware\RenderPageCache;
 
@@ -148,8 +149,8 @@ final class ShopPageCache implements RouteMiddleware
             return [];
         }
         return array_map(
-            static fn (string $tag): string => $tag === ProductSurface::PAGE_TAG
-                ? ProductSurface::pageCacheTag($tenant)
+            static fn (string $tag): string => $tag === ShopLayoutTags::pageTag(ProductSurface::KEY)
+                ? ShopLayoutTags::tenantTag(ProductSurface::KEY, $tenant)
                 : $tag,
             array_values(array_filter(array_map('trim', explode(',', $cacheTag)))),
         );

@@ -9,11 +9,12 @@ use Glueful\Cache\CacheStore;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Psr\Container\ContainerInterface;
 use Thallo\Commerce\Layouts\ProductSurface;
+use Thallo\Commerce\Layouts\ShopLayoutTags;
 use Thallo\Contracts\Layouts\LayoutChanged;
 
 /**
  * LayoutChanged (product surface) → the workspace's product pages leave the shop cache (type layouts
- * spec §7.4, plan C1). Every product page carries {@see ProductSurface::pageCacheTag()} for its
+ * spec §7.4, plan C1). Every product page carries {@see ShopLayoutTags::tenantTag()} for its
  * workspace, so a first save purges pages cached from the theme's template, an edit the layout's
  * previous version, and a removal the pages the layout rendered — in that workspace only: another
  * workspace's cached pages stay.
@@ -37,7 +38,7 @@ final class PurgeShopCacheOnLayoutChange
         $tenant = $event->tenantUuid ?? $this->container->get(CommerceTenantResolution::class)
             ->tenantUuid($this->container->get(ApplicationContext::class));
         $cache = $this->container->get(CacheStore::class);
-        if ($cache->invalidateTags([ProductSurface::pageCacheTag($tenant)])) {
+        if ($cache->invalidateTags([ShopLayoutTags::tenantTag(ProductSurface::KEY, $tenant)])) {
             return;
         }
         $cache->deletePattern('shop:' . $tenant . ':*');

@@ -7,17 +7,16 @@ namespace Thallo\Commerce\Http\Shop;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Catalog\CategoryRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductRepository;
-use Glueful\Extensions\Commerce\Catalog\ResolvedProductFilters;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Layouts\ProductSurface;
+use Thallo\Commerce\Layouts\ShopLayoutTags;
 use Thallo\Commerce\Shop\PackSlugLifecycleAuthority;
+use Thallo\Commerce\Shop\ShopCatalogPage;
 use Thallo\Commerce\Shop\ShopProductPage;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
-use Thallo\Commerce\Shop\ViewModels\CategoryViewModel;
-use Thallo\Commerce\Shop\ViewModels\GridViewModel;
 use Thallo\Contracts\Layouts\LayoutReader;
 
 /**
@@ -39,8 +38,6 @@ use Thallo\Contracts\Layouts\LayoutReader;
  */
 final class ShopCatalogController
 {
-    private const PER_PAGE = 24;
-
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,
@@ -51,9 +48,9 @@ final class ShopCatalogController
         // The shared shop-page render seam (storefront-v1 Task 7) — this controller's old
         // private render() extracted verbatim so the wishlist page renders identically.
         private readonly ShopPageRenderer $pages,
-        // The shared batched card pipeline (extracted buildGrid() body) — also consumed by
-        // ShopWishlistController so grid and wishlist cards can never drift.
-        private readonly ShopProductCardAssembler $cards,
+        // What the shop home and a category page render from, shared with the shop layouts' stage
+        // (type layouts plan C2).
+        private readonly ShopCatalogPage $catalogPage,
         // What a product's page renders from, shared with the product layout's stage (type
         // layouts plan C1).
         private readonly ShopProductPage $productPage,
@@ -66,16 +63,11 @@ final class ShopCatalogController
     public function index(Request $request): Response
     {
         $tenant = $this->tenants->tenantUuid($this->context);
-        $page = $this->requestedPage($request);
-        $result = $this->products->listActive($this->context, $tenant, $page, self::PER_PAGE, null);
-        $grid = $this->buildGrid($tenant, $result, $page, fn (int $p): string => $this->indexPagePath($p));
-
-        return $this->render($request, 'shop/index.twig', [
-            'grid' => $grid,
-            'categories' => $this->categoryRail($tenant),
-            'shop_index' => $this->urls->shopIndex(),
-            'canonical' => $this->urls->shopIndex(),
-        ]);
+        return $this->render(
+            $request,
+            'shop/index.twig',
+            $this->catalogPage->forIndex($tenant, $this->requestedPage($request)),
+        );
     }
 
     public function category(Request $request, string $slug): Response
@@ -86,18 +78,11 @@ final class ShopCatalogController
             return $this->notFound($request);
         }
 
-        $filters = new ResolvedProductFilters((string) $category['uuid']);
-        $page = $this->requestedPage($request);
-        $result = $this->products->listActive($this->context, $tenant, $page, self::PER_PAGE, $filters);
-        $grid = $this->buildGrid($tenant, $result, $page, fn (int $p): string => $this->categoryPagePath($slug, $p));
-
-        return $this->render($request, 'shop/category.twig', [
-            'category' => CategoryViewModel::fromRow($category, $this->urls),
-            'grid' => $grid,
-            'categories' => $this->categoryRail($tenant, $slug),
-            'shop_index' => $this->urls->shopIndex(),
-            'canonical' => $this->urls->category($slug),
-        ]);
+        return $this->render(
+            $request,
+            'shop/category.twig',
+            $this->catalogPage->forCategory($tenant, $category, $this->requestedPage($request)),
+        );
     }
 
     public function product(Request $request, string $slug): Response
@@ -134,7 +119,7 @@ final class ShopCatalogController
         // Every product page carries the product-layout tag, with a layout or without (spec §7.4): a
         // first save purges pages cached from the theme's template, a removal the pages the layout
         // rendered. It names no workspace — ShopPageCache stores the workspace's own in its place.
-        $tags = [ProductSurface::PAGE_TAG];
+        $tags = [ShopLayoutTags::pageTag(ProductSurface::KEY)];
         if ($page['entry_uuid'] !== null) {
             // Commerce-Slice-2 Fix B (storefront-rendering spec §9 extension): tag the
             // cached product-detail response with the linked entry's uuid — the SAME
@@ -178,68 +163,6 @@ final class ShopCatalogController
         }
 
         return $this->urls->product($currentSlug);
-    }
-
-    /**
-     * The batched card pipeline (storefront-v1 Task 5): delegated to the shared
-     * {@see ShopProductCardAssembler} (extracted from this method's original body, Task 7) —
-     * ONE call per concern for the whole page, per-row reduction to the closed card view
-     * model. The query budget is constant in product count, and ShopCatalogTest's
-     * counting-statement guard fails if a per-card loop returns.
-     *
-     * @param array{items: list<array<string,mixed>>, total: int} $result
-     * @param callable(int): string $pathFor
-     */
-    private function buildGrid(string $tenant, array $result, int $page, callable $pathFor): GridViewModel
-    {
-        $items = $this->cards->cards($tenant, $result['items']);
-
-        $total = $result['total'];
-        $totalPages = max(1, (int) ceil($total / self::PER_PAGE));
-
-        return new GridViewModel(
-            items: $items,
-            page: $page,
-            perPage: self::PER_PAGE,
-            total: $total,
-            totalPages: $totalPages,
-            prevPath: $page > 1 ? $pathFor($page - 1) : null,
-            nextPath: $page < $totalPages ? $pathFor($page + 1) : null,
-        );
-    }
-
-    /**
-     * The chip rail (storefront-v1 spec §2): every category for the tenant as a closed
-     * `{name, url, active}` projection — never a raw row. Empty → templates skip the rail
-     * entirely. `$activeSlug` marks the category page's own chip; the index passes none
-     * (its "All" chip is the template's own active state).
-     *
-     * @return list<array{name: string, url: string, active: bool}>
-     */
-    private function categoryRail(string $tenant, ?string $activeSlug = null): array
-    {
-        return array_map(
-            fn (array $row): array => [
-                'name' => (string) $row['name'],
-                'url' => $this->urls->category((string) $row['slug']),
-                'active' => $activeSlug !== null && (string) $row['slug'] === $activeSlug,
-            ],
-            $this->categories->all($this->context, $tenant),
-        );
-    }
-
-    private function indexPagePath(int $page): string
-    {
-        $base = $this->urls->shopIndex();
-
-        return $page <= 1 ? $base : $base . '?page=' . $page;
-    }
-
-    private function categoryPagePath(string $slug, int $page): string
-    {
-        $base = $this->urls->category($slug);
-
-        return $page <= 1 ? $base : $base . '?page=' . $page;
     }
 
     private function requestedPage(Request $request): int

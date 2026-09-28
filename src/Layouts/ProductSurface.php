@@ -29,21 +29,6 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
 
     private const SAMPLES = 50;
 
-    /**
-     * The tag a product page's response carries (type layouts plan C1). It names no workspace: the
-     * header reaches every visitor, and a workspace's id never does. The shop's page cache stores
-     * the page under {@see self::pageCacheTag()} in its place.
-     */
-    public const PAGE_TAG = 'thallo:shop:layout:product';
-
-    /**
-     * The tag a product page is stored under in the shop's cache, per workspace: a product layout
-     * change in one purges that workspace's product pages and no other's. Server-side only.
-     */
-    public static function pageCacheTag(string $tenant): string
-    {
-        return self::PAGE_TAG . ':' . $tenant;
-    }
 
     public function __construct(
         private readonly ApplicationContext $context,
