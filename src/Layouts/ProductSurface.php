@@ -70,7 +70,10 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
 
     public function targets(): array
     {
-        return [['target' => self::TARGET, 'label' => $this->label(self::TARGET), 'enabled' => true, 'reason' => null]];
+        return [[
+            'target' => self::TARGET, 'label' => $this->label(self::TARGET), 'enabled' => true, 'reason' => null,
+            'link' => null,
+        ]];
     }
 
     /** The shop's active, buyer-available products, newest first — what the storefront lists. */
@@ -117,6 +120,11 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
     public function required(string $target): array
     {
         return [['type' => 'product_buy']];
+    }
+
+    public function loops(string $target): array
+    {
+        return [];
     }
 
     public function bindable(string $target): array
