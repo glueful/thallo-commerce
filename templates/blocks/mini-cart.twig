@@ -12,9 +12,10 @@
   {# Icon button with a corner count badge (the standard storefront pattern). The SVG is
      commerce-owned inline (shopping bag, fill: currentColor so it follows the theme) —
      no cross-pack icon dependency — and aria-hidden; the sr-only span keeps the
-     accessible name. No id attribute: this block may render more than once per page. #}
+     accessible name. The toggle names its own panel by `block.dom_key`: this block may render
+     more than once per page, and once per card inside an Entry list. #}
   <button type="button" class="thallo-block-mini-cart__toggle" data-shop-cart-toggle
-          aria-expanded="false" aria-controls="thallo-mini-cart-panel">
+          aria-expanded="false" aria-controls="thallo-mini-cart-panel-{{ block.dom_key }}">
     {# width/height are the PRE-CSS intrinsic size: the stylesheet link renders after
        this markup (blocks cannot reach <head>), and a dimensionless SVG paints huge
        until shop.css arrives. CSS still owns the final size. #}
@@ -36,7 +37,7 @@
      expanded before the stylesheet loads. Once CSS applies, the author display rules
      (default none; aria-expanded="true" → block) override the UA [hidden] style, so
      the attribute stays inert afterwards — shop.js only flips aria-expanded. #}
-  <div id="thallo-mini-cart-panel" class="thallo-block-mini-cart__panel" data-shop-cart-drawer hidden>
+  <div id="thallo-mini-cart-panel-{{ block.dom_key }}" class="thallo-block-mini-cart__panel" data-shop-cart-drawer hidden>
     <p class="thallo-block-mini-cart__empty" data-shop-cart-empty>Your cart is empty.</p>
     <ul class="thallo-block-mini-cart__lines" data-shop-cart-lines hidden></ul>
     <p class="thallo-block-mini-cart__total" data-shop-cart-total hidden></p>
