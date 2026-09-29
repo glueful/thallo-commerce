@@ -512,6 +512,16 @@
 .shop-titlerow h1 {
   margin: 0;
 }
+/* A layout's Shop title and Product list (type layouts plan C2) keep the shop page's own rhythm:
+   the title row sits at the top of the page, and the chips, the grid and the page navigation keep
+   their 1.5rem steps, instead of the theme's block margins. Theme layer only: spacing set on the
+   block, or by a style class, still wins. Today's page carries neither block class. */
+:is(.shop-index, .shop-category) .thallo-block-shop_title {
+  margin-top: 0;
+}
+:is(.shop-index, .shop-category) .thallo-block-product_loop {
+  margin-block: 0;
+}
 .shop-titlerow__count {
   font-size: 0.8125rem;
   color: color-mix(in srgb, currentColor 50%, transparent);
