@@ -43,11 +43,12 @@ final class PurgeShopCacheOnLayoutChange
         $cache = $this->container->get(CacheStore::class);
         // The generation first (type layouts plan C2): once replaced, a render that read the old
         // layout stores under a token no request reads — whatever the driver, whatever the purge.
-        $cache->set(
-            ShopLayoutTags::generationKey($event->surface, $tenant),
-            ShopLayoutTags::freshGeneration(),
-            ShopLayoutTags::GENERATION_TTL,
-        );
+        $generation = ShopLayoutTags::generationKey($event->surface, $tenant);
+        if (!$cache->set($generation, ShopLayoutTags::freshGeneration(), ShopLayoutTags::GENERATION_TTL)) {
+            // Not replaced: delete it, so the next request mints a fresh one instead of keeping the
+            // token a straddling render stored under.
+            $cache->delete($generation);
+        }
         if ($cache->invalidateTags([ShopLayoutTags::tenantTag($event->surface, $tenant)])) {
             return;
         }

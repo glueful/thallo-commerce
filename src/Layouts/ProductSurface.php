@@ -29,7 +29,6 @@ final class ProductSurface implements LayoutSurface, LayoutSampleContext
 
     private const SAMPLES = 50;
 
-
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,

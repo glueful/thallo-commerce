@@ -5,11 +5,13 @@
    It reads the card's product, so it has something to show only inside a card. #}
 {% set product = layout_context.product|default(null) %}
 {% if product %}
+{# Captured as markup: an attribute string handed on as a plain value would be escaped again. #}
+{% set tile_attrs %}{{ style_attrs('root') }}{% endset %}
 {% include 'shop/_product_tile.twig' with {
   product: product,
   show_tag: not data.hide_tag|default(false),
   show_actions: not data.hide_actions|default(false),
   tile_class: ' thallo-block thallo-block-product_tile' ~ style_classes('root'),
-  tile_attrs: style_attrs('root'),
+  tile_attrs: tile_attrs,
 } only %}
 {% endif %}

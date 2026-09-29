@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Thallo\Commerce\Layouts;
 
+use Glueful\Bootstrap\ApplicationContext;
+use Glueful\Extensions\Commerce\Catalog\ProductRepository;
+use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
+use Thallo\Commerce\Shop\ShopCatalogPage;
+
 /**
  * The shop home as a layout surface (type layouts plan C2): one layout for every page of `/shop`.
  * Its one sample is the first page, while the shop lists a product; with none, the stage opens on
@@ -12,6 +17,15 @@ namespace Thallo\Commerce\Layouts;
 final class ShopIndexSurface extends ShopPageSurface
 {
     public const KEY = 'shop_index';
+
+    public function __construct(
+        ApplicationContext $context,
+        CommerceTenantResolution $tenants,
+        ShopCatalogPage $page,
+        private readonly ProductRepository $products,
+    ) {
+        parent::__construct($context, $tenants, $page);
+    }
 
     public function key(): string
     {
@@ -28,9 +42,11 @@ final class ShopIndexSurface extends ShopPageSurface
         return 'Applies to every page of the shop home';
     }
 
+    /** Page 1, while the shop lists a product — one small query, not a page of cards. */
     public function samples(string $target, ?string $query): array
     {
-        return $this->sampleContext($target, '1') === null ? [] : [['id' => '1', 'label' => 'Page 1']];
+        $listed = $this->products->activeFilteredQuery($this->context, $this->tenant(), null)->limit(1)->get();
+        return $listed === [] ? [] : [['id' => '1', 'label' => 'Page 1']];
     }
 
     /** The home's first page; null while the shop lists nothing (the stage shows the placeholder). */

@@ -75,7 +75,19 @@ final class ProductCardViewModel
      */
     public function toCardItem(): array
     {
-        return get_object_vars($this);
+        // Named one by one, as toArray() is: a property added later joins the card only on purpose.
+        return [
+            'uuid' => $this->uuid,
+            'name' => $this->name,
+            'url' => $this->url,
+            'coverUrl' => $this->coverUrl,
+            'rating' => $this->rating,
+            'priceFormatted' => $this->priceFormatted,
+            'compareAtFormatted' => $this->compareAtFormatted,
+            'categoryName' => $this->categoryName,
+            'cartMode' => $this->cartMode,
+            'directVariantUuid' => $this->directVariantUuid,
+        ];
     }
 
     /** @return array<string,mixed> EXACTLY the pinned card allowlist — key order included */
