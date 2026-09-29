@@ -208,6 +208,34 @@ under the workspace's own tag, `thallo:shop:layout:product:{tenant}`, in its pla
 that workspace's `shop:*` keys on a driver without tag invalidation), so one workspace's save never
 evicts another's pages.
 
+### The shop home and category layouts
+
+Two more surfaces register beside it: `shop_index` (**Products — shop home**, every page of
+`/{shop-prefix}`) and `shop_category` (**Products — shop categories**, every category's page), each
+with the one target `@site` (`ShopIndexSurface`, `ShopCategorySurface`, sharing `ShopPageSurface`).
+Their frames are `templates/layouts/shop_index.twig` and `templates/layouts/shop_category.twig`;
+`ShopCatalogController::index()` and `category()` render through them while a layout exists, and
+through `shop/index.twig` and `shop/category.twig` otherwise, both from `ShopCatalogPage` — which
+the layout stage uses too. The home samples its first page; the category surface samples the
+categories that list a product.
+
+Four blocks come with them (`ShopLayoutBlocksContributor`, **Fields**, `layout_only`):
+`product_loop` (**Product list** — its `card` repeated once per product through `loop_cards()`;
+required exactly once), `product_tile` (the card's picture, category chip and quick buttons,
+sharing `shop/_product_tile.twig` with the grid's `_product_card.twig`), `shop_title` and
+`category_rail`. Inside a Product list card, `product_name`, `product_price` and `product_rating`
+render the grid card's markup. The Product list's `cards` target declares the shop's adaptive grid
+as its style defaults, so the admin's Layout tab shows it and the compiled utilities leave its
+tracks in force.
+
+Every home page carries `thallo:shop:layout:shop_index` and every category page
+`thallo:shop:layout:shop_category`, stored per workspace like the product page's tag
+(`ShopLayoutTags` names all three). Each of the three layout routes also names its surface to
+`ShopPageCache` (`ShopPageCache::class . ':shop_index'`), which keys the page by that workspace's
+and surface's layout generation — a random token read before the page renders, created atomically
+and replaced by `PurgeShopCacheOnLayoutChange` on every change — so a render that read a layout
+just before a save never puts it back in the cache.
+
 ### `shop.js` and assets
 
 One dependency-free `shop.js` — no framework, no build step — served at
