@@ -900,6 +900,11 @@
     if (typeof window.fetch !== 'function') {
       return;
     }
+    // The loading line ships hidden (no "Loading…" without JavaScript); hydration shows it.
+    var loading = qs(el, '[data-shop-featured-empty]');
+    if (loading) {
+      loading.hidden = false;
+    }
     var query = blockContextQuery(el);
 
     window
@@ -924,13 +929,9 @@
     var product = data && data.product;
 
     if (!product) {
-      if (empty) {
-        empty.hidden = false;
-      }
-      if (body) {
-        body.hidden = true;
-        clear(body);
-      }
+      // Nothing to show — nothing configured, or a product that is gone: the block is not shown
+      // to shoppers (never an endless "Loading…"); the editor sees a named placeholder on the stage.
+      el.hidden = true;
       return;
     }
 
@@ -970,6 +971,11 @@
     if (typeof window.fetch !== 'function') {
       return;
     }
+    // The status line ships hidden (no "Loading…" without JavaScript); hydration shows it.
+    var loading = qs(el, '[data-shop-add-to-cart-status]');
+    if (loading) {
+      loading.hidden = false;
+    }
     var query = blockContextQuery(el);
 
     window
@@ -993,6 +999,13 @@
     var form = qs(el, '[data-shop-add-to-cart-form]');
     var link = qs(el, '[data-shop-add-to-cart-link]');
     var slot = qs(el, '[data-shop-add-to-cart-variant-slot]');
+
+    if (data && data.unconfigured === true) {
+      // No product chosen and none linked: the block is not shown to shoppers; the editor sees a
+      // named placeholder on the stage.
+      el.hidden = true;
+      return;
+    }
 
     if (!data || !data.available) {
       if (status) {

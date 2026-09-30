@@ -133,8 +133,13 @@ final class ShopBlockDataController
     {
         $tenant = $this->tenants->tenantUuid($this->context);
         $slug = $this->resolveSlug($request, $tenant);
+        if ($slug === null) {
+            // Nothing configured: no slug, and no entry with an active linked product. shop.js
+            // hides the block (sections and templates design §6).
+            return $this->noStore(new JsonResponse(['product' => null, 'unconfigured' => true]));
+        }
 
-        $product = $slug !== null ? $this->products->findBuyerAvailableBySlug($this->context, $tenant, $slug) : null;
+        $product = $this->products->findBuyerAvailableBySlug($this->context, $tenant, $slug);
         if ($product === null || ($product['status'] ?? null) !== 'active') {
             return $this->noStore(new JsonResponse(['product' => null]));
         }
@@ -152,8 +157,14 @@ final class ShopBlockDataController
     {
         $tenant = $this->tenants->tenantUuid($this->context);
         $slug = $this->resolveSlug($request, $tenant);
+        if ($slug === null) {
+            // Nothing configured: shop.js hides the block rather than call a product unavailable.
+            return $this->noStore(new JsonResponse(
+                AddToCartViewModel::unavailable()->toArray() + ['unconfigured' => true],
+            ));
+        }
 
-        $product = $slug !== null ? $this->products->findBuyerAvailableBySlug($this->context, $tenant, $slug) : null;
+        $product = $this->products->findBuyerAvailableBySlug($this->context, $tenant, $slug);
         if ($product === null || ($product['status'] ?? null) !== 'active') {
             return $this->noStore(new JsonResponse(AddToCartViewModel::unavailable()->toArray()));
         }

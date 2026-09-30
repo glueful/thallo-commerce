@@ -6,26 +6,35 @@
    `GET /_shop/blocks/featured-product` — every URL in the response comes from ShopUrlGenerator. #}
 {# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
    entirely (never empty) when the seam answers null, exactly like every other shop root. #}
+{% set slug = data.product_slug|default('') %}
+{% set entry_uuid = entry.uuid|default('') %}
+{% if is_canvas() %}
+{# The stage (sections and templates design §6): shop behaviour never runs there, so the block is a
+   named placeholder — the product it shows, or "choose a product" — that keeps the block's authored
+   styling (width, spacing, placement, style classes) and stays selectable. #}
+{% set label = shop_block_product_label(slug, entry_uuid) %}
+<div class="thallo-block thallo-block-featured-product thallo-field-empty{{ style_classes('root') }}"{{ style_attrs('root') }}>Featured product — {{ label ?: 'choose a product' }}</div>
+{% elseif slug != '' or entry_uuid != '' %}
+{# The site: no product can be found with neither a slug nor an entry (a block outside an entry), so
+   nothing renders then. Otherwise the shell — shop.js hides it when the endpoint finds no product. #}
 {% set wishlist_scope = shop_wishlist_scope() %}
 <div class="thallo-block thallo-block-featured-product{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-block="featured-product"
      {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
      data-product-slug="{{ data.product_slug|default('') }}"
      data-entry-uuid="{{ entry.uuid|default('') }}">
   <div class="thallo-block-featured-product__body" data-shop-featured-body hidden></div>
-  <p class="thallo-block-featured-product__empty" data-shop-featured-empty>Loading…</p>
-  {# Commerce-Slice-2 Fix A: same reasoning as add-to-cart.twig — link straight to the product
-     page when the slug is explicitly known; otherwise degrade to plain text (never a dead link). #}
-  {% set noscript_url = shop_product_url(data.product_slug) %}
+  {# Hidden until shop.js starts hydrating: without JavaScript the reader sees only the noscript
+     line below, never a "Loading…" that nothing will finish. #}
+  <p class="thallo-block-featured-product__empty" data-shop-featured-empty hidden>Loading…</p>
+  {# Without JavaScript: a link to the shop, a page that always exists. A product URL would be built
+     without checking the product (shop_product_url() looks nothing up), so a slug whose product is
+     gone would give a dead link. #}
   <noscript>
-    {% if noscript_url %}
-      <p class="thallo-block-featured-product__noscript"><a href="{{ noscript_url }}">View this product</a></p>
-    {% else %}
-      <p class="thallo-block-featured-product__noscript">Enable JavaScript to view the featured product.</p>
-    {% endif %}
+    <p class="thallo-block-featured-product__noscript"><a href="{{ shop_index_url() }}">Browse the shop</a></p>
   </noscript>
 </div>
 {# Baseline shop styling (same fingerprinted asset the catalog pages load) — duplicate
    link tags across blocks on one page dedupe at fetch time, like the script tag below. #}
 <link rel="stylesheet" href="/_thallo/shop/shop.css">
 <script src="/_thallo/shop/shop.js" defer></script>
-
+{% endif %}

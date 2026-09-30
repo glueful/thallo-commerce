@@ -444,6 +444,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'factory' => [self::class, 'makeStorefrontLinkResolver'],
                 'shared'  => true,
             ],
+            // Sections and templates design §6: names a Featured product's or Add to cart's product
+            // on the stage (`shop_block_product_label()`), soft-bound by the render pack like the
+            // link resolver above; it resolves the engine's services only when called.
+            \Thallo\Contracts\Delivery\StorefrontBlockPreview::class => [
+                'class' => \Thallo\Commerce\Shop\ShopBlockPreview::class,
+                'shared'  => true,
+                'autowire' => true,
+            ],
             // Storefront-v1 Task 4 (spec §5): the wishlist seam thallo-render's
             // RenderContextExtension consumes (`shop_wishlist_scope()`/`shop_wishlist_url()`).
             // Bound unconditionally like StorefrontLinkResolver immediately above — compiled
