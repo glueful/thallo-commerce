@@ -37,6 +37,10 @@ use Glueful\Extensions\ServiceProvider;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Thallo\Commerce\Adoption\CommerceAdoptionContributor;
+use Thallo\Commerce\Patterns\ShopLayoutPatternsContributor;
+use Thallo\Commerce\Layouts\ProductSurface;
+use Thallo\Commerce\Layouts\ShopIndexSurface;
+use Thallo\Commerce\Layouts\ShopCategorySurface;
 use Thallo\Commerce\Patterns\ShopPatternsContributor;
 use Thallo\Commerce\Diagnostics\CommerceIntegrationDiagnostics;
 use Thallo\Commerce\Email\CommerceEmailTemplates;
@@ -1748,13 +1752,28 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             $registry = $container->get(PatternContributorRegistry::class);
         }
 
+        $pages = true;
         foreach ($registry->all() as $existing) {
             if ($existing->id() === ShopPatternsContributor::ID) {
-                return true; // already registered — idempotent no-op.
+                $pages = false; // already registered — idempotent no-op.
             }
         }
+        if ($pages) {
+            $registry->register(new ShopPatternsContributor());
+        }
 
-        $registry->register(new ShopPatternsContributor());
+        // The product page's and the shop's layout patterns, beside the surfaces they serve.
+        foreach ($registry->layoutContributors() as $existing) {
+            if ($existing->id() === ShopLayoutPatternsContributor::ID) {
+                return true;
+            }
+        }
+        $container = $context->getContainer();
+        $registry->registerLayout(new ShopLayoutPatternsContributor(
+            $container->get(ProductSurface::class),
+            $container->get(ShopIndexSurface::class),
+            $container->get(ShopCategorySurface::class),
+        ));
 
         return true;
     }
