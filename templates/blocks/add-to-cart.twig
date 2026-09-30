@@ -45,10 +45,11 @@
 
   {# Without JavaScript: a link to the shop, a page that always exists — a WORKING path to the cart,
      never an inert shell. A product URL would be built without checking the product
-     (shop_product_url() looks nothing up), so a slug whose product is gone would give a dead link. #}
+     (shop_product_url() looks nothing up), so a slug whose product is gone would give a dead link.
+     A blank block may have no product at all (an unlinked page), so its line promises none. #}
   <noscript>
     <p class="thallo-block-add-to-cart__noscript">
-      <a href="{{ shop_index_url() }}">Browse the shop to add this product to your cart</a>
+      <a href="{{ shop_index_url() }}">{{ slug != '' ? 'Browse the shop to add this product to your cart' : 'Browse the shop' }}</a>
     </p>
   </noscript>
 </div>

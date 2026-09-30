@@ -887,6 +887,15 @@
     }
   }
 
+  // A block endpoint's answer, or a rejection for anything but a successful JSON one (a server
+  // error with an HTML body included), so each block's failure path runs instead of its render.
+  function blockJson(res) {
+    if (!res.ok) {
+      throw new Error('shop block request failed: ' + res.status);
+    }
+    return res.json();
+  }
+
   // ---- block hydration: featured-product ------------------------------------------------
 
   function hydrateFeaturedProducts() {
@@ -912,14 +921,14 @@
         headers: { Accept: 'application/json' },
         credentials: 'same-origin',
       })
-      .then(function (res) {
-        return res.json();
-      })
+      .then(blockJson)
       .then(function (data) {
         renderFeaturedProduct(el, data);
       })
       .catch(function () {
-        // Leave the loading shell as-is.
+        // A failed request has nothing to show: the block goes, as for a product that is gone,
+        // never the "Loading…" that hydration just revealed.
+        el.hidden = true;
       });
   }
 
@@ -983,14 +992,17 @@
         headers: { Accept: 'application/json' },
         credentials: 'same-origin',
       })
-      .then(function (res) {
-        return res.json();
-      })
+      .then(blockJson)
       .then(function (data) {
         renderAddToCart(el, data);
       })
       .catch(function () {
-        // Leave the loading shell as-is.
+        // A failed request: say so where "Loading…" was; the form and link stay hidden, so nothing
+        // half-hydrated can submit.
+        if (loading) {
+          loading.hidden = false;
+          loading.textContent = 'This product could not be loaded.';
+        }
       });
   }
 
