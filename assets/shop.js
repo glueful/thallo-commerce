@@ -608,6 +608,11 @@
     if (typeof window.fetch !== 'function') {
       return;
     }
+    // The loading line ships hidden (no "Loading products…" without JavaScript); hydration shows it.
+    var loading = qs(el, '[data-shop-grid-empty]');
+    if (loading) {
+      loading.hidden = false;
+    }
     var query =
       'source=' + encodeURIComponent(el.getAttribute('data-source') || 'newest') +
       '&category_slug=' + encodeURIComponent(el.getAttribute('data-category-slug') || '') +
@@ -620,14 +625,16 @@
         headers: { Accept: 'application/json' },
         credentials: 'same-origin',
       })
-      .then(function (res) {
-        return res.json();
-      })
+      .then(blockJson)
       .then(function (data) {
         renderProductGrid(el, data);
       })
       .catch(function () {
-        // Leave the loading shell as-is.
+        // A failed request: say so where "Loading products…" was, never leave it there.
+        if (loading) {
+          loading.hidden = false;
+          loading.textContent = 'Products could not be loaded.';
+        }
       });
   }
 

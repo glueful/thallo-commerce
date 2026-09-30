@@ -11,6 +11,18 @@
 {# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
    entirely (never empty) when the seam answers null. The cards this block hydrates carry
    hearts, and they resolve their store from this root without any metadata fetch. #}
+{% if is_canvas() %}
+{# The stage (sections and templates design §6): shop behaviour never runs there, so the grid is a
+   named placeholder — what it will show — that keeps the block's authored styling and stays
+   selectable, never an empty box or a "Loading products…" nothing finishes. #}
+{% set shows = {
+  newest: 'the newest products',
+  category: data.category_slug|default('') ? 'category ' ~ data.category_slug : 'a category — choose one',
+  tag: data.tag_slug|default('') ? 'tag ' ~ data.tag_slug : 'a tag — choose one',
+  manual: 'chosen products',
+}[source] %}
+<div class="thallo-block thallo-block-product-grid thallo-field-empty{{ style_classes('root') }}"{{ style_attrs('root') }}>Product grid — {{ shows }}</div>
+{% else %}
 {% set wishlist_scope = shop_wishlist_scope() %}
 <div class="thallo-block thallo-block-product-grid{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-block="product-grid"
      {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
@@ -20,7 +32,9 @@
      data-products="{{ data.products|default('') }}"
      data-page-size="{{ pageSize }}">
   <ul class="thallo-block-product-grid__items" data-shop-grid-items hidden></ul>
-  <p class="thallo-block-product-grid__empty" data-shop-grid-empty>Loading products…</p>
+  {# Hidden until shop.js starts hydrating: without JavaScript the reader sees only the noscript
+     link below, never a "Loading products…" that nothing will finish. #}
+  <p class="thallo-block-product-grid__empty" data-shop-grid-empty hidden>Loading products…</p>
   <a class="thallo-block-product-grid__view-all" data-shop-grid-view-all hidden href="#">View all products</a>
   {# Commerce-Slice-2 Fix A: a grid has no single "the" product to link to, so its no-JS
      fallback links to the same catalog entry point its own "view all" link would resolve to —
@@ -43,4 +57,4 @@
 {# The stable, deploy-invariant asset alias (see ShopAssetController) — no Twig function can
    call ShopUrlGenerator::assets() directly, so every shop block loads shop.js this way. #}
 <script src="/_thallo/shop/shop.js" defer></script>
-
+{% endif %}
