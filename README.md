@@ -34,10 +34,12 @@ entry still renders from Commerce data alone.
 
 The provider registers a single capability in `boot()`: `thallo.commerce`, whose owning package is
 `glueful/commerce`. **It is off in a new install**, because `glueful/commerce` ships installed but
-not enabled. Left untouched, the capability follows that extension: `php glueful extensions:enable
-glueful/commerce` (then `php glueful migrate:run`) turns it on. An operator can also switch it off
-or on in the admin under **Extensions › Capabilities**; enabling there is refused while
-`glueful/commerce` is not enabled and schema-ready. See `docs/guides/18-commerce.md`.
+not enabled. An operator turns it on in the admin under **Features**, or with
+`php glueful thallo:features:enable thallo.commerce`: one activation enables and migrates the
+engine, checks it in a fresh boot, seeds the explicit block contributions into every workspace,
+grants the permissions, and switches the capability on. The generic extension switch and
+`extensions:enable glueful/commerce` refuse the engine, since the feature manages it. See
+`docs/guides/18-commerce.md`.
 Disabling it removes the user-facing admin routes, the storefront routes (shop/cart/checkout/
 `/_shop/*`), and the starter content-type + block-type contributions; migrations, the link
 table's tenancy registration, cleanup listeners, the purge handler, and the shop prefix's
@@ -393,13 +395,14 @@ repo's `composer boundaries` check enforces this at both the Composer-dependency
 The pack ships with Thallo: `glueful/thallo-core` requires it (and `glueful/commerce`) at the same
 version, and the project's `config/serviceproviders.php` loads its provider. To turn the store on:
 
-1. `php glueful extensions:enable glueful/commerce` (and `glueful/payvia` to take card payments).
-2. `php glueful migrate:run` to create the link table, slug ledger and checkout-attempt ledger.
-3. `php glueful thallo:provision`. The `commerce.*` permissions are part of Thallo's catalogue, so
-   the install roles already hold them from install.
-4. For workspaces that already existed before this step, run the sync command above.
+1. Turn Commerce on in **Features**, or run `php glueful thallo:features:enable thallo.commerce`.
+   On a host whose application files are read-only at runtime, run it with `--prepare` at deploy
+   time and finish in Features.
+2. `php glueful extensions:enable glueful/payvia` to take card payments.
+3. For workspaces that already existed, run the sync command above to bring their content types
+   up to date (the activation already added the shop blocks to every workspace).
 
-Switching the capability off (Extensions › Capabilities) drops `thallo.commerce` from
+Switching the capability off (Features) drops `thallo.commerce` from
 `GET /v1/admin/capabilities`; the data and the cleanup listeners stay, as described above.
 
 ## Contributing
