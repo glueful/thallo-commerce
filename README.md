@@ -34,8 +34,8 @@ entry still renders from Commerce data alone.
 
 The provider registers a single capability in `boot()`: `thallo.commerce`, whose owning package is
 `glueful/commerce`. **It is off in a new install**, because `glueful/commerce` ships installed but
-not enabled. An operator turns it on in the admin under **Features**, or with
-`php glueful thallo:features:enable thallo.commerce`: one activation enables and migrates the
+not enabled. An operator turns it on in the admin under **Extensions › Capabilities**, or with
+`php glueful thallo:capabilities:enable thallo.commerce`: one activation enables and migrates the
 engine, checks it in a fresh boot, seeds the explicit block contributions into every workspace,
 grants the permissions, and switches the capability on. The generic extension switch and
 `extensions:enable glueful/commerce` refuse the engine, since the feature manages it. See
@@ -395,14 +395,14 @@ repo's `composer boundaries` check enforces this at both the Composer-dependency
 The pack ships with Thallo: `glueful/thallo-core` requires it (and `glueful/commerce`) at the same
 version, and the project's `config/serviceproviders.php` loads its provider. To turn the store on:
 
-1. Turn Commerce on in **Features**, or run `php glueful thallo:features:enable thallo.commerce`.
+1. Turn Commerce on in **Extensions › Capabilities**, or run `php glueful thallo:capabilities:enable thallo.commerce`.
    On a host whose application files are read-only at runtime, run it with `--prepare` at deploy
-   time and finish in Features.
+   time and finish in Extensions.
 2. `php glueful extensions:enable glueful/payvia` to take card payments.
 3. For workspaces that already existed, run the sync command above to bring their content types
    up to date (the activation already added the shop blocks to every workspace).
 
-Switching the capability off (Features) drops `thallo.commerce` from
+Switching the capability off (Extensions › Capabilities) drops `thallo.commerce` from
 `GET /v1/admin/capabilities`; the data and the cleanup listeners stay, as described above.
 
 ## Contributing
