@@ -398,7 +398,8 @@ version, and the project's `config/serviceproviders.php` loads its provider. To 
 1. Turn Commerce on in **Extensions › Capabilities**, or run `php glueful thallo:capabilities:enable thallo.commerce`.
    On a host whose application files are read-only at runtime, run it with `--prepare` at deploy
    time and finish in Extensions.
-2. `php glueful extensions:enable glueful/payvia` to take card payments.
+2. Turn Payments on in **Extensions › Capabilities**, or run
+   `php glueful thallo:capabilities:enable thallo.payments`, to take card payments.
 3. For workspaces that already existed, run the sync command above to bring their content types
    up to date (the activation already added the shop blocks to every workspace).
 
