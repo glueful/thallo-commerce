@@ -119,6 +119,9 @@ use Thallo\Commerce\Starter\ProductStoryContributor;
 use Thallo\Commerce\Starter\ShopBlockTypesContributor;
 use Thallo\Commerce\Tenancy\ThalloCommerceTenantResolution;
 use Thallo\Contracts\Capability\Capability;
+use Thallo\Contracts\Capability\ManagementMode;
+use Thallo\Contracts\Capability\ActivationCopy;
+use Thallo\Contracts\Capability\DeclaresCapabilities;
 use Thallo\Contracts\Capability\CapabilityRegistry;
 use Thallo\Contracts\Content\RegionUpdated;
 use Thallo\Contracts\Delivery\CanonicalPublicOriginResolver;
@@ -138,7 +141,9 @@ use Thallo\Tenancy\System\SystemFlags;
 
 use function config;
 
-final class CommerceIntegrationServiceProvider extends ServiceProvider implements DeclaresLoadOrder
+final class CommerceIntegrationServiceProvider extends ServiceProvider implements
+    DeclaresLoadOrder,
+    DeclaresCapabilities
 {
     /**
      * Source-verified edge (modules-not-extensions spec §5.2): this pack mounts commerce's
@@ -1135,16 +1140,32 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         $this->mergeConfig('thallo-commerce', require __DIR__ . '/../config/thallo-commerce.php');
     }
 
+    public function capabilities(): array
+    {
+        return [
+            new Capability(
+                'thallo.commerce',
+                label: 'Commerce',
+                description: 'Adopts glueful/commerce and links Commerce products to Thallo entries.',
+                owningPackage: 'glueful/commerce',
+                management: ManagementMode::Activation,
+                copy: new ActivationCopy(
+                    turnOn: 'This prepares your store and adds products, orders, shop blocks and templates. '
+                        . 'Your existing content is kept.',
+                    turnOff: "Commerce's pages, blocks and menu are hidden. Products, orders and your content "
+                        . 'are kept, and you can turn it on again.',
+                    links: [
+                        ['label' => 'Products', 'to' => '/commerce/products'],
+                        ['label' => 'Block types', 'to' => '/settings/block-types'],
+                    ],
+                ),
+            ),
+        ];
+    }
+
     public function boot(ApplicationContext $context): void
     {
         $registry = app($context, CapabilityRegistry::class);
-
-        $registry->register(new Capability(
-            'thallo.commerce',
-            label: 'Commerce',
-            description: 'Adopts glueful/commerce and links Commerce products to Thallo entries.',
-            owningPackage: 'glueful/commerce',
-        ));
 
         // Migrations register on INSTALL, not enable (outside the gate below), so disabling
         // the capability still preserves the link table.
