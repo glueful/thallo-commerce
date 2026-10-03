@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Thallo\Commerce\Http;
 
+use Thallo\Contracts\Payments\OnlinePaymentInitiation;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Contracts\PaymentLinkPublicUrlProvider;
 use Glueful\Extensions\Commerce\Orders\OrderRepository;
@@ -189,6 +190,10 @@ final class AdminPaymentLinkSendController
     )]
     public function send(Request $request, string $uuid): Response
     {
+        // Sending a payment link starts an online payment: refused while Payments is off.
+        if (($refusal = $this->onlinePaymentRefusal()) !== null) {
+            return Response::error($refusal, 409, ['code' => 'payments_off']);
+        }
         $key = $this->idempotencyKey($request);
         if ($key === null) {
             return $this->refuse(
@@ -762,5 +767,16 @@ final class AdminPaymentLinkSendController
         $identity = $request->attributes->get('auth.user');
 
         return $identity instanceof \Glueful\Auth\UserIdentity ? $identity->uuid() : null;
+    }
+
+    /** Why a new online payment may not start now (Payments off), or null while it may. */
+    private function onlinePaymentRefusal(): ?string
+    {
+        $container = $this->context->getContainer();
+        if (!$container->has(OnlinePaymentInitiation::class)) {
+            return null;
+        }
+        $initiation = $container->get(OnlinePaymentInitiation::class);
+        return $initiation->allowed() ? null : ($initiation->refusal() ?? 'Payments is off.');
     }
 }

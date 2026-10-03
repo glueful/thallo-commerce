@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Thallo\Commerce\Http\Shop;
 
+use Thallo\Contracts\Payments\OnlinePaymentInitiation;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Orders\LinkView;
 use Glueful\Extensions\Commerce\Orders\PaymentLinkException;
@@ -159,6 +160,11 @@ final class ShopPaymentLinkController
             $token = self::REDACTED_TOKEN;
 
             return $this->notFound();
+        }
+
+        // While Payments is off a link starts no online payment: the payer sees manual collection.
+        if ($this->onlinePaymentRefusal() !== null) {
+            return $this->renderState('unavailable', 'manual', null, null, 503);
         }
 
         try {
@@ -423,5 +429,16 @@ final class ShopPaymentLinkController
     private function headers(Response $response): Response
     {
         return ShopPaymentLinkHeaders::stamp($response);
+    }
+
+    /** Why a new online payment may not start now (Payments off), or null while it may. */
+    private function onlinePaymentRefusal(): ?string
+    {
+        $container = $this->context->getContainer();
+        if (!$container->has(OnlinePaymentInitiation::class)) {
+            return null;
+        }
+        $initiation = $container->get(OnlinePaymentInitiation::class);
+        return $initiation->allowed() ? null : ($initiation->refusal() ?? 'Payments is off.');
     }
 }
