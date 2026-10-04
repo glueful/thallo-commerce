@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Thallo\Commerce;
 
+use Thallo\Contracts\Capability\AvailabilityFingerprint;
 use Glueful\Extensions\DeclaresLoadOrder;
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
@@ -1026,12 +1027,17 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
     {
         $context = $container->get(ApplicationContext::class);
         $appearance = $container->get(ThemeAppearanceSource::class);
+        // Which features are on is part of a cached page's identity (search block spec §3.6).
+        $availability = $container->has(AvailabilityFingerprint::class)
+            ? $container->get(AvailabilityFingerprint::class)
+            : null;
 
         return new ShopPageCache(
             $container->get(CacheStore::class),
             $container->get(CommerceTenantResolution::class),
             $container->get(ThemeLocator::class)->activePaths()['name'],
-            static fn (): string => $appearance->fingerprint(),
+            static fn (): string => $appearance->fingerprint()
+                . ($availability !== null ? '-a' . $availability->current() : ''),
             (bool) config($context, 'thallo-commerce.shop_cache.enabled', true),
             (int) config($context, 'thallo-commerce.shop_cache.ttl', 3600),
             $context,
