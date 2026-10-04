@@ -1239,6 +1239,9 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // unconditionally is what lets the app know which rows are this pack's when the
         // capability is off. Registration itself never writes a row.
         $this->registerShopBlockTypeContributor($context);
+        // Products as a search kind, registered whether or not Commerce is on, so the kind is
+        // discoverable ("requires Commerce"); its engine services resolve only when used.
+        $this->registerProductsSearchSource($context);
 
         $engineActive = $context->getContainer()->has(\Glueful\Extensions\Commerce\Catalog\CatalogService::class);
         if ($registry->isEnabled('thallo.commerce') && $engineActive) {
@@ -1590,6 +1593,14 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
                 'onCatalogChanged',
             ]);
         }
+        if (class_exists(StorefrontCatalogChanged::class)) {
+            $events->addListener(StorefrontCatalogChanged::class, [
+                new \Thallo\Commerce\Search\PushCatalogChangesToSearch(
+                    static fn (): \Thallo\Contracts\Search\SearchIndex => self::searchIndex($container),
+                ),
+                'onCatalogChanged',
+            ]);
+        }
         if (class_exists(ProductSlugChanged::class)) {
             $events->addListener(ProductSlugChanged::class, [
                 app($context, PurgeShopCacheOnSlugChange::class),
@@ -1834,6 +1845,25 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         ) {
             $registry->register($container->get($surface));
         }
+    }
+
+    /** The search pack's index while it is installed; otherwise changes go nowhere. */
+    private static function searchIndex(ContainerInterface $container): \Thallo\Contracts\Search\SearchIndex
+    {
+        return $container->has(\Thallo\Contracts\Search\SearchIndex::class)
+            ? $container->get(\Thallo\Contracts\Search\SearchIndex::class)
+            : new \Thallo\Commerce\Search\NoSearchIndex();
+    }
+
+    private function registerProductsSearchSource(ApplicationContext $context): void
+    {
+        $container = $context->getContainer();
+        if (!$container->has(\Thallo\Contracts\Search\SearchSourceRegistry::class)) {
+            return; // the search pack is not installed
+        }
+        $container->get(\Thallo\Contracts\Search\SearchSourceRegistry::class)->register(
+            new \Thallo\Commerce\Search\ProductsSearchContributor($container, $context),
+        );
     }
 
     public function registerShopBlockTypeContributor(
