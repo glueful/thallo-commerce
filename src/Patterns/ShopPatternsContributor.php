@@ -39,7 +39,7 @@ final class ShopPatternsContributor implements PatternContributor
                 'A heading over the newest products, with a link to the whole shop.',
                 B::band([
                     B::header('New in', 'Just arrived', 'The latest additions to the shop.'),
-                    self::grid('medium'),
+                    self::grid(24),
                     B::block('container', ['element' => 'div', 'content' => [B::button('Shop all', 'outline')]], [
                         'alignment' => ['self' => ['base' => B::choice('center')]],
                     ]),
@@ -52,7 +52,7 @@ final class ShopPatternsContributor implements PatternContributor
                 'A heading over a large grid of products. It starts on the newest; point it at a category.',
                 B::band([
                     B::header('Collection', 'Shop the collection', null),
-                    self::grid('large'),
+                    self::grid(48),
                 ]),
             ),
             new PatternSection(
@@ -194,8 +194,8 @@ final class ShopPatternsContributor implements PatternContributor
     }
 
     /** @return array<string,mixed> a Product grid on the newest products — works on any shop as inserted */
-    private static function grid(string $pageSize): array
+    private static function grid(int $limit): array
     {
-        return B::block(ShopBlockTypesContributor::SLUG_PRODUCT_GRID, ['source' => 'newest', 'page_size' => $pageSize]);
+        return B::block(ShopBlockTypesContributor::SLUG_PRODUCT_GRID, ['source' => 'newest', 'limit' => $limit]);
     }
 }

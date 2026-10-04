@@ -833,6 +833,28 @@
   padding: 0;
   list-style: none;
 }
+/* A fixed number on a row (the block's "columns"): 2 on phones, up to 3 on tablets, the full
+   count from 64rem. "auto" adds no class and keeps the width-based grid above. */
+.thallo-block-product-grid--cols-2 .thallo-block-product-grid__items,
+.thallo-block-product-grid--cols-3 .thallo-block-product-grid__items,
+.thallo-block-product-grid--cols-4 .thallo-block-product-grid__items,
+.thallo-block-product-grid--cols-5 .thallo-block-product-grid__items,
+.thallo-block-product-grid--cols-6 .thallo-block-product-grid__items {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 48rem) {
+  .thallo-block-product-grid--cols-3 .thallo-block-product-grid__items,
+  .thallo-block-product-grid--cols-4 .thallo-block-product-grid__items,
+  .thallo-block-product-grid--cols-5 .thallo-block-product-grid__items,
+  .thallo-block-product-grid--cols-6 .thallo-block-product-grid__items {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 64rem) {
+  .thallo-block-product-grid--cols-4 .thallo-block-product-grid__items { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .thallo-block-product-grid--cols-5 .thallo-block-product-grid__items { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .thallo-block-product-grid--cols-6 .thallo-block-product-grid__items { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 .thallo-block-product-grid__empty {
   margin: 0.5rem 0;
   color: color-mix(in srgb, currentColor 55%, transparent);

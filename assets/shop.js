@@ -618,7 +618,7 @@
       '&category_slug=' + encodeURIComponent(el.getAttribute('data-category-slug') || '') +
       '&tag_slug=' + encodeURIComponent(el.getAttribute('data-tag-slug') || '') +
       '&products=' + encodeURIComponent(el.getAttribute('data-products') || '') +
-      '&page_size=' + encodeURIComponent(el.getAttribute('data-page-size') || '24');
+      '&page_size=' + encodeURIComponent(el.getAttribute('data-page-size') || '12');
 
     window
       .fetch('/_shop/blocks/product-grid?' + query, {

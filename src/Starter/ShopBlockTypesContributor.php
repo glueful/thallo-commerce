@@ -56,7 +56,11 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     // One product slug per line (task-11 brief) — normalized/deduped/capped by
                     // ManualProductListNormalizer at resolve time, never at schema/save time.
                     ['name' => 'products', 'type' => 'text'],
-                    ['name' => 'page_size', 'type' => 'enum', 'enum' => ['small', 'medium', 'large']],
+                    // How many products (the grid endpoint serves at most 48) and how many on a row
+                    // at desktop: auto fits as many as the width allows; a fixed count steps down to
+                    // 3 on tablets and 2 on phones.
+                    ['name' => 'limit', 'type' => 'number', 'min' => 1, 'max' => 48],
+                    ['name' => 'columns', 'type' => 'enum', 'enum' => ['auto', '2', '3', '4', '5', '6']],
                 ],
                 styleCapabilities: ['spacing', 'width', 'visibility', 'layout.item'],
                 styleTargets: StyleTargets::root('box', ['spacing', 'width', 'visibility', 'layout.item']),
