@@ -10,7 +10,6 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Cache\CacheStore;
 use Glueful\Container\RebindableContainer;
 use Glueful\Container\Definition\FactoryDefinition;
-use Glueful\Cache\Contracts\EdgeCacheInterface;
 use Glueful\Database\Connection;
 use Glueful\Encryption\EncryptionService;
 use Glueful\Events\EventService;
@@ -95,7 +94,6 @@ use Thallo\Commerce\Listeners\EntryDeletedListener;
 use Thallo\Commerce\Listeners\ProductDeletedListener;
 use Thallo\Commerce\Purge\CommercePurgeHandler;
 use Thallo\Commerce\Settings\InvoiceLogoResolver;
-use Thallo\Commerce\Shop\CapabilityFlipPurge;
 use Thallo\Commerce\Shop\Contribution\ShopReservedPathContributor;
 use Thallo\Commerce\Shop\Contribution\ShopStylesheetContributor;
 use Thallo\Commerce\Shop\Contribution\ShopTemplatePathContributor;
@@ -1221,12 +1219,6 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         // whether or not the capability is currently on.
         $this->registerLatePaymentVisibility($context);
 
-        // Capability-boundary pin: a flip of thallo.commerce between boots purges the rendered
-        // page cache (+ edge) so previously cached shop shells/script tags — or, on re-enable,
-        // cached missing-template fallbacks — disappear immediately. OUTSIDE the gate for the
-        // same reason as every purge above: it must run precisely when the capability is OFF.
-        $this->reconcileCapabilityState($context, $registry->isEnabled('thallo.commerce'));
-
         // Gated by ENABLED state (spec §3) AND engine presence (distribution posture,
         // 2026-08-15): capabilities default ENABLED, and in a fresh install the engine is
         // tier-2 installed-but-disabled — so "capability on, engine absent" is the DEFAULT
@@ -1931,32 +1923,5 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         $registry->registerTemplatePaths(new ShopTemplatePathContributor());
         // The storefront stylesheet rides inside the theme artifact (visual builder spec §2.2).
         $registry->registerStylesheets(new ShopStylesheetContributor());
-    }
-
-    /**
-     * Capability-boundary pin: {@see CapabilityFlipPurge} — purge rendered pages (+ edge) when
-     * the `thallo.commerce` enabled state changed since the last boot, so cached pages carrying
-     * the OLD boundary (shop shells + shop.js tag after a disable; missing-template fallbacks
-     * after a re-enable) stop serving immediately. Runs OUTSIDE the gate — it must fire
-     * precisely on the boot where the capability turned off. Soft-resolves everything
-     * (CLI/pre-migration boots, absent cache): a skipped reconcile only delays the purge to the
-     * next fully-wired boot, because the marker is only ever advanced by reconcile() itself.
-     */
-    private function reconcileCapabilityState(ApplicationContext $context, bool $enabled): void
-    {
-        if (!interface_exists(CommerceTenantResolution::class)) {
-            return; // Commerce package itself absent — none of this pack's services are bound.
-        }
-        $container = $context->getContainer();
-        if (!$container->has(CacheStore::class)) {
-            return;
-        }
-        $edge = $container->has(EdgeCacheInterface::class)
-            ? $container->get(EdgeCacheInterface::class)
-            : null;
-        $pages = $container->has(\Thallo\Contracts\Delivery\RenderedPageCachePurge::class)
-            ? $container->get(\Thallo\Contracts\Delivery\RenderedPageCachePurge::class)
-            : null;
-        (new CapabilityFlipPurge($container->get(CacheStore::class), $edge, $pages))->reconcile($enabled);
     }
 }
