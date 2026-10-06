@@ -14,7 +14,7 @@
      no cross-pack icon dependency — and aria-hidden; the sr-only span keeps the
      accessible name. The toggle names its own panel by `block.dom_key`: this block may render
      more than once per page, and once per card inside an Entry list. #}
-  <button type="button" class="thallo-block-mini-cart__toggle" data-shop-cart-toggle
+  <button type="button" class="thallo-block-mini-cart__toggle{{ style_classes('control') }}"{{ style_attrs('control') }} data-shop-cart-toggle
           aria-expanded="false" aria-controls="thallo-mini-cart-panel-{{ block.dom_key }}">
     {# width/height are the PRE-CSS intrinsic size: the stylesheet link renders after
        this markup (blocks cannot reach <head>), and a dimensionless SVG paints huge

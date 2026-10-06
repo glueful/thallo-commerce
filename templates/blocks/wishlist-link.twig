@@ -13,7 +13,7 @@
 {% set wishlist_label = data.label|default('') %}
 <div class="thallo-block thallo-block-wishlist-link{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-wishlist-link{% if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
   {% if wishlist_url %}
-    <a class="thallo-block-wishlist-link__link" href="{{ wishlist_url }}">
+    <a class="thallo-block-wishlist-link__link{{ style_classes('control') }}"{{ style_attrs('control') }} href="{{ wishlist_url }}">
       {# width/height are the PRE-CSS intrinsic size, same reasoning as the mini cart's icon:
          the stylesheet link renders after this markup, and a dimensionless SVG paints huge
          until shop.css arrives. CSS still owns the final size. #}

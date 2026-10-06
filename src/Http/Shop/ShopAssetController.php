@@ -40,12 +40,13 @@ final class ShopAssetController
             return new RedirectResponse('/_thallo/shop/' . rawurlencode($alias), 302);
         }
 
-        $path = $this->assets->resolve($file);
-        if ($path === null || !is_file($path)) {
+        $contents = $this->assets->contents($file);
+        if ($contents === null) {
             return new Response('Not Found', 404, ['Content-Type' => 'text/plain; charset=UTF-8']);
         }
 
-        return new Response((string) file_get_contents($path), 200, [
+        // The map's bytes, not the file's: a stylesheet is served inside `@layer theme`.
+        return new Response($contents, 200, [
             'Content-Type' => self::contentTypeFor($file),
             'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);

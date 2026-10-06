@@ -27,10 +27,14 @@ final class ShopAssetMap
     /** @var array<string,string> logical filename (e.g. 'shop.js') => fingerprinted filename */
     private readonly array $fingerprintsByLogicalName;
 
+    /** @var array<string,string> fingerprinted filename => the bytes served for it */
+    private readonly array $contentsByName;
+
     public function __construct(string $assetsDir)
     {
         $filesByName = [];
         $fingerprints = [];
+        $contents = [];
 
         $dir = rtrim($assetsDir, '/');
         $entries = is_dir($dir) ? (scandir($dir) ?: []) : [];
@@ -47,18 +51,38 @@ final class ShopAssetMap
             if (!is_file($path)) {
                 continue;
             }
-            $contents = (string) file_get_contents($path);
-            $hash = substr(hash('sha256', $contents), 0, 12);
+            $served = self::served($entry, (string) file_get_contents($path));
+            $hash = substr(hash('sha256', $served), 0, 12);
             $ext = pathinfo($entry, PATHINFO_EXTENSION);
             $stem = pathinfo($entry, PATHINFO_FILENAME);
             $fingerprintedName = $stem . '-' . $hash . '.' . $ext;
 
             $filesByName[$fingerprintedName] = $path;
             $fingerprints[$entry] = $fingerprintedName;
+            $contents[$fingerprintedName] = $served;
         }
 
         $this->filesByName = $filesByName;
         $this->fingerprintsByLogicalName = $fingerprints;
+        $this->contentsByName = $contents;
+    }
+
+    /**
+     * The bytes sent for a file. A stylesheet is wrapped in `@layer theme`: shop blocks link it
+     * themselves (they cannot reach the head), and an unlayered copy would beat every style
+     * setting (`@layer settings`) — a Mini cart's background or corners would never show. The copy
+     * contributed to the theme stylesheet is already inside `@layer theme`, so both now rank the
+     * same. The fingerprint is taken over these bytes, so the URL changes with them.
+     */
+    private static function served(string $entry, string $contents): string
+    {
+        return str_ends_with($entry, '.css') ? "@layer theme {\n" . $contents . "}\n" : $contents;
+    }
+
+    /** The bytes served for a fingerprinted filename, or null when it is not allowlisted. */
+    public function contents(string $filename): ?string
+    {
+        return $this->contentsByName[$filename] ?? null;
     }
 
     /** Exact allowlist lookup — an unknown name (or any traversal attempt) always misses. */
