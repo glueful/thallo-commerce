@@ -118,7 +118,14 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     'map' => [
                         'colors' => 'control', 'border' => 'control', 'radius' => 'control', 'shadow' => 'control',
                     ],
-                ]),
+                ]) + ['parts' => [
+                    // The drop-down that opens from the button: a look of its own.
+                    'panel' => ['label' => 'Panel', 'capabilities' => [
+                        'colors', 'border', 'radius', 'shadow',
+                        'spacing.padding.top', 'spacing.padding.right',
+                        'spacing.padding.bottom', 'spacing.padding.left',
+                    ]],
+                ]],
             ),
             // Storefront-v1 spec §5: a LINK to the wishlist page, mirroring the mini cart
             // exactly (capability-gated, cacheable zero-count shell, JS-hydrated badge).

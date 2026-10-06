@@ -37,7 +37,7 @@
      expanded before the stylesheet loads. Once CSS applies, the author display rules
      (default none; aria-expanded="true" → block) override the UA [hidden] style, so
      the attribute stays inert afterwards — shop.js only flips aria-expanded. #}
-  <div id="thallo-mini-cart-panel-{{ block.dom_key }}" class="thallo-block-mini-cart__panel" data-shop-cart-drawer hidden>
+  <div id="thallo-mini-cart-panel-{{ block.dom_key }}" class="thallo-block-mini-cart__panel{{ style_classes('panel') }}" data-shop-cart-drawer hidden>
     <p class="thallo-block-mini-cart__empty" data-shop-cart-empty>Your cart is empty.</p>
     <ul class="thallo-block-mini-cart__lines" data-shop-cart-lines hidden></ul>
     <p class="thallo-block-mini-cart__total" data-shop-cart-total hidden></p>
