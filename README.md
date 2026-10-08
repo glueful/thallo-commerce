@@ -221,11 +221,13 @@ through `shop/index.twig` and `shop/category.twig` otherwise, both from `ShopCat
 the layout stage uses too. The home samples its first page; the category surface samples the
 categories that list a product.
 
-Four blocks come with them (`ShopLayoutBlocksContributor`, **Fields**, `layout_only`):
+Five blocks come with them (`ShopLayoutBlocksContributor`, **Fields**, `layout_only`):
 `product_loop` (**Product list** — its `card` repeated once per product through `loop_cards()`;
-required exactly once), `product_tile` (the card's picture, category chip and quick buttons,
-sharing `shop/_product_tile.twig` with the grid's `_product_card.twig`), `shop_title` and
-`category_rail`. Inside a Product list card, `product_name`, `product_price` and `product_rating`
+required exactly once; a `card` part and `card_hover`), `product_tile` (the card's picture, category
+chip and quick buttons, sharing `shop/_product_tile.twig` with the grid's `_product_card.twig` and
+the Product grid; the grid card's picture options, badges and parts), `product_add_to_cart` (the
+card's labelled button: Add to cart, Choose options or Sold out, from the card's `inStock` and
+`cartMode`), `shop_title` and `category_rail`. Inside a Product list card, `product_name`, `product_price` and `product_rating`
 render the grid card's markup. The Product list's `cards` target declares the shop's adaptive grid
 as its style defaults, so the admin's Layout tab shows it and the compiled utilities leave its
 tracks in force.
