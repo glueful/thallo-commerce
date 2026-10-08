@@ -1268,6 +1268,7 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
             // links — and reappear on the next enabled boot with no migration or resync
             // (registration is boot-time and data is never touched).
             $this->registerShopTemplatePaths($context);
+            $this->registerFieldOptionSources($context);
 
             // Task 11: the starter "Product story" content-type contribution (design spec §9) is
             // user-facing batteries-included content, unlike the maintenance infrastructure
@@ -1939,6 +1940,33 @@ final class CommerceIntegrationServiceProvider extends ServiceProvider implement
         /** @var RenderContributionRegistry $registry */
         $registry = $container->get(RenderContributionRegistry::class);
         $registry->registerReservedPaths(new ShopReservedPathContributor($urls->prefix));
+    }
+
+    /**
+     * The store's categories and tags as block-field choices (product grid spec §5.3) — the Product
+     * grid's Categories and Tags dropdowns. Capability-enabled branch only, like the template paths.
+     */
+    private function registerFieldOptionSources(ApplicationContext $context): void
+    {
+        $container = $context->getContainer();
+        if (
+            !interface_exists(CommerceTenantResolution::class)
+            || !$container->has(\Thallo\Contracts\Fields\FieldOptionSourceRegistry::class)
+        ) {
+            return;
+        }
+        $registry = $container->get(\Thallo\Contracts\Fields\FieldOptionSourceRegistry::class);
+        $tenants = $container->get(CommerceTenantResolution::class);
+        $registry->register(new \Thallo\Commerce\Fields\CategoryOptionSource(
+            $context,
+            $tenants,
+            new \Glueful\Extensions\Commerce\Catalog\CategoryRepository(),
+        ));
+        $registry->register(new \Thallo\Commerce\Fields\TagOptionSource(
+            $context,
+            $tenants,
+            new \Glueful\Extensions\Commerce\Catalog\TagRepository(),
+        ));
     }
 
     /**
