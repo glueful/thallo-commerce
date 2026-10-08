@@ -821,10 +821,10 @@
   margin: 0;
 }
 
-/* The block's item container holds REAL cards (storefront-v1 spec §5: one
-   buildProductCard() shared by this hydration and the wishlist page), so the card visuals
-   live entirely in the .shop-grid__* rules above — only the container's own layout is
-   block-owned, and it is a touch denser than the full-width catalog grid. */
+/* The block's item container holds REAL cards (server-rendered, product grid spec §3.1), so the
+   card visuals live in the .shop-grid__* rules above and the grid-card rules below — only the
+   container's own layout is block-owned, and it is a touch denser than the full-width catalog
+   grid. */
 .thallo-block-product-grid__items {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
@@ -855,6 +855,86 @@
   .thallo-block-product-grid--cols-5 .thallo-block-product-grid__items { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .thallo-block-product-grid--cols-6 .thallo-block-product-grid__items { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+/* Product grid cards (product grid spec §3.1, §5–§7): the name is a heading holding the link; the
+   categories and tags wrap onto further lines rather than overflow. Theme layer — authored part
+   styles (@layer settings) win over all of it. */
+.thallo-block-product-grid .shop-grid__name {
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+}
+.thallo-block-product-grid .shop-grid__name-link {
+  color: inherit;
+  text-decoration: none;
+}
+.thallo-block-product-grid .shop-grid__media-link {
+  display: block;
+}
+.shop-grid__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, currentColor 60%, transparent);
+}
+.shop-grid__label {
+  overflow-wrap: anywhere;
+}
+.shop-grid__badges {
+  position: absolute;
+  top: 0.625rem;
+  display: flex;
+  gap: 0.375rem;
+  pointer-events: none;
+}
+.shop-grid__badges--top-left { left: 0.625rem; }
+.shop-grid__badges--top-right { right: 0.625rem; }
+.shop-grid__badge {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+/* Image off: the tile keeps the badges and the actions, in the flow. */
+.shop-grid__tile--no-media .shop-grid__badges,
+.shop-grid__tile--no-media .shop-grid__actions {
+  position: static;
+  opacity: 1;
+  transform: none;
+}
+.shop-grid__tile--no-media .shop-grid__actions { flex-direction: row; }
+.thallo-block-product-grid--image-portrait .shop-grid__image { aspect-ratio: 4 / 5; }
+.thallo-block-product-grid--image-landscape .shop-grid__image { aspect-ratio: 4 / 3; }
+.thallo-block-product-grid--image-cover .shop-grid__image { object-fit: cover; padding: 0; }
+/* Card and image hover effects (§7.2): only where the device can hover, on keyboard focus within
+   the card, and under the stage's forced preview; no movement for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .thallo-block-product-grid--image-zoom .shop-grid__image { transition: transform 0.3s ease; }
+}
+@media (hover: hover) {
+  .thallo-block-product-grid--card-lift .shop-grid__item:hover { transform: translateY(-0.25rem); }
+  .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:hover {
+    box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
+  }
+  .thallo-block-product-grid--image-zoom .shop-grid__item:hover .shop-grid__image { transform: scale(1.06); }
+}
+.thallo-block-product-grid--card-lift .shop-grid__item:is(:focus-within, [data-thallo-hover]) { transform: translateY(-0.25rem); }
+.thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:is(:focus-within, [data-thallo-hover]) {
+  box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
+}
+.thallo-block-product-grid--image-zoom .shop-grid__item:is(:focus-within, [data-thallo-hover]) .shop-grid__image { transform: scale(1.06); }
+@media (prefers-reduced-motion: reduce) {
+  .thallo-block-product-grid .shop-grid__item,
+  .thallo-block-product-grid .shop-grid__image { transform: none !important; }
+}
+
 .thallo-block-product-grid__empty {
   margin: 0.5rem 0;
   color: color-mix(in srgb, currentColor 55%, transparent);

@@ -4,10 +4,6 @@
   {# Canonical + JSON-LD ALWAYS point at ShopUrlGenerator::product($slug) (storefront-rendering
      spec §3) — never the linked enrichment entry's own path, even when one exists. #}
   <link rel="canonical" href="{{ canonical }}">
-  {# Baseline shop styling shipped by this pack (product-editor mock parity, 2026-07-24) — the
-     stable logical alias 302s to the fingerprinted immutable file, exactly like shop.js below.
-     Themes layer their own rules over these `.shop-*` classes. #}
-  <link rel="stylesheet" href="/_thallo/shop/shop.css">
 {% include 'shop/_product_structured_data.twig' %}
 
   {# data-shop-scope (storefront-v1 spec §5): EVERY shop page root emits the opaque wishlist
