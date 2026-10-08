@@ -8,11 +8,13 @@ use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Catalog\AddonRepository;
 use Glueful\Extensions\Commerce\Catalog\CategoryRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductMediaRepository;
+use Glueful\Extensions\Commerce\Catalog\TagRepository;
 use Glueful\Extensions\Commerce\Catalog\VariantRepository;
 use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\ProductCardViewModel;
+use Thallo\Commerce\Shop\ViewModels\ProductGridCard;
 use Thallo\Commerce\Shop\ViewModels\ProductViewModel;
 use Thallo\Contracts\Delivery\MediaUrlBatchResolver;
 use Thallo\Contracts\Delivery\MediaUrlResolver;
@@ -34,6 +36,7 @@ final class ShopProductCardAssembler
         private readonly VariantRepository $variants,
         private readonly ProductMediaRepository $media,
         private readonly CategoryRepository $categories,
+        private readonly TagRepository $tags,
         private readonly AddonRepository $addons,
         private readonly ShopUrlGenerator $urls,
         // The ONE anonymous-media URL authority rendered pages already use (visibility-checked,
@@ -90,6 +93,48 @@ final class ShopProductCardAssembler
             );
         }
 
+        return $items;
+    }
+
+    /**
+     * The Product grid's cards (product grid spec §5, §6): {@see self::cards()} plus every
+     * category and tag (one batched read each), on sale (any active variant priced below its
+     * compare-at price — the engine's onSale rule) and new (created within `$newBadgeDays`).
+     *
+     * @param list<array<string,mixed>> $products
+     * @return list<ProductGridCard>
+     */
+    public function gridCards(string $tenant, array $products, int $newBadgeDays, \DateTimeImmutable $now): array
+    {
+        $uuids = array_map(static fn (array $p): string => (string) $p['uuid'], $products);
+        $cards = $this->cards($tenant, $products);
+        $categories = $this->categories->categoryProjectionsForProducts($this->context, $tenant, $uuids);
+        $tags = $this->tags->tagProjectionsForProducts($this->context, $tenant, $uuids);
+        $variants = $this->variants->forProducts($this->context, $tenant, $uuids);
+        $newSince = $now->modify('-' . $newBadgeDays . ' days');
+
+        $items = [];
+        foreach ($products as $i => $product) {
+            $uuid = (string) $product['uuid'];
+            $onSale = false;
+            foreach ($variants[$uuid] ?? [] as $variant) {
+                $compareAt = $variant['compare_at_price'] ?? null;
+                $active = ($variant['status'] ?? null) === 'active';
+                if ($active && $compareAt !== null && (int) $compareAt > (int) $variant['price']) {
+                    $onSale = true;
+                }
+            }
+            $created = is_string($product['created_at'] ?? null)
+                ? new \DateTimeImmutable($product['created_at'])
+                : null;
+            $items[] = new ProductGridCard(
+                $cards[$i],
+                $categories[$uuid] ?? [],
+                $tags[$uuid] ?? [],
+                $onSale,
+                $created !== null && $created >= $newSince,
+            );
+        }
         return $items;
     }
 
