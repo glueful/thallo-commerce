@@ -25,7 +25,7 @@
     show_wishlist: show.wishlist,
     badges: badge_markup,
   } %}
-  <span class="shop-grid__body">
+  <span class="shop-grid__body{{ part.details }}">
     {% if show.title %}
     {# The Title part sits on the anchor: pointer hover and keyboard focus (:focus-visible) both
        land there, and so does the stage's forced preview. #}

@@ -186,6 +186,11 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     ]],
                     // The frame around the picture: its tint is shop.css's, its background the author's.
                     'image' => ['label' => 'Image', 'capabilities' => ['colors.surface', 'radius']],
+                    // The text under the picture: padded apart from the card, so the picture can keep its edges.
+                    'details' => ['label' => 'Details', 'capabilities' => [
+                        'spacing.padding.top', 'spacing.padding.right',
+                        'spacing.padding.bottom', 'spacing.padding.left',
+                    ]],
                     // On the name's anchor, where pointer and keyboard focus land.
                     'title' => ['label' => 'Title', 'capabilities' => ['typography', 'colors.text', 'hover']],
                     'price' => ['label' => 'Price', 'capabilities' => ['typography', 'colors.text']],

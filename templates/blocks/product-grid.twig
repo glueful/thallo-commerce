@@ -20,8 +20,8 @@
 {# The Style tab's parts, the same on every card, styled here where the template lint sees them. #}
 {% set part = {
   card: style_classes('card'), card_attrs: style_attrs('card'), image: style_classes('image'),
-  title: style_classes('title'), price: style_classes('price'), meta: style_classes('meta'),
-  button: style_classes('button'), badge: style_classes('badge'),
+  details: style_classes('details'), title: style_classes('title'), price: style_classes('price'),
+  meta: style_classes('meta'), button: style_classes('button'), badge: style_classes('badge'),
 } %}
 {% set badge = {
   show_sale: data.show_sale_badge ?? false, show_new: data.show_new_badge ?? false,
