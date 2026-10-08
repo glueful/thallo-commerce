@@ -170,6 +170,9 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     'card_hover' => 'none', 'image_ratio' => 'square', 'image_fit' => 'contain',
                     'image_hover' => 'none',
                 ],
+                // The pack defines the grid's fields: an install's sync replaces the stored ones, so the
+                // removed sources and the category_slug / tag_slug fields go on upgrade.
+                ownsSchema: true,
                 styleCapabilities: ['spacing', 'width', 'visibility', 'layout.item'],
                 styleTargets: StyleTargets::root(
                     'box',
