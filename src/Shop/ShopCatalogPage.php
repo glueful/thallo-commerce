@@ -54,7 +54,7 @@ final class ShopCatalogPage
     public function forCategory(string $tenant, array $category, int $page): array
     {
         $slug = (string) $category['slug'];
-        $filters = new ResolvedProductFilters((string) $category['uuid']);
+        $filters = new ResolvedProductFilters([(string) $category['uuid']]);
         $result = $this->products->listActive($this->context, $tenant, $page, self::PER_PAGE, $filters);
         $grid = $this->buildGrid($tenant, $result, $page, fn (int $p): string => $this->categoryPagePath($slug, $p));
         return $this->vars(

@@ -201,7 +201,7 @@ final class ShopBlockDataController
         if ($category === null) {
             return [[], $fallbackUrl];
         }
-        $filters = new ResolvedProductFilters((string) $category['uuid']);
+        $filters = new ResolvedProductFilters([(string) $category['uuid']]);
         $rows = $this->products->listActive($this->context, $tenant, 1, $pageSize, $filters)['items'];
 
         return [$rows, $this->urls->category($slug)];
@@ -218,7 +218,7 @@ final class ShopBlockDataController
         if ($tag === null) {
             return [];
         }
-        $filters = new ResolvedProductFilters(null, (string) $tag['uuid']);
+        $filters = new ResolvedProductFilters([], [(string) $tag['uuid']]);
 
         return $this->products->listActive($this->context, $tenant, 1, $pageSize, $filters)['items'];
     }

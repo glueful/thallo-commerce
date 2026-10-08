@@ -94,7 +94,7 @@ final class ShopCategorySurface extends ShopPageSurface
     private function listsAProduct(string $tenant, string $category): bool
     {
         return $this->products
-            ->activeFilteredQuery($this->context, $tenant, new ResolvedProductFilters($category))
+            ->activeFilteredQuery($this->context, $tenant, new ResolvedProductFilters([$category]))
             ->limit(1)
             ->get() !== [];
     }
