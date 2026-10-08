@@ -980,27 +980,28 @@
 /* Card and image hover effects (§7.2): only where the device can hover, on keyboard focus within
    the card, and under the stage's forced preview; no movement for reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
-  .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item {
+  :is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow, .thallo-block-product_loop--card-lift, .thallo-block-product_loop--card-shadow) .shop-grid__item {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
   :is(.thallo-block-product-grid--image-zoom, .thallo-block-product_tile--image-zoom) .shop-grid__image { transition: transform 0.3s ease; }
 }
 @media (hover: hover) {
-  .thallo-block-product-grid--card-lift .shop-grid__item:hover { transform: translateY(-0.25rem); }
-  .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:hover {
+  :is(.thallo-block-product-grid--card-lift, .thallo-block-product_loop--card-lift) .shop-grid__item:hover { transform: translateY(-0.25rem); }
+  :is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow, .thallo-block-product_loop--card-lift, .thallo-block-product_loop--card-shadow) .shop-grid__item:hover {
     box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
   }
   .thallo-block-product-grid--image-zoom .shop-grid__item:hover .shop-grid__image,
   .shop-grid__item:hover .thallo-block-product_tile--image-zoom .shop-grid__image { transform: scale(1.06); }
 }
-.thallo-block-product-grid--card-lift .shop-grid__item:is(:focus-within, [data-thallo-hover]) { transform: translateY(-0.25rem); }
-.thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:is(:focus-within, [data-thallo-hover]) {
+:is(.thallo-block-product-grid--card-lift, .thallo-block-product_loop--card-lift) .shop-grid__item:is(:focus-within, [data-thallo-hover]) { transform: translateY(-0.25rem); }
+:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow, .thallo-block-product_loop--card-lift, .thallo-block-product_loop--card-shadow) .shop-grid__item:is(:focus-within, [data-thallo-hover]) {
   box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
 }
 .thallo-block-product-grid--image-zoom .shop-grid__item:is(:focus-within, [data-thallo-hover]) .shop-grid__image,
 .shop-grid__item:is(:focus-within, [data-thallo-hover]) .thallo-block-product_tile--image-zoom .shop-grid__image { transform: scale(1.06); }
 @media (prefers-reduced-motion: reduce) {
   .thallo-block-product-grid .shop-grid__item,
+  .thallo-block-product_loop .shop-grid__item,
   .thallo-block-product-grid .shop-grid__image,
   .thallo-block-product_tile .shop-grid__image { transform: none !important; }
 }

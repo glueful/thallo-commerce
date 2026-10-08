@@ -4,14 +4,20 @@
    card's own block flow. Left alone, the cards are the shop stylesheet's adaptive grid
    (`.shop-grid`; the block type declares it as the `cards` target's defaults). No products: the
    page's empty text on the site, as today, and on the stage one placeholder card, so the card stays
-   editable. #}
+   editable. The Card part styles every card, and `card_hover` lifts or shadows one under the pointer,
+   as the Product grid's. #}
 {% set products = layout_context.products|default([]) %}
+{% set root_class = style_classes('root') %}
+{% set cards_class = style_classes('cards') %}
+{# The Card part, on every card; the hover effect lifts or shadows the card under the pointer. #}
+{% set card_class = style_classes('card') %}
+{% set hover = {lift: ' thallo-block-product_loop--card-lift', shadow: ' thallo-block-product_loop--card-shadow'}[data.card_hover|default('')] ?? '' %}
 {% set empty = data.empty_text|default('') != '' ? data.empty_text
   : (layout_context.category|default(null) ? 'No products in this category yet.' : 'No products yet.') %}
-<div class="thallo-block thallo-block-product_loop{{ style_classes('root') }}"{{ style_attrs('root') }}>
-  <ul class="thallo-block-product_loop__cards shop-grid{{ style_classes('cards') }}"{{ style_attrs('cards') }}>
+<div class="thallo-block thallo-block-product_loop{{ hover }}{{ root_class }}"{{ style_attrs('root') }}>
+  <ul class="thallo-block-product_loop__cards shop-grid{{ cards_class }}"{{ style_attrs('cards') }}>
     {%- if products is empty and not is_canvas() %}
     <li class="empty">{{ empty }}</li>
-    {%- else %}{{ loop_cards(data.card|default([]), products, 'product', 'card', 'shop-grid__item') }}{% endif %}
+    {%- else %}{{ loop_cards(data.card|default([]), products, 'product', 'card', 'shop-grid__item' ~ card_class) }}{% endif %}
   </ul>
 </div>

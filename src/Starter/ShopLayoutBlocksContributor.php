@@ -98,13 +98,26 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
                 [
                     ['name' => 'card', 'type' => 'blocks'],
                     ['name' => 'empty_text', 'type' => 'string', 'label' => 'When there are no products'],
+                    [
+                        'name' => 'card_hover', 'label' => 'Card hover effect', 'type' => 'enum',
+                        'enum' => ['none', 'lift', 'shadow'],
+                        'enum_labels' => ['none' => 'None', 'lift' => 'Lift', 'shadow' => 'Shadow'],
+                    ],
                 ],
                 // No visibility: every shop page shows its products, at every size.
                 ['spacing', 'width', 'layout.item', ...self::CARDS],
+                // The cards arrange in `cards`; the Card part styles every card, as the Product grid's.
                 StyleTargets::root('box', ['spacing', 'width', 'layout.item'], [
                     'targets' => ['cards' => ['kind' => 'stack', 'defaults' => self::CARD_DEFAULTS]],
                     'map' => array_fill_keys(self::CARDS, 'cards'),
-                ]),
+                ]) + ['parts' => [
+                    'card' => ['label' => 'Card', 'capabilities' => [
+                        'colors.surface', 'colors.border', 'border', 'radius', 'shadow',
+                        'spacing.padding.top', 'spacing.padding.right',
+                        'spacing.padding.bottom', 'spacing.padding.left',
+                        'opacity', 'hover',
+                    ]],
+                ]],
             ),
             $this->definition(
                 'product_tile',
