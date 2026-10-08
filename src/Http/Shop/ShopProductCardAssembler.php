@@ -70,6 +70,7 @@ final class ShopProductCardAssembler
             $this->media->primaryForProducts($this->context, $tenant, $productUuids),
         );
         $currency = CommerceSettings::currency($this->context);
+        $stocked = $this->stockedVariants($tenant, $variantsByProduct);
 
         $items = [];
         foreach ($products as $product) {
@@ -79,6 +80,15 @@ final class ShopProductCardAssembler
                 $variants,
                 static fn (array $variant): bool => ($variant['status'] ?? null) === 'active',
             ));
+            // In stock: any active variant sellable now. On sale: any active variant priced below its
+            // compare-at price — the engine's rules, the same for the grid and the shop pages.
+            $inStock = false;
+            $onSale = false;
+            foreach ($activeVariants as $variant) {
+                $inStock = $inStock || isset($stocked[(string) $variant['uuid']]);
+                $compareAt = $variant['compare_at_price'] ?? null;
+                $onSale = $onSale || ($compareAt !== null && (int) $compareAt > (int) $variant['price']);
+            }
             $addToCart = AddToCartViewModel::build(
                 $product,
                 $activeVariants,
@@ -90,6 +100,9 @@ final class ShopProductCardAssembler
                 ProductViewModel::fromRow($product, $variants, $coverUrls[$uuid] ?? null, $this->urls),
                 isset($firstCategories[$uuid]) ? $firstCategories[$uuid]['name'] : null,
                 $addToCart,
+                $inStock,
+                $onSale,
+                is_string($product['created_at'] ?? null) ? $product['created_at'] : null,
             );
         }
 
@@ -97,9 +110,9 @@ final class ShopProductCardAssembler
     }
 
     /**
-     * The Product grid's cards (product grid spec §5, §6): {@see self::cards()} plus every
-     * category and tag (one batched read each), on sale (any active variant priced below its
-     * compare-at price — the engine's onSale rule) and new (created within `$newBadgeDays`).
+     * The Product grid's cards (product grid spec §5, §6): {@see self::cards()} (stock and sale
+     * included) plus every category and tag (one batched read each) and new (created within
+     * `$newBadgeDays`).
      *
      * @param list<array<string,mixed>> $products
      * @return list<ProductGridCard>
@@ -110,23 +123,11 @@ final class ShopProductCardAssembler
         $cards = $this->cards($tenant, $products);
         $categories = $this->categories->categoryProjectionsForProducts($this->context, $tenant, $uuids);
         $tags = $this->tags->tagProjectionsForProducts($this->context, $tenant, $uuids);
-        $variants = $this->variants->forProducts($this->context, $tenant, $uuids);
         $newSince = $now->modify('-' . $newBadgeDays . ' days');
-        $stocked = $this->stockedVariants($tenant, $variants);
 
         $items = [];
         foreach ($products as $i => $product) {
             $uuid = (string) $product['uuid'];
-            $onSale = false;
-            $inStock = false;
-            foreach ($variants[$uuid] ?? [] as $variant) {
-                $compareAt = $variant['compare_at_price'] ?? null;
-                $active = ($variant['status'] ?? null) === 'active';
-                $inStock = $inStock || ($active && isset($stocked[(string) $variant['uuid']]));
-                if ($active && $compareAt !== null && (int) $compareAt > (int) $variant['price']) {
-                    $onSale = true;
-                }
-            }
             $created = is_string($product['created_at'] ?? null)
                 ? new \DateTimeImmutable($product['created_at'])
                 : null;
@@ -134,9 +135,7 @@ final class ShopProductCardAssembler
                 $cards[$i],
                 $categories[$uuid] ?? [],
                 $tags[$uuid] ?? [],
-                $onSale,
                 $created !== null && $created >= $newSince,
-                $inStock,
             );
         }
         return $items;
@@ -144,7 +143,7 @@ final class ShopProductCardAssembler
 
     /**
      * The variants that can be sold now, by the engine's in-stock rule: no stock row, an untracked
-     * one, or a tracked quantity above zero. One query for the whole grid.
+     * one, or a tracked quantity above zero. One query for the whole page of cards.
      *
      * @param array<string, list<array<string,mixed>>> $variants variant rows per product uuid
      * @return array<string, true> variant uuid => true

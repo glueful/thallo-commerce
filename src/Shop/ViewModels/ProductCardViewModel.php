@@ -37,6 +37,9 @@ final class ProductCardViewModel
         public readonly ?string $categoryName,
         public readonly string $cartMode,
         public readonly ?string $directVariantUuid,
+        public readonly bool $inStock,
+        public readonly bool $onSale,
+        public readonly ?string $createdAt,
     ) {
     }
 
@@ -44,6 +47,9 @@ final class ProductCardViewModel
         ProductViewModel $product,
         ?string $categoryName,
         AddToCartViewModel $addToCart,
+        bool $inStock = true,
+        bool $onSale = false,
+        ?string $createdAt = null,
     ): self {
         $direct = $addToCart->available && $addToCart->mode === 'direct';
 
@@ -58,6 +64,9 @@ final class ProductCardViewModel
             categoryName: $categoryName,
             cartMode: $direct ? 'direct' : 'options',
             directVariantUuid: $direct ? $addToCart->variantUuid : null,
+            inStock: $inStock,
+            onSale: $onSale,
+            createdAt: $createdAt,
         );
     }
 
@@ -87,6 +96,10 @@ final class ProductCardViewModel
             'categoryName' => $this->categoryName,
             'cartMode' => $this->cartMode,
             'directVariantUuid' => $this->directVariantUuid,
+            // What a card's Add to cart button and badges read (the shop JSON's toArray() stays pinned).
+            'inStock' => $this->inStock,
+            'onSale' => $this->onSale,
+            'createdAt' => $this->createdAt,
         ];
     }
 
