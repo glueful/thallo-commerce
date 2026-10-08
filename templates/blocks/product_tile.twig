@@ -1,17 +1,59 @@
 {# product_tile — Product tile (type layouts plan C2): a Product list card's picture, first category
    and quick Add to cart and wishlist buttons, exactly as a shop grid card's tile
-   (`shop/_product_tile.twig`, shared with `shop/_product_card.twig`). Its internals are fixed — the
-   grid's cart honesty decides the quick add — and `hide_tag` and `hide_actions` are its settings.
-   It reads the card's product, so it has something to show only inside a card. #}
+   (`shop/_product_tile.twig`, shared with `shop/_product_card.twig` and the Product grid). Its
+   internals are fixed — the grid's cart honesty decides the quick add. Its settings are the Product
+   grid card's: the chip and each button turn off (`hide_actions` turns off both), the picture's
+   ratio, fit and zoom on hover, and the Sale and New badges; its parts style the picture's frame,
+   the quick add, the heart, the chip and the badges apart. It reads the card's product, so it has
+   something to show only inside a card. #}
 {% set product = layout_context.product|default(null) %}
+{% set root_class = style_classes('root') %}
+{# The Style tab's parts, styled here where the template lint sees them. #}
+{% set part = {
+  image: style_classes('image'), quick_add: style_classes('quick_add'), wishlist: style_classes('wishlist'),
+  chip: style_classes('chip'), badge: style_classes('badge'),
+} %}
 {% if product %}
+{% set pick = {
+  ratio: {portrait: ' thallo-block-product_tile--image-portrait', landscape: ' thallo-block-product_tile--image-landscape'}[data.image_ratio|default('')] ?? '',
+  fit: data.image_fit|default('') == 'cover' ? ' thallo-block-product_tile--image-cover' : '',
+  zoom: data.image_hover|default('') == 'zoom' ? ' thallo-block-product_tile--image-zoom' : '',
+} %}
+{% set actions = not data.hide_actions|default(false) %}
+{% set show_cart = actions and not data.hide_cart|default(false) %}
+{% set show_wishlist = actions and not data.hide_wishlist|default(false) %}
+{# Saved as a number from 1 to 365 (the field's bounds); kept inside them all the same. #}
+{% set new_days = max(1, min(365, data.new_badge_days|default(7)|round(0, 'floor'))) %}
+{% set badge = {
+  sale: data.show_sale_badge|default(false) and product.onSale|default(false),
+  new: data.show_new_badge|default(false) and product.createdAt|default(null)
+    and date(product.createdAt) >= date('-' ~ new_days ~ ' days'),
+  sale_text: (data.sale_badge_text|default('') != '' ? data.sale_badge_text : 'Sale')|slice(0, 24),
+  new_text: (data.new_badge_text|default('') != '' ? data.new_badge_text : 'New')|slice(0, 24),
+  position: data.badge_position|default('') == 'top-right' ? 'top-right' : 'top-left',
+} %}
+{% set badges %}
+  {%- if badge.sale or badge.new -%}
+  <span class="shop-grid__badges shop-grid__badges--{{ badge.position }}">
+    {%- if badge.sale %}<span class="shop-grid__badge shop-grid__badge--sale{{ part.badge }}">{{ badge.sale_text }}</span>{% endif -%}
+    {%- if badge.new %}<span class="shop-grid__badge shop-grid__badge--new{{ part.badge }}">{{ badge.new_text }}</span>{% endif -%}
+  </span>
+  {%- endif -%}
+{% endset %}
 {# Captured as markup: an attribute string handed on as a plain value would be escaped again. #}
 {% set tile_attrs %}{{ style_attrs('root') }}{% endset %}
 {% include 'shop/_product_tile.twig' with {
   product: product,
   show_tag: not data.hide_tag|default(false),
-  show_actions: not data.hide_actions|default(false),
-  tile_class: ' thallo-block thallo-block-product_tile' ~ style_classes('root'),
+  show_actions: show_cart or show_wishlist,
+  show_cart: show_cart,
+  show_wishlist: show_wishlist,
+  media_class: part.image,
+  action_class: part.quick_add,
+  wishlist_class: part.wishlist,
+  tag_class: part.chip,
+  badges: badges,
+  tile_class: ' thallo-block thallo-block-product_tile' ~ pick.ratio ~ pick.fit ~ pick.zoom ~ root_class,
   tile_attrs: tile_attrs,
 } only %}
 {% endif %}

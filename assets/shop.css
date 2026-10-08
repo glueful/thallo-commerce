@@ -924,16 +924,17 @@
 }
 /* The grid's heart says saved by its shape as well as its colours: the Wishlist part can set any
    colours, and an outline until saved, filled once saved, survives all of them. */
-.thallo-block-product-grid .shop-grid__action--wishlist path {
+:is(.thallo-block-product-grid, .thallo-block-product_tile) .shop-grid__action--wishlist path {
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
 }
-.thallo-block-product-grid .shop-grid__action--wishlist[aria-pressed="true"] path {
+:is(.thallo-block-product-grid, .thallo-block-product_tile) .shop-grid__action--wishlist[aria-pressed="true"] path {
   fill: currentColor;
 }
-/* The grid's picture sits on the card as it is; the Image part's background fills the frame. */
-.thallo-block-product-grid .shop-grid__media {
+/* The grid's picture sits on the card as it is, and so does a shop layout's Product tile's; the
+   Image part's background fills the frame. */
+:is(.thallo-block-product-grid, .thallo-block-product_tile) .shop-grid__media {
   background: transparent;
 }
 .shop-grid__labels {
@@ -973,32 +974,35 @@
   transform: none;
 }
 .shop-grid__tile--no-media .shop-grid__actions { flex-direction: row; }
-.thallo-block-product-grid--image-portrait .shop-grid__image { aspect-ratio: 4 / 5; }
-.thallo-block-product-grid--image-landscape .shop-grid__image { aspect-ratio: 4 / 3; }
-.thallo-block-product-grid--image-cover .shop-grid__image { object-fit: cover; padding: 0; }
+:is(.thallo-block-product-grid--image-portrait, .thallo-block-product_tile--image-portrait) .shop-grid__image { aspect-ratio: 4 / 5; }
+:is(.thallo-block-product-grid--image-landscape, .thallo-block-product_tile--image-landscape) .shop-grid__image { aspect-ratio: 4 / 3; }
+:is(.thallo-block-product-grid--image-cover, .thallo-block-product_tile--image-cover) .shop-grid__image { object-fit: cover; padding: 0; }
 /* Card and image hover effects (§7.2): only where the device can hover, on keyboard focus within
    the card, and under the stage's forced preview; no movement for reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
   .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item {
     transition: transform 0.18s ease, box-shadow 0.18s ease;
   }
-  .thallo-block-product-grid--image-zoom .shop-grid__image { transition: transform 0.3s ease; }
+  :is(.thallo-block-product-grid--image-zoom, .thallo-block-product_tile--image-zoom) .shop-grid__image { transition: transform 0.3s ease; }
 }
 @media (hover: hover) {
   .thallo-block-product-grid--card-lift .shop-grid__item:hover { transform: translateY(-0.25rem); }
   .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:hover {
     box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
   }
-  .thallo-block-product-grid--image-zoom .shop-grid__item:hover .shop-grid__image { transform: scale(1.06); }
+  .thallo-block-product-grid--image-zoom .shop-grid__item:hover .shop-grid__image,
+  .shop-grid__item:hover .thallo-block-product_tile--image-zoom .shop-grid__image { transform: scale(1.06); }
 }
 .thallo-block-product-grid--card-lift .shop-grid__item:is(:focus-within, [data-thallo-hover]) { transform: translateY(-0.25rem); }
 .thallo-block-product-grid:is(.thallo-block-product-grid--card-lift, .thallo-block-product-grid--card-shadow) .shop-grid__item:is(:focus-within, [data-thallo-hover]) {
   box-shadow: 0 0.75rem 1.75rem rgb(0 0 0 / 0.12);
 }
-.thallo-block-product-grid--image-zoom .shop-grid__item:is(:focus-within, [data-thallo-hover]) .shop-grid__image { transform: scale(1.06); }
+.thallo-block-product-grid--image-zoom .shop-grid__item:is(:focus-within, [data-thallo-hover]) .shop-grid__image,
+.shop-grid__item:is(:focus-within, [data-thallo-hover]) .thallo-block-product_tile--image-zoom .shop-grid__image { transform: scale(1.06); }
 @media (prefers-reduced-motion: reduce) {
   .thallo-block-product-grid .shop-grid__item,
-  .thallo-block-product-grid .shop-grid__image { transform: none !important; }
+  .thallo-block-product-grid .shop-grid__image,
+  .thallo-block-product_tile .shop-grid__image { transform: none !important; }
 }
 
 .thallo-block-product-grid__empty {

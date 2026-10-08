@@ -55,6 +55,12 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
         'opacity', 'hover',
     ];
 
+    /** A round icon button on the picture: the quick add, the heart. */
+    private const ICON_BUTTON = ['colors', 'border', 'radius', 'opacity', 'hover'];
+
+    /** A small label on the picture: the category chip, a badge. */
+    private const LABEL = ['colors.surface', 'colors.text', 'radius', 'typography'];
+
     /** @return list<StarterBlockTypeDefinition> */
     public function blockTypeDefinitions(): array
     {
@@ -108,9 +114,55 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
                 [
                     ['name' => 'hide_tag', 'type' => 'boolean', 'label' => 'Hide the category'],
                     ['name' => 'hide_actions', 'type' => 'boolean', 'label' => 'Hide the quick buttons'],
+                    ['name' => 'hide_cart', 'type' => 'boolean', 'label' => 'Hide quick add'],
+                    ['name' => 'hide_wishlist', 'type' => 'boolean', 'label' => 'Hide wishlist'],
+                    // The Product grid card's picture and badges (product grid spec §5, §7.2).
+                    [
+                        'name' => 'image_ratio', 'label' => 'Image ratio', 'type' => 'enum', 'group' => 'Picture',
+                        'enum' => ['square', 'portrait', 'landscape'],
+                        'enum_labels' => [
+                            'square' => 'Square', 'portrait' => 'Portrait (4:5)', 'landscape' => 'Landscape (4:3)',
+                        ],
+                    ],
+                    [
+                        'name' => 'image_fit', 'label' => 'Image fit', 'type' => 'enum', 'group' => 'Picture',
+                        'enum' => ['contain', 'cover'],
+                        'enum_labels' => ['contain' => 'Whole product', 'cover' => 'Fill the frame'],
+                    ],
+                    [
+                        'name' => 'image_hover', 'label' => 'Image hover effect', 'type' => 'enum',
+                        'group' => 'Picture', 'enum' => ['none', 'zoom'],
+                        'enum_labels' => ['none' => 'None', 'zoom' => 'Zoom'],
+                    ],
+                    [
+                        'name' => 'show_sale_badge', 'label' => 'Show sale badge', 'type' => 'boolean',
+                        'group' => 'Badges',
+                    ],
+                    [
+                        'name' => 'sale_badge_text', 'label' => 'Sale badge text', 'type' => 'string',
+                        'group' => 'Badges',
+                    ],
+                    ['name' => 'show_new_badge', 'label' => 'Show new badge', 'type' => 'boolean', 'group' => 'Badges'],
+                    ['name' => 'new_badge_text', 'label' => 'New badge text', 'type' => 'string', 'group' => 'Badges'],
+                    [
+                        'name' => 'new_badge_days', 'label' => 'New badge days', 'type' => 'number', 'min' => 1,
+                        'max' => 365, 'group' => 'Badges', 'help' => 'Products created within this many days.',
+                    ],
+                    [
+                        'name' => 'badge_position', 'label' => 'Badge position', 'type' => 'enum', 'group' => 'Badges',
+                        'enum' => ['top-left', 'top-right'],
+                        'enum_labels' => ['top-left' => 'Top left', 'top-right' => 'Top right'],
+                    ],
                 ],
                 self::BOX,
-                StyleTargets::root('box', self::BOX),
+                // The tile is the box; its pieces style apart, as the Product grid card's do.
+                StyleTargets::root('box', self::BOX) + ['parts' => [
+                    'image' => ['label' => 'Image', 'capabilities' => ['colors.surface', 'radius']],
+                    'quick_add' => ['label' => 'Quick add', 'capabilities' => self::ICON_BUTTON],
+                    'wishlist' => ['label' => 'Wishlist', 'capabilities' => self::ICON_BUTTON],
+                    'chip' => ['label' => 'Category chip', 'capabilities' => self::LABEL],
+                    'badge' => ['label' => 'Badge', 'capabilities' => self::LABEL],
+                ]],
             ),
             $this->definition(
                 'product_add_to_cart',

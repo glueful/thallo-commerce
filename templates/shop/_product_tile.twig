@@ -5,8 +5,9 @@
    (default true) are the block's settings; `tile_class` and `tile_attrs` its root's classes and
    attributes. The Product grid's card (product grid spec §3.1) adds, all opt-in: `link_media` (the
    image links to the product; `media_link_named` makes that link focusable and named, for a card
-   without a title), `no_media`, `media_class` / `action_class` / `wishlist_class` (its part classes), `show_cart`,
-   `show_wishlist`, and `badges` (markup placed first in the tile). Indented as it sits in the
+   without a title), `no_media`, `media_class` / `action_class` / `wishlist_class` / `tag_class` (part
+   classes), `show_cart`, `show_wishlist`, and `badges` (markup placed first in the tile); the Product
+   tile block passes the same. Indented as it sits in the
    card, so the card's markup is unchanged. #}
 <div class="shop-grid__tile{{ tile_class|default('') }}{% if no_media|default(false) %} shop-grid__tile--no-media{% endif %}"{{ tile_attrs|default('') }}>{{ badges|default('') }}
     {%~ if not no_media|default(false) %}
@@ -28,7 +29,7 @@
     {%~ endif %}
     {%~ endif %}
     {% if product.categoryName and (show_tag ?? true) %}
-      <span class="shop-grid__tag">{{ product.categoryName }}</span>
+      <span class="shop-grid__tag{{ tag_class|default('') }}">{{ product.categoryName }}</span>
     {% endif %}
     {%~ if (show_actions ?? true) %}
     <div class="shop-grid__actions">
