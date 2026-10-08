@@ -1,24 +1,25 @@
 {# _grid_card.twig — one Product grid card (product grid spec §3.1, §5, §6). Context: `product`
    (ProductGridCard::toArray()), `show` (the display toggles, defaults applied), `title_tag`,
-   `badge` (show_sale, show_new, sale_text, new_text, position). Part classes (`card`, `image`,
-   `title`, `price`, `meta`, `button`, `badge`) repeat on every card. Without JavaScript every
+   `badge` (show_sale, show_new, sale_text, new_text, position), `part` (the Style tab's part
+   classes — card, image, title, price, meta, button, badge — and card_attrs, computed once by
+   product-grid.twig), repeated on every card. Without JavaScript every
    card is usable: links to the product, a real add-to-cart form, the heart stays hidden. #}
 {% set badge_markup %}
   {%- if (badge.show_sale and product.onSale) or (badge.show_new and product.isNew) -%}
   <span class="shop-grid__badges shop-grid__badges--{{ badge.position }}">
-    {%- if badge.show_sale and product.onSale %}<span class="shop-grid__badge shop-grid__badge--sale{{ style_classes('badge') }}">{{ badge.sale_text }}</span>{% endif -%}
-    {%- if badge.show_new and product.isNew %}<span class="shop-grid__badge shop-grid__badge--new{{ style_classes('badge') }}">{{ badge.new_text }}</span>{% endif -%}
+    {%- if badge.show_sale and product.onSale %}<span class="shop-grid__badge shop-grid__badge--sale{{ part.badge }}">{{ badge.sale_text }}</span>{% endif -%}
+    {%- if badge.show_new and product.isNew %}<span class="shop-grid__badge shop-grid__badge--new{{ part.badge }}">{{ badge.new_text }}</span>{% endif -%}
   </span>
   {%- endif -%}
 {% endset %}
-<li class="shop-grid__item{{ style_classes('card') }}"{{ style_attrs('card') }}>
+<li class="shop-grid__item{{ part.card }}"{{ part.card_attrs }}>
   {% include 'shop/_product_tile.twig' with {
     show_tag: false,
     no_media: not show.image,
     link_media: true,
     media_link_named: not show.title,
-    media_class: style_classes('image'),
-    action_class: style_classes('button'),
+    media_class: part.image,
+    action_class: part.button,
     show_actions: show.add_to_cart or show.wishlist,
     show_cart: show.add_to_cart,
     show_wishlist: show.wishlist,
@@ -28,10 +29,10 @@
     {% if show.title %}
     {# The Title part sits on the anchor: pointer hover and keyboard focus (:focus-visible) both
        land there, and so does the stage's forced preview. #}
-    <{{ title_tag }} class="shop-grid__name"><a class="shop-grid__name-link{{ style_classes('title') }}" href="{{ product.url }}">{{ product.name }}</a></{{ title_tag }}>
+    <{{ title_tag }} class="shop-grid__name"><a class="shop-grid__name-link{{ part.title }}" href="{{ product.url }}">{{ product.name }}</a></{{ title_tag }}>
     {% endif %}
     {% if (show.categories and product.categories is not empty) or (show.tags and product.tags is not empty) %}
-    <span class="shop-grid__labels{{ style_classes('meta') }}">
+    <span class="shop-grid__labels{{ part.meta }}">
       {%- if show.categories %}{% for c in product.categories %}<span class="shop-grid__label shop-grid__label--category">{{ c.name }}</span>{% endfor %}{% endif -%}
       {%- if show.tags %}{% for t in product.tags %}<span class="shop-grid__label shop-grid__label--tag">{{ t.name }}</span>{% endfor %}{% endif -%}
     </span>
@@ -51,7 +52,7 @@
         </span>
       {% endif %}
       {% if show.price and product.priceFormatted %}
-        <span class="shop-grid__price{{ style_classes('price') }}">
+        <span class="shop-grid__price{{ part.price }}">
           <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
           {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
         </span>

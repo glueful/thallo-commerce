@@ -17,6 +17,12 @@
   add_to_cart: data.show_add_to_cart ?? true, wishlist: data.show_wishlist ?? true,
 } %}
 {% set title_tag = {h2: 'h2', h3: 'h3', h4: 'h4'}[data.title_tag|default('')] ?? 'h3' %}
+{# The Style tab's parts, the same on every card, styled here where the template lint sees them. #}
+{% set part = {
+  card: style_classes('card'), card_attrs: style_attrs('card'), image: style_classes('image'),
+  title: style_classes('title'), price: style_classes('price'), meta: style_classes('meta'),
+  button: style_classes('button'), badge: style_classes('badge'),
+} %}
 {% set badge = {
   show_sale: data.show_sale_badge ?? false, show_new: data.show_new_badge ?? false,
   sale_text: (data.sale_badge_text|default('') != '' ? data.sale_badge_text : 'Sale')|slice(0, 24),
