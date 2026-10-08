@@ -60,11 +60,15 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     [
                         'name' => 'categories', 'label' => 'Categories', 'type' => 'string', 'group' => 'Query',
                         'multiple' => true, 'max_items' => 20, 'options_source' => 'thallo-commerce.categories',
+                        // Each slug at most the commerce slug column's 191 characters.
+                        'pattern' => '.{1,191}',
                         'help' => 'Products in any of these. Not used by Manual selection.',
                     ],
                     [
                         'name' => 'tags', 'label' => 'Tags', 'type' => 'string', 'group' => 'Query',
                         'multiple' => true, 'max_items' => 20, 'options_source' => 'thallo-commerce.tags',
+                        // Each slug at most the commerce slug column's 191 characters.
+                        'pattern' => '.{1,191}',
                         'help' => 'Products with any of these (and in a chosen category). '
                             . 'Not used by Manual selection.',
                     ],
