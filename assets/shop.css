@@ -828,7 +828,8 @@
 .thallo-block-product-grid__items {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 1.25rem 1rem;
+  /* The Style tab's row and column gaps name these (spacing.lg, spacing.md) until set. */
+  gap: 1.5rem 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -942,12 +943,6 @@
 .thallo-block-product-grid__empty {
   margin: 0.5rem 0;
   color: color-mix(in srgb, currentColor 55%, transparent);
-}
-.thallo-block-product-grid__view-all {
-  display: inline-block;
-  margin-top: 1rem;
-  color: inherit;
-  font-weight: 600;
 }
 
 .thallo-block-featured-product__body a {

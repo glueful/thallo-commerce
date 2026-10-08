@@ -48,7 +48,6 @@ final class ProductGrid implements StorefrontProductGrid
         );
         return new ProductGridView(
             $cards,
-            $this->viewAll($query),
             'thallo:shop:catalog:' . $tenant,
             CatalogGeneration::key($tenant),
             $guard,
@@ -126,14 +125,6 @@ final class ProductGrid implements StorefrontProductGrid
             ->select(['uuid'])
             ->get();
         return array_values(array_map(static fn (array $r): string => (string) $r['uuid'], $rows));
-    }
-
-    private function viewAll(ProductGridQuery $query): ?string
-    {
-        if ($query->source !== 'manual' && count($query->categories) === 1 && $query->tags === []) {
-            return $this->service(ShopUrlGenerator::class)->category($query->categories[0]);
-        }
-        return $this->service(ShopUrlGenerator::class)->shopIndex();
     }
 
     /**

@@ -173,10 +173,19 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                 // The pack defines the grid's fields: an install's sync replaces the stored ones, so the
                 // removed sources and the category_slug / tag_slug fields go on upgrade.
                 ownsSchema: true,
-                styleCapabilities: ['spacing', 'width', 'visibility', 'layout.item'],
+                styleCapabilities: [
+                    'spacing', 'width', 'visibility', 'layout.item', 'layout.gap.column', 'layout.gap.row',
+                ],
+                // The gaps space the list of cards; unset, they are shop.css's (row lg, column md).
                 styleTargets: StyleTargets::root(
                     'box',
                     ['spacing', 'width', 'visibility', 'layout.item'],
+                    [
+                        'targets' => ['items' => ['kind' => 'stack', 'optional' => true, 'defaults' => [
+                            'display' => 'grid', 'gap' => ['row' => 'lg', 'column' => 'md'],
+                        ]]],
+                        'map' => ['layout.gap.column' => 'items', 'layout.gap.row' => 'items'],
+                    ],
                 ) + ['parts' => [
                     'card' => ['label' => 'Card', 'capabilities' => [
                         'colors.surface', 'colors.border', 'border', 'radius', 'shadow',

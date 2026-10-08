@@ -36,10 +36,9 @@
   {% if cards is empty %}
     {% if is_canvas() %}<p class="thallo-block-product-grid__empty thallo-field-empty">Product grid — no products match</p>{% endif %}
   {% else %}
-  <ul class="thallo-block-product-grid__items">
+  <ul class="thallo-block-product-grid__items{{ style_classes('items') }}"{{ style_attrs('items') }}>
     {% for product in cards %}{% include 'shop/_grid_card.twig' %}{% endfor %}
   </ul>
-  {% if grid.view_all_url %}<a class="thallo-block-product-grid__view-all" href="{{ grid.view_all_url }}">View all products</a>{% endif %}
   {% endif %}
 </div>
 {% if not is_canvas() and cards is not empty %}
