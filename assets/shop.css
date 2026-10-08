@@ -871,6 +871,10 @@
 .thallo-block-product-grid .shop-grid__media-link {
   display: block;
 }
+/* The price has the card's last line to itself, a little apart from the name and labels. */
+.thallo-block-product-grid .shop-grid__price {
+  margin-top: 0.25rem;
+}
 /* The grid's picture sits on the card as it is; the Image part's background fills the frame. */
 .thallo-block-product-grid .shop-grid__media {
   background: transparent;

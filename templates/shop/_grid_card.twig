@@ -1,7 +1,7 @@
 {# _grid_card.twig — one Product grid card (product grid spec §3.1, §5, §6). Context: `product`
    (ProductGridCard::toArray()), `show` (the display toggles, defaults applied), `title_tag`,
    `badge` (show_sale, show_new, sale_text, new_text, position), `part` (the Style tab's part
-   classes — card, image, title, price, meta, button, badge — and card_attrs, computed once by
+   classes — card, image, details, title, price, meta, button, badge — and card_attrs, computed once by
    product-grid.twig), repeated on every card. Without JavaScript every
    card is usable: links to the product, a real add-to-cart form, the heart stays hidden. #}
 {% set badge_markup %}
@@ -31,32 +31,29 @@
        land there, and so does the stage's forced preview. #}
     <{{ title_tag }} class="shop-grid__name"><a class="shop-grid__name-link{{ part.title }}" href="{{ product.url }}">{{ product.name }}</a></{{ title_tag }}>
     {% endif %}
+    {# The rating sits under the name, and only once the product has a review: "0.0 (0)" on every
+       new product reads as "nobody rated this". #}
+    {% if show.rating and product.rating %}
+    <span class="shop-grid__rating">
+      <svg class="shop-grid__star" viewBox="0 0 24 24" fill="currentColor"
+           aria-hidden="true" focusable="false">
+        <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
+      </svg>
+      <span class="sr-only">Rated </span>{{ product.rating.average|number_format(1) }}
+      <span class="shop-grid__rating-count">({{ product.rating.count }})</span>
+    </span>
+    {% endif %}
     {% if (show.categories and product.categories is not empty) or (show.tags and product.tags is not empty) %}
     <span class="shop-grid__labels{{ part.meta }}">
       {%- if show.categories %}{% for c in product.categories %}<span class="shop-grid__label shop-grid__label--category">{{ c.name }}</span>{% endfor %}{% endif -%}
       {%- if show.tags %}{% for t in product.tags %}<span class="shop-grid__label shop-grid__label--tag">{{ t.name }}</span>{% endfor %}{% endif -%}
     </span>
     {% endif %}
-    {% if show.rating or (show.price and product.priceFormatted) %}
-    <span class="shop-grid__meta">
-      {% if show.rating %}
-        {% set rating_average = product.rating ? product.rating.average : 0 %}
-        {% set rating_count = product.rating ? product.rating.count : 0 %}
-        <span class="shop-grid__rating{% if not product.rating %} shop-grid__rating--none{% endif %}">
-          <svg class="shop-grid__star" viewBox="0 0 24 24" fill="currentColor"
-               aria-hidden="true" focusable="false">
-            <path d="M12 2l2.9 6.26 6.85.63-5.17 4.6 1.53 6.72L12 16.7l-6.11 3.51 1.53-6.72-5.17-4.6 6.85-.63z"/>
-          </svg>
-          {% if product.rating %}<span class="sr-only">Rated </span>{% else %}<span class="sr-only">No reviews yet. </span>{% endif %}{{ rating_average|number_format(1) }}
-          <span class="shop-grid__rating-count">({{ rating_count }})</span>
-        </span>
-      {% endif %}
-      {% if show.price and product.priceFormatted %}
-        <span class="shop-grid__price{{ part.price }}">
-          <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
-          {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
-        </span>
-      {% endif %}
+    {# The price has the last line to itself. #}
+    {% if show.price and product.priceFormatted %}
+    <span class="shop-grid__price{{ part.price }}">
+      <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
+      {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
     </span>
     {% endif %}
   </span>
