@@ -12,6 +12,7 @@ use Thallo\Render\Layouts\FramePresentation;
 use Thallo\Render\SiteContext;
 use Thallo\Render\RenderContextExtension;
 use Thallo\Render\TwigFactory;
+use Thallo\Render\Cache\RenderCacheHints;
 
 use function config;
 
@@ -64,6 +65,8 @@ final class ShopPageRenderer
         ] + $extra;
 
         $html = $this->extension->finish($env->render($template, $context));
+        // The render's cache hints, for ShopPageCache (product grid spec §3.2).
+        $request->attributes->set(RenderCacheHints::ATTRIBUTE, $this->extension->drainCacheHints());
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=UTF-8']);
     }

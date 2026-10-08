@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Layouts\ShopLayoutTags;
 use Thallo\Render\Http\Middleware\PreviewSessionMiddleware;
 use Thallo\Render\Http\Middleware\RenderPageCache;
+use Thallo\Render\Cache\RenderCacheGuards;
+use Thallo\Render\Cache\RenderCacheHints;
 
 use function config;
 
@@ -111,7 +113,12 @@ final class ShopPageCache implements RouteMiddleware
 
         $hit = $this->cache->get($key);
         if (is_array($hit)) {
-            return $this->respond($request, $hit);
+            // A guarded entry is served only while every guard still holds — checked before any
+            // 304 decision, so a stale ETag is never confirmed (product grid spec §3.2).
+            if (RenderCacheGuards::hold($this->cache, $hit['guards'] ?? [])) {
+                return $this->respond($request, $hit);
+            }
+            $this->cache->delete($key);
         }
 
         $response = $next($request);
@@ -129,12 +136,21 @@ final class ShopPageCache implements RouteMiddleware
         $cacheTag = (string) $response->headers->get('Cache-Tag', '');
 
         if ($status === 200) {
-            $entry = $this->entry($body, 200, $contentType, $cacheTag);
-            $this->cache->set($key, $entry, $this->ttl);
-            $this->cache->addTags(
-                $key,
-                [...$this->surrogateTags($cacheTag, $tenant), self::TENANT_TAG_PREFIX . $tenant, self::GLOBAL_TAG],
-            );
+            $hints = RenderCacheHints::fromRequest($request);
+            $entry = $this->entry($body, 200, $contentType, $cacheTag, $hints->guards);
+            // Stored only while the render may be cached and every guard it read still holds.
+            if (!$hints->uncacheable && RenderCacheGuards::hold($this->cache, $hints->guards)) {
+                $this->cache->set($key, $entry, $this->ttl);
+                $this->cache->addTags(
+                    $key,
+                    [
+                        ...$this->surrogateTags($cacheTag, $tenant),
+                        ...$hints->storageTags,
+                        self::TENANT_TAG_PREFIX . $tenant,
+                        self::GLOBAL_TAG,
+                    ],
+                );
+            }
             return $this->respond($request, $entry);
         }
 
@@ -243,7 +259,10 @@ final class ShopPageCache implements RouteMiddleware
             . rawurlencode(RenderPageCache::normalizePath($path));
     }
 
-    /** @param array{body: string, status: int, contentType: string, cacheTag: string, etag: string} $entry */
+    /**
+     * @param array{body: string, status: int, contentType: string, cacheTag: string, etag: string,
+     *     guards?: array<string,string>} $entry
+     */
     private function respond(Request $request, array $entry): Response
     {
         $headers = [
@@ -260,8 +279,12 @@ final class ShopPageCache implements RouteMiddleware
         return new Response($entry['body'], $entry['status'], $headers);
     }
 
-    /** @return array{body: string, status: int, contentType: string, cacheTag: string, etag: string} */
-    private function entry(string $body, int $status, string $contentType, string $cacheTag): array
+    /**
+     * @param array<string,string> $guards the render's cache guards, stored with the entry
+     * @return array{body: string, status: int, contentType: string, cacheTag: string, etag: string,
+     *     guards: array<string,string>}
+     */
+    private function entry(string $body, int $status, string $contentType, string $cacheTag, array $guards = []): array
     {
         return [
             'body' => $body,
@@ -269,6 +292,7 @@ final class ShopPageCache implements RouteMiddleware
             'contentType' => $contentType,
             'cacheTag' => $cacheTag,
             'etag' => '"' . sha1($body) . '"',
+            'guards' => $guards,
         ];
     }
 
