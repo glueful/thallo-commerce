@@ -1,0 +1,23 @@
+{# product_add_to_cart — Add to cart button: a Product list card's labelled button, the Product grid's
+   button made a block. One variant and in stock: a real form that adds it, with or without
+   JavaScript. Choices (variants, a required add-on): "Choose options", to the product page. Nothing
+   to sell: a disabled "Sold out". Its `button` part styles the button; the root is its row. It reads
+   the card's product, so it has something to show only inside a card. #}
+{% set product = layout_context.product|default(null) %}
+{% set root_class = style_classes('root') %}
+{% set button_class = style_classes('button') %}
+{% if product %}
+<div class="thallo-block thallo-block-product_add_to_cart{{ root_class }}"{{ style_attrs('root') }}>
+  {% if not (product.inStock ?? true) %}
+  <button class="shop-grid__buy shop-grid__buy--sold-out{{ button_class }}" type="button" disabled>Sold out</button>
+  {% elseif product.cartMode == 'direct' %}
+  <form class="shop-grid__buy-form" method="post" action="/_shop/cart/add">
+    <input type="hidden" name="variant_uuid" value="{{ product.directVariantUuid }}">
+    <input type="hidden" name="quantity" value="1">
+    <button class="shop-grid__buy{{ button_class }}" type="submit" aria-label="Add {{ product.name }} to cart">Add to cart</button>
+  </form>
+  {% else %}
+  <a class="shop-grid__buy shop-grid__buy--options{{ button_class }}" href="{{ product.url }}">Choose options</a>
+  {% endif %}
+</div>
+{% endif %}

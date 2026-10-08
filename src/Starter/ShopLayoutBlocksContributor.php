@@ -19,7 +19,8 @@ use Thallo\Contracts\Style\StyleTargets;
  * adaptive grid until someone arranges them (its `cards` target declares the shop stylesheet's
  * tracks as its defaults, so the inspector and the emitter both know). **Product tile** is the
  * card's smart block: the picture, the category chip and the quick actions, with fixed internals —
- * the grid's cart honesty stays in one place (`shop/_product_tile.twig`).
+ * the grid's cart honesty stays in one place (`shop/_product_tile.twig`). **Add to cart button** is the
+ * card's labelled button — the Product grid's, made a block: Add to cart, Choose options, or Sold out.
  *
  * Contributed definitions carry no starter data, so an inserted block starts empty: every option
  * that is on by default is named for turning it off (`hide_count`), and an absent value is always
@@ -28,7 +29,7 @@ use Thallo\Contracts\Style\StyleTargets;
 final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
 {
     /** @var list<string> in the order the shop pages show them */
-    public const SLUGS = ['shop_title', 'category_rail', 'product_loop', 'product_tile'];
+    public const SLUGS = ['shop_title', 'category_rail', 'product_loop', 'product_tile', 'product_add_to_cart'];
 
     /** The shop stylesheet's `.shop-grid`, as the Product list's cards are before anyone arranges them. */
     public const CARD_DEFAULTS = [
@@ -45,6 +46,13 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
     private const CARDS = [
         'layout.display', 'layout.direction', 'layout.wrap', 'alignment.content', 'layout.align_items',
         'layout.columns', 'layout.gap.column', 'layout.gap.row',
+    ];
+
+    /** A button's styles: the Product grid's Button part, on the Add to cart button block. */
+    private const BUTTON = [
+        'colors', 'border', 'radius', 'typography',
+        'spacing.padding.top', 'spacing.padding.right', 'spacing.padding.bottom', 'spacing.padding.left',
+        'opacity', 'hover',
     ];
 
     /** @return list<StarterBlockTypeDefinition> */
@@ -103,6 +111,18 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
                 ],
                 self::BOX,
                 StyleTargets::root('box', self::BOX),
+            ),
+            $this->definition(
+                'product_add_to_cart',
+                'Add to cart button',
+                'i-lucide-shopping-bag',
+                'A labelled button that adds the card\'s product, asks for its options, or says Sold out.',
+                [],
+                self::BOX,
+                // The block is the row; the button inside it takes the button's styles.
+                StyleTargets::root('box', self::BOX) + ['parts' => [
+                    'button' => ['label' => 'Button', 'capabilities' => self::BUTTON],
+                ]],
             ),
         ];
     }
