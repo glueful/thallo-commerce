@@ -870,6 +870,10 @@
 .thallo-block-product-grid .shop-grid__media-link {
   display: block;
 }
+/* The grid's picture sits on the card as it is; the Image part's background fills the frame. */
+.thallo-block-product-grid .shop-grid__media {
+  background: transparent;
+}
 .shop-grid__labels {
   display: flex;
   flex-wrap: wrap;
