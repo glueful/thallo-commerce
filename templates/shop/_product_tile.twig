@@ -5,7 +5,7 @@
    (default true) are the block's settings; `tile_class` and `tile_attrs` its root's classes and
    attributes. The Product grid's card (product grid spec §3.1) adds, all opt-in: `link_media` (the
    image links to the product; `media_link_named` makes that link focusable and named, for a card
-   without a title), `no_media`, `media_class` / `action_class` (its part classes), `show_cart`,
+   without a title), `no_media`, `media_class` / `action_class` / `wishlist_class` (its part classes), `show_cart`,
    `show_wishlist`, and `badges` (markup placed first in the tile). Indented as it sits in the
    card, so the card's markup is unchanged. #}
 <div class="shop-grid__tile{{ tile_class|default('') }}{% if no_media|default(false) %} shop-grid__tile--no-media{% endif %}"{{ tile_attrs|default('') }}>{{ badges|default('') }}
@@ -57,7 +57,7 @@
         </a>
       {% endif %}
       {%~ if show_wishlist ?? true %}
-      <button class="shop-grid__action shop-grid__action--wishlist" type="button"
+      <button class="shop-grid__action shop-grid__action--wishlist{{ wishlist_class|default('') }}" type="button"
               hidden data-shop-wishlist-toggle data-product-uuid="{{ product.uuid }}" aria-pressed="false"
               aria-label="Save {{ product.name }} to wishlist">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">

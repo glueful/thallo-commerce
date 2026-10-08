@@ -216,6 +216,10 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                         'spacing.padding.bottom', 'spacing.padding.left',
                         'opacity', 'hover',
                     ]],
+                    // The heart on the picture, styled apart from the cart button.
+                    'wishlist' => ['label' => 'Wishlist', 'capabilities' => [
+                        'colors', 'border', 'radius', 'opacity', 'hover',
+                    ]],
                     'badge' => [
                         'label' => 'Badge',
                         'capabilities' => ['colors.surface', 'colors.text', 'radius', 'typography'],

@@ -921,6 +921,16 @@
   outline: 2px solid var(--shop-accent, #16211c);
   outline-offset: 2px;
 }
+/* The grid's heart says saved by its shape as well as its colours: the Wishlist part can set any
+   colours, and an outline until saved, filled once saved, survives all of them. */
+.thallo-block-product-grid .shop-grid__action--wishlist path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.thallo-block-product-grid .shop-grid__action--wishlist[aria-pressed="true"] path {
+  fill: currentColor;
+}
 /* The grid's picture sits on the card as it is; the Image part's background fills the frame. */
 .thallo-block-product-grid .shop-grid__media {
   background: transparent;

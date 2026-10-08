@@ -1,7 +1,7 @@
 {# _grid_card.twig — one Product grid card (product grid spec §3.1, §5, §6). Context: `product`
    (ProductGridCard::toArray()), `show` (the display toggles and cart_button, defaults applied), `title_tag`,
    `badge` (show_sale, show_new, sale_text, new_text, position), `part` (the Style tab's part
-   classes — card, image, details, title, price, meta, button, badge — and card_attrs, computed once by
+   classes — card, image, details, title, price, meta, button, wishlist, badge — and card_attrs, computed once by
    product-grid.twig), repeated on every card. Without JavaScript every
    card is usable: links to the product, a real add-to-cart form, the heart stays hidden. #}
 {% set badge_markup %}
@@ -20,6 +20,7 @@
     media_link_named: not show.title,
     media_class: part.image,
     action_class: part.button,
+    wishlist_class: part.wishlist,
     show_actions: (show.add_to_cart and not show.cart_button) or show.wishlist,
     show_cart: show.add_to_cart and not show.cart_button,
     show_wishlist: show.wishlist,
