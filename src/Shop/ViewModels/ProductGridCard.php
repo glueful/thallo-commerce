@@ -21,6 +21,7 @@ final readonly class ProductGridCard
         public array $tags,
         public bool $onSale,
         public bool $isNew,
+        public bool $inStock = true,
     ) {
     }
 
@@ -32,6 +33,7 @@ final readonly class ProductGridCard
             'tags' => $this->tags,
             'onSale' => $this->onSale,
             'isNew' => $this->isNew,
+            'inStock' => $this->inStock,
         ];
     }
 }

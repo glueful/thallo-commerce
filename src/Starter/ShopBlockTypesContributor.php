@@ -117,6 +117,12 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                         'name' => 'show_add_to_cart', 'label' => 'Show add to cart', 'type' => 'boolean',
                         'group' => 'Display',
                     ],
+                    // An icon on the picture, or a labelled button under the price, always visible.
+                    [
+                        'name' => 'add_to_cart_style', 'label' => 'Add to cart', 'type' => 'enum',
+                        'group' => 'Display', 'enum' => ['icon', 'button'],
+                        'enum_labels' => ['icon' => 'Icon on the picture', 'button' => 'Button under the price'],
+                    ],
                     ['name' => 'show_wishlist', 'label' => 'Show wishlist', 'type' => 'boolean', 'group' => 'Display'],
                     [
                         'name' => 'show_sale_badge', 'label' => 'Show sale badge', 'type' => 'boolean',
@@ -164,7 +170,7 @@ final class ShopBlockTypesContributor implements StarterBlockTypeContributor
                     'order_by' => 'newest', 'limit' => 12, 'columns' => 'auto',
                     'show_image' => true, 'show_title' => true, 'title_tag' => 'h3', 'show_price' => true,
                     'show_rating' => true, 'show_categories' => true, 'show_tags' => false,
-                    'show_add_to_cart' => true, 'show_wishlist' => true,
+                    'show_add_to_cart' => true, 'add_to_cart_style' => 'icon', 'show_wishlist' => true,
                     'show_sale_badge' => false, 'sale_badge_text' => 'Sale', 'show_new_badge' => false,
                     'new_badge_text' => 'New', 'new_badge_days' => 7, 'badge_position' => 'top-left',
                     'card_hover' => 'none', 'image_ratio' => 'square', 'image_fit' => 'contain',

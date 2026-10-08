@@ -1,5 +1,5 @@
 {# _grid_card.twig — one Product grid card (product grid spec §3.1, §5, §6). Context: `product`
-   (ProductGridCard::toArray()), `show` (the display toggles, defaults applied), `title_tag`,
+   (ProductGridCard::toArray()), `show` (the display toggles and cart_button, defaults applied), `title_tag`,
    `badge` (show_sale, show_new, sale_text, new_text, position), `part` (the Style tab's part
    classes — card, image, details, title, price, meta, button, badge — and card_attrs, computed once by
    product-grid.twig), repeated on every card. Without JavaScript every
@@ -20,8 +20,8 @@
     media_link_named: not show.title,
     media_class: part.image,
     action_class: part.button,
-    show_actions: show.add_to_cart or show.wishlist,
-    show_cart: show.add_to_cart,
+    show_actions: (show.add_to_cart and not show.cart_button) or show.wishlist,
+    show_cart: show.add_to_cart and not show.cart_button,
     show_wishlist: show.wishlist,
     badges: badge_markup,
   } %}
@@ -54,6 +54,23 @@
     <span class="shop-grid__price{{ part.price }}">
       <span class="shop-grid__price-current">{{ product.priceFormatted }}</span>
       {% if product.compareAtFormatted %}<s>{{ product.compareAtFormatted }}</s>{% endif %}
+    </span>
+    {% endif %}
+    {# The labelled button: adds a one-variant product, sends a product with choices to its page,
+       and says so when nothing can be bought — the same decision the icon makes. #}
+    {% if show.add_to_cart and show.cart_button %}
+    <span class="shop-grid__buy-row">
+      {% if not product.inStock %}
+    <button class="shop-grid__buy shop-grid__buy--sold-out{{ part.button }}" type="button" disabled>Sold out</button>
+      {% elseif product.cartMode == 'direct' %}
+    <form class="shop-grid__buy-form" method="post" action="/_shop/cart/add">
+      <input type="hidden" name="variant_uuid" value="{{ product.directVariantUuid }}">
+      <input type="hidden" name="quantity" value="1">
+      <button class="shop-grid__buy{{ part.button }}" type="submit" aria-label="Add {{ product.name }} to cart">Add to cart</button>
+    </form>
+      {% else %}
+    <a class="shop-grid__buy shop-grid__buy--options{{ part.button }}" href="{{ product.url }}">Choose options</a>
+      {% endif %}
     </span>
     {% endif %}
   </span>

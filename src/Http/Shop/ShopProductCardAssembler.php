@@ -112,14 +112,17 @@ final class ShopProductCardAssembler
         $tags = $this->tags->tagProjectionsForProducts($this->context, $tenant, $uuids);
         $variants = $this->variants->forProducts($this->context, $tenant, $uuids);
         $newSince = $now->modify('-' . $newBadgeDays . ' days');
+        $stocked = $this->stockedVariants($tenant, $variants);
 
         $items = [];
         foreach ($products as $i => $product) {
             $uuid = (string) $product['uuid'];
             $onSale = false;
+            $inStock = false;
             foreach ($variants[$uuid] ?? [] as $variant) {
                 $compareAt = $variant['compare_at_price'] ?? null;
                 $active = ($variant['status'] ?? null) === 'active';
+                $inStock = $inStock || ($active && isset($stocked[(string) $variant['uuid']]));
                 if ($active && $compareAt !== null && (int) $compareAt > (int) $variant['price']) {
                     $onSale = true;
                 }
@@ -133,9 +136,42 @@ final class ShopProductCardAssembler
                 $tags[$uuid] ?? [],
                 $onSale,
                 $created !== null && $created >= $newSince,
+                $inStock,
             );
         }
         return $items;
+    }
+
+    /**
+     * The variants that can be sold now, by the engine's in-stock rule: no stock row, an untracked
+     * one, or a tracked quantity above zero. One query for the whole grid.
+     *
+     * @param array<string, list<array<string,mixed>>> $variants variant rows per product uuid
+     * @return array<string, true> variant uuid => true
+     */
+    private function stockedVariants(string $tenant, array $variants): array
+    {
+        $uuids = [];
+        foreach ($variants as $rows) {
+            foreach ($rows as $row) {
+                $uuids[] = (string) $row['uuid'];
+            }
+        }
+        if ($uuids === []) {
+            return [];
+        }
+        $stocked = array_fill_keys($uuids, true);
+        $rows = db($this->context)->table('commerce_stock')
+            ->where('tenant_uuid', '=', $tenant)
+            ->whereIn('variant_uuid', $uuids)
+            ->select(['variant_uuid', 'tracked', 'quantity'])
+            ->get();
+        foreach ($rows as $row) {
+            if ((bool) $row['tracked'] && (int) $row['quantity'] <= 0) {
+                unset($stocked[(string) $row['variant_uuid']]);
+            }
+        }
+        return $stocked;
     }
 
     /**

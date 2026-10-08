@@ -15,6 +15,7 @@
   image: data.show_image ?? true, title: data.show_title ?? true, price: data.show_price ?? true,
   rating: data.show_rating ?? true, categories: data.show_categories ?? true, tags: data.show_tags ?? false,
   add_to_cart: data.show_add_to_cart ?? true, wishlist: data.show_wishlist ?? true,
+  cart_button: data.add_to_cart_style|default('') == 'button',
 } %}
 {% set title_tag = {h2: 'h2', h3: 'h3', h4: 'h4'}[data.title_tag|default('')] ?? 'h3' %}
 {# The Style tab's parts, the same on every card, styled here where the template lint sees them. #}

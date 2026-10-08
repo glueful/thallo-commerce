@@ -875,6 +875,52 @@
 .thallo-block-product-grid .shop-grid__price {
   margin-top: 0.25rem;
 }
+/* The labelled add-to-cart button sits at the foot of the card, so the buttons in a row line up
+   whatever the names' lengths. The Button part styles it as it styles the icon. */
+.thallo-block-product-grid .shop-grid__item > .shop-grid__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.thallo-block-product-grid .shop-grid__buy-row {
+  display: block;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+.thallo-block-product-grid .shop-grid__buy-form {
+  display: block;
+}
+.thallo-block-product-grid .shop-grid__buy {
+  display: block;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--shop-accent, #16211c);
+  border-radius: 999px;
+  background: var(--shop-accent, #16211c);
+  color: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.thallo-block-product-grid .shop-grid__buy--options {
+  background: transparent;
+  color: var(--shop-accent, #16211c);
+}
+.thallo-block-product-grid .shop-grid__buy--sold-out {
+  border-color: transparent;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  cursor: default;
+}
+.thallo-block-product-grid .shop-grid__buy:focus-visible {
+  outline: 2px solid var(--shop-accent, #16211c);
+  outline-offset: 2px;
+}
 /* The grid's picture sits on the card as it is; the Image part's background fills the frame. */
 .thallo-block-product-grid .shop-grid__media {
   background: transparent;
