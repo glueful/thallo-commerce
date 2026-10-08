@@ -196,8 +196,6 @@ $router->get('/checkout/pay/cancel/{linkUuid}/{signature}', [ShopPaymentLinkCont
 $router->get('/_shop/wishlist/items', [ShopWishlistController::class, 'items'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 
-$router->get('/_shop/blocks/product-grid', [ShopBlockDataController::class, 'productGrid'])
-    ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 $router->get('/_shop/blocks/featured-product', [ShopBlockDataController::class, 'featuredProduct'])
     ->middleware(['tenant_profile:public', 'tenant_bootstrap']);
 $router->get('/_shop/blocks/add-to-cart', [ShopBlockDataController::class, 'addToCart'])

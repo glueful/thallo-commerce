@@ -3,7 +3,7 @@
  * Dependency-free, no build step. Progressively enhances the real `/_shop/*` PRG forms
  * (cart add/update/remove/discount, checkout quote/place) with content-negotiated JSON
  * requests, live mini-cart/quote updates, focus + aria-live status announcements, and
- * double-submit suppression. Also hydrates the read-only product-grid/featured-product/
+ * double-submit suppression. Also hydrates the read-only featured-product/
  * add-to-cart/mini-cart block shells (see templates/blocks/*.twig) from the matching
  * `/_shop/blocks/*` and `/_shop/cart` JSON endpoints, so a block placed on ANY page shows
  * live catalog/cart data without the page's own render pipeline knowing about commerce.
@@ -595,93 +595,13 @@
     hydrateMiniCart();
   }
 
-  // ---- block hydration: product-grid ------------------------------------------------
-
-  function hydrateProductGrids() {
-    var blocks = qsa(document, '[data-shop-block="product-grid"]');
-    for (var i = 0; i < blocks.length; i++) {
-      hydrateProductGrid(blocks[i]);
-    }
-  }
-
-  function hydrateProductGrid(el) {
-    if (typeof window.fetch !== 'function') {
-      return;
-    }
-    // The loading line ships hidden (no "Loading products…" without JavaScript); hydration shows it.
-    var loading = qs(el, '[data-shop-grid-empty]');
-    if (loading) {
-      loading.hidden = false;
-    }
-    var query =
-      'source=' + encodeURIComponent(el.getAttribute('data-source') || 'newest') +
-      '&category_slug=' + encodeURIComponent(el.getAttribute('data-category-slug') || '') +
-      '&tag_slug=' + encodeURIComponent(el.getAttribute('data-tag-slug') || '') +
-      '&products=' + encodeURIComponent(el.getAttribute('data-products') || '') +
-      '&page_size=' + encodeURIComponent(el.getAttribute('data-page-size') || '12');
-
-    window
-      .fetch('/_shop/blocks/product-grid?' + query, {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-      })
-      .then(blockJson)
-      .then(function (data) {
-        renderProductGrid(el, data);
-      })
-      .catch(function () {
-        // A failed request: say so where "Loading products…" was, never leave it there.
-        if (loading) {
-          loading.hidden = false;
-          loading.textContent = 'Products could not be loaded.';
-        }
-      });
-  }
-
-  function renderProductGrid(el, data) {
-    var itemsEl = qs(el, '[data-shop-grid-items]');
-    var emptyEl = qs(el, '[data-shop-grid-empty]');
-    var viewAll = qs(el, '[data-shop-grid-view-all]');
-    var items = (data && data.items) || [];
-
-    if (items.length === 0) {
-      if (emptyEl) {
-        emptyEl.hidden = false;
-        emptyEl.textContent = 'No products found.';
-      }
-      if (itemsEl) {
-        itemsEl.hidden = true;
-        clear(itemsEl);
-      }
-    } else {
-      if (emptyEl) {
-        emptyEl.hidden = true;
-      }
-      if (itemsEl) {
-        itemsEl.hidden = false;
-        clear(itemsEl);
-        for (var i = 0; i < items.length; i++) {
-          itemsEl.appendChild(buildProductCard(items[i]));
-        }
-        enhanceBuiltCards(itemsEl);
-      }
-    }
-
-    // "view all" ALWAYS points at the canonical shop/category route the JSON supplied
-    // (built server-side via ShopUrlGenerator) — never a query-paginated builder-page link.
-    if (viewAll && data && data.view_all_url) {
-      viewAll.hidden = false;
-      viewAll.setAttribute('href', data.view_all_url);
-    }
-  }
-
   // ---- the ONE client card renderer ------------------------------------------------
   // storefront-v1 spec §5: `_product_card.twig` stays the SERVER card renderer, and this is
   // its client twin — both consume the same closed ProductCardViewModel projection
   // ({uuid, name, url, cover_url, rating, price_formatted, compare_at_formatted,
   // category_name, cart_mode, direct_variant_uuid}), and ShopBlocksTest pins their shared
   // class/data/ARIA hook set so a redesign of either cannot silently drift. Consumed by BOTH
-  // the hydrated product-grid block and the wishlist page.
+  // the wishlist page (the Product grid renders its cards on the server, product grid spec §3.1).
   //
   // Cart honesty is the SERVER's decision, never re-derived here: `cart_mode: 'direct'` (plus a
   // variant uuid) renders the real PRG form the shop-form module already intercepts; every
@@ -1838,7 +1758,6 @@
       bindCheckoutPage(checkoutPages[c]);
     }
     hydrateMiniCarts();
-    hydrateProductGrids();
     hydrateFeaturedProducts();
     hydrateAddToCarts();
     hydrateWishlistControls();
@@ -1859,7 +1778,7 @@
   /* shop-runtime:end */
   if (window.ThalloRuntime) {
     // Adoption (theme-runtime spec §2.5 / shopjs-on-runtime spec §2.2): the core
-    // drives; enhance closures ARE the per-component functions above. All ten are
+    // drives; enhance closures ARE the per-component functions above. All nine are
     // canvas-skip (the default) — formalizing that shop behavior never runs in the
     // canvas stage.
     window.ThalloRuntime.register('shop-form', { selector: FORM_SELECTOR, enhance: bindForm });
@@ -1872,7 +1791,6 @@
         hydrateMiniCart();
       },
     });
-    window.ThalloRuntime.register('shop-product-grid', { selector: '[data-shop-block="product-grid"]', enhance: hydrateProductGrid });
     window.ThalloRuntime.register('shop-featured-product', { selector: '[data-shop-block="featured-product"]', enhance: hydrateFeaturedProduct });
     window.ThalloRuntime.register('shop-add-to-cart', { selector: '[data-shop-block="add-to-cart"]', enhance: hydrateAddToCart });
     window.ThalloRuntime.register('shop-wishlist', { selector: WISHLIST_SELECTOR, enhance: bindWishlistNode });

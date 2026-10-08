@@ -1,66 +1,42 @@
-{# product-grid — storefront-rendering spec §5.2/§10: page 1 of a live catalog source
-   (category | tag | manual list | newest), JS-hydrated. The block renders only a stable,
-   cacheable shell carrying its configuration as data-* attributes — shop.js reads them, calls
-   `GET /_shop/blocks/product-grid`, and paints the items plus a "view all" link that ALWAYS
-   points at the canonical shop/category route the JSON supplied (never a query-paginated
-   builder-page link — the grid itself only ever shows page 1). Every product/category URL
-   comes from ShopUrlGenerator at JSON-build time in ShopBlockDataController — Twig never
-   constructs one here. #}
-{% set source = ({category: 'category', tag: 'tag', manual: 'manual', newest: 'newest'}[data.source|default('newest')] ?? 'newest') %}
-{# How many: a whole number, 1 to 48 (what the grid endpoint serves); anything else is 12. #}
-{% set limit = (data.limit ?? null)|numeric_clamp(1, 48) %}
-{% set pageSize = limit is null ? 12 : limit|round %}
-{# How many on a row: a fixed count is a modifier class (shop.css steps it down on narrow screens);
-   auto, or anything unknown, keeps the width-based grid. #}
-{% set columns = data.columns|default('auto') %}
-{% set columnsClass = columns in ['2', '3', '4', '5', '6'] ? ' thallo-block-product-grid--cols-' ~ columns : '' %}
-{# data-shop-scope (storefront-v1 spec §5): the opaque wishlist storage scope — OMITTED
-   entirely (never empty) when the seam answers null. The cards this block hydrates carry
-   hearts, and they resolve their store from this root without any metadata fetch. #}
-{% if is_canvas() %}
-{# The stage (sections and templates design §6): shop behaviour never runs there, so the grid is a
-   named placeholder — what it will show — that keeps the block's authored styling and stays
-   selectable, never an empty box or a "Loading products…" nothing finishes. #}
-{% set shows = {
-  newest: 'the newest products',
-  category: data.category_slug|default('') ? 'category ' ~ data.category_slug : 'a category — choose one',
-  tag: data.tag_slug|default('') ? 'tag ' ~ data.tag_slug : 'a tag — choose one',
-  manual: 'chosen products',
-}[source] %}
-<div class="thallo-block thallo-block-product-grid thallo-field-empty{{ style_classes('root') }}"{{ style_attrs('root') }}>Product grid — {{ shows }}</div>
-{% else %}
-{% set wishlist_scope = shop_wishlist_scope() %}
-<div class="thallo-block thallo-block-product-grid{{ columnsClass }}{{ style_classes('root') }}"{{ style_attrs('root') }} data-shop-block="product-grid"
-     {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}
-     data-source="{{ source }}"
-     data-category-slug="{{ data.category_slug|default('') }}"
-     data-tag-slug="{{ data.tag_slug|default('') }}"
-     data-products="{{ data.products|default('') }}"
-     data-page-size="{{ pageSize }}">
-  <ul class="thallo-block-product-grid__items" data-shop-grid-items hidden></ul>
-  {# Hidden until shop.js starts hydrating: without JavaScript the reader sees only the noscript
-     link below, never a "Loading products…" that nothing will finish. #}
-  <p class="thallo-block-product-grid__empty" data-shop-grid-empty hidden>Loading products…</p>
-  <a class="thallo-block-product-grid__view-all" data-shop-grid-view-all hidden href="#">View all products</a>
-  {# Commerce-Slice-2 Fix A: a grid has no single "the" product to link to, so its no-JS
-     fallback links to the same catalog entry point its own "view all" link would resolve to —
-     the configured category when the source is category-scoped, otherwise the shop index.
-     Same soft-bound/null-safe/cache-safe reasoning as add-to-cart.twig/featured-product.twig. #}
-  {% set noscript_url = (source == 'category' and data.category_slug)
-    ? shop_category_url(data.category_slug)
-    : shop_index_url() %}
-  <noscript>
-    {% if noscript_url %}
-      <p class="thallo-block-product-grid__noscript"><a href="{{ noscript_url }}">Browse products</a></p>
-    {% else %}
-      <p class="thallo-block-product-grid__noscript">Enable JavaScript to browse this product grid.</p>
-    {% endif %}
-  </noscript>
+{# product-grid — product grid spec §3: the source narrowed by categories and tags, rendered on the
+   server (stage and site alike) as cards the Style tab's parts reach. product_grid() records the
+   page's cache hints (the workspace's catalog tag, the catalog generation). shop.css arrives in the
+   theme layer (ShopStylesheetContributor) — never linked here (§3.4). On the site shop.js binds the
+   cart forms and wishlist hearts; without it the cards still link and add. #}
+{% set grid = product_grid(data) %}
+{% set pick = {
+  columns: data.columns|default('auto') in ['2', '3', '4', '5', '6'] ? ' thallo-block-product-grid--cols-' ~ data.columns : '',
+  card: {lift: ' thallo-block-product-grid--card-lift', shadow: ' thallo-block-product-grid--card-shadow'}[data.card_hover|default('')] ?? '',
+  ratio: {portrait: ' thallo-block-product-grid--image-portrait', landscape: ' thallo-block-product-grid--image-landscape'}[data.image_ratio|default('')] ?? '',
+  fit: data.image_fit|default('') == 'cover' ? ' thallo-block-product-grid--image-cover' : '',
+  zoom: data.image_hover|default('') == 'zoom' ? ' thallo-block-product-grid--image-zoom' : '',
+} %}
+{% set show = {
+  image: data.show_image ?? true, title: data.show_title ?? true, price: data.show_price ?? true,
+  rating: data.show_rating ?? true, categories: data.show_categories ?? true, tags: data.show_tags ?? false,
+  add_to_cart: data.show_add_to_cart ?? true, wishlist: data.show_wishlist ?? true,
+} %}
+{% set title_tag = {h2: 'h2', h3: 'h3', h4: 'h4'}[data.title_tag|default('')] ?? 'h3' %}
+{% set badge = {
+  show_sale: data.show_sale_badge ?? false, show_new: data.show_new_badge ?? false,
+  sale_text: (data.sale_badge_text|default('') != '' ? data.sale_badge_text : 'Sale')|slice(0, 24),
+  new_text: (data.new_badge_text|default('') != '' ? data.new_badge_text : 'New')|slice(0, 24),
+  position: data.badge_position|default('') == 'top-right' ? 'top-right' : 'top-left',
+} %}
+{% set cards = grid ? grid.cards : [] %}
+{% set wishlist_scope = is_canvas() ? null : shop_wishlist_scope() %}
+<div class="thallo-block thallo-block-product-grid{{ pick.columns }}{{ pick.card }}{{ pick.ratio }}{{ pick.fit }}{{ pick.zoom }}{% if cards is empty %} thallo-block-product-grid--empty{% endif %}{{ style_classes('root') }}"{{ style_attrs('root') }}
+     {%- if wishlist_scope %} data-shop-scope="{{ wishlist_scope }}"{% endif %}>
+  {% if cards is empty %}
+    {% if is_canvas() %}<p class="thallo-block-product-grid__empty thallo-field-empty">Product grid — no products match</p>{% endif %}
+  {% else %}
+  <ul class="thallo-block-product-grid__items">
+    {% for product in cards %}{% include 'shop/_grid_card.twig' %}{% endfor %}
+  </ul>
+  {% if grid.view_all_url %}<a class="thallo-block-product-grid__view-all" href="{{ grid.view_all_url }}">View all products</a>{% endif %}
+  {% endif %}
 </div>
-{# Baseline shop styling (same fingerprinted asset the catalog pages load) — duplicate
-   link tags across blocks on one page dedupe at fetch time, like the script tag below. #}
-<link rel="stylesheet" href="/_thallo/shop/shop.css">
-{# The stable, deploy-invariant asset alias (see ShopAssetController) — no Twig function can
-   call ShopUrlGenerator::assets() directly, so every shop block loads shop.js this way. #}
+{% if not is_canvas() and cards is not empty %}
+{# The stable, deploy-invariant asset alias (see ShopAssetController). #}
 <script src="/_thallo/shop/shop.js" defer></script>
 {% endif %}

@@ -3,9 +3,19 @@
    `_product_card.twig` and the Product tile block (type layouts plan C2), so the grid's cart honesty
    — the decision `_product_card.twig` documents — lives in one place. `show_tag` and `show_actions`
    (default true) are the block's settings; `tile_class` and `tile_attrs` its root's classes and
-   attributes. Indented as it sits in the card, so the card's markup is unchanged. #}
-<div class="shop-grid__tile{{ tile_class|default('') }}"{{ tile_attrs|default('') }}>
-    <span class="shop-grid__media">
+   attributes. The Product grid's card (product grid spec §3.1) adds, all opt-in: `link_media` (the
+   image links to the product; `media_link_named` makes that link focusable and named, for a card
+   without a title), `no_media`, `media_class` / `action_class` (its part classes), `show_cart`,
+   `show_wishlist`, and `badges` (markup placed first in the tile). Indented as it sits in the
+   card, so the card's markup is unchanged. #}
+<div class="shop-grid__tile{{ tile_class|default('') }}{% if no_media|default(false) %} shop-grid__tile--no-media{% endif %}"{{ tile_attrs|default('') }}>{{ badges|default('') }}
+    {%~ if not no_media|default(false) %}
+    {%~ if link_media|default(false) and media_link_named|default(false) %}
+    <a class="shop-grid__media-link" href="{{ product.url }}" aria-label="{{ product.name }}">
+    {%~ elseif link_media|default(false) %}
+    <a class="shop-grid__media-link" href="{{ product.url }}" tabindex="-1" aria-hidden="true">
+    {%~ endif %}
+    <span class="shop-grid__media{{ media_class|default('') }}">
       {% if product.coverUrl %}
         <img class="shop-grid__image" src="{{ product.coverUrl }}" alt="{{ product.name }}"
              loading="lazy" decoding="async">
@@ -13,16 +23,20 @@
         <span class="shop-grid__image shop-grid__image--empty" aria-hidden="true"></span>
       {% endif %}
     </span>
+    {%~ if link_media|default(false) %}
+    </a>
+    {%~ endif %}
+    {%~ endif %}
     {% if product.categoryName and (show_tag ?? true) %}
       <span class="shop-grid__tag">{{ product.categoryName }}</span>
     {% endif %}
     {%~ if (show_actions ?? true) %}
     <div class="shop-grid__actions">
-      {% if product.cartMode == 'direct' %}
+      {% if not (show_cart ?? true) %}{% elseif product.cartMode == 'direct' %}
         <form class="shop-grid__cart-form" method="post" action="/_shop/cart/add">
           <input type="hidden" name="variant_uuid" value="{{ product.directVariantUuid }}">
           <input type="hidden" name="quantity" value="1">
-          <button class="shop-grid__action shop-grid__action--cart" type="submit"
+          <button class="shop-grid__action shop-grid__action--cart{{ action_class|default('') }}" type="submit"
                   aria-label="Add {{ product.name }} to cart">
             {# The SAME shopping-bag glyph the header mini-cart uses. #}
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -35,13 +49,14 @@
           </button>
         </form>
       {% else %}
-        <a class="shop-grid__action shop-grid__action--options" href="{{ product.url }}"
+        <a class="shop-grid__action shop-grid__action--options{{ action_class|default('') }}" href="{{ product.url }}"
            aria-label="View options for {{ product.name }}">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
             <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>
           </svg>
         </a>
       {% endif %}
+      {%~ if show_wishlist ?? true %}
       <button class="shop-grid__action shop-grid__action--wishlist" type="button"
               hidden data-shop-wishlist-toggle data-product-uuid="{{ product.uuid }}" aria-pressed="false"
               aria-label="Save {{ product.name }} to wishlist">
@@ -49,6 +64,7 @@
           <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
         </svg>
       </button>
+      {%~ endif %}
     </div>
     {%~ endif %}
   </div>

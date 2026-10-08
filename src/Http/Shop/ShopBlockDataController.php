@@ -6,11 +6,8 @@ namespace Thallo\Commerce\Http\Shop;
 
 use Glueful\Bootstrap\ApplicationContext;
 use Glueful\Extensions\Commerce\Catalog\AddonRepository;
-use Glueful\Extensions\Commerce\Catalog\CategoryRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductMediaRepository;
 use Glueful\Extensions\Commerce\Catalog\ProductRepository;
-use Glueful\Extensions\Commerce\Catalog\ResolvedProductFilters;
-use Glueful\Extensions\Commerce\Catalog\TagRepository;
 use Glueful\Extensions\Commerce\Catalog\VariantRepository;
 use Glueful\Extensions\Commerce\Support\CommerceSettings;
 use Glueful\Extensions\Commerce\Tenancy\CommerceTenantResolution;
@@ -18,7 +15,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Thallo\Commerce\Links\ProductLinkService;
-use Thallo\Commerce\Shop\ManualProductListNormalizer;
 use Thallo\Commerce\Shop\ShopUrlGenerator;
 use Thallo\Commerce\Shop\ViewModels\AddToCartViewModel;
 use Thallo\Commerce\Shop\ViewModels\ProductCardViewModel;
@@ -28,8 +24,9 @@ use Thallo\Contracts\Delivery\MediaUrlResolver;
 use function config;
 
 /**
- * `GET /_shop/blocks/{product-grid,featured-product,add-to-cart}` (task 11): the JSON data
- * source the 3 catalog-data block templates hydrate from client-side. Every response is a
+ * `GET /_shop/blocks/{featured-product,add-to-cart}` (task 11): the JSON data source the two
+ * catalog-data block templates hydrate from client-side (the Product grid renders on the server,
+ * product grid spec §3.1). Every response is a
  * closed view model built through the SAME repositories/{@see ShopUrlGenerator} the full
  * catalog pages use ({@see ShopCatalogController}) — never a raw commerce row — so a block
  * placed on ANY page (a builder page, not just a shop route) shows live data without either
@@ -45,23 +42,15 @@ use function config;
  */
 final class ShopBlockDataController
 {
-    private const MAX_PAGE_SIZE = 48;
-
     public function __construct(
         private readonly ApplicationContext $context,
         private readonly CommerceTenantResolution $tenants,
         private readonly ProductRepository $products,
         private readonly VariantRepository $variants,
         private readonly ProductMediaRepository $media,
-        private readonly CategoryRepository $categories,
-        private readonly TagRepository $tags,
         private readonly AddonRepository $addons,
         private readonly ProductLinkService $links,
         private readonly ShopUrlGenerator $urls,
-        // Task 7's shared batched card authority — productGrid() items feed shop.js's
-        // buildProductCard(), so they MUST be the same closed ProductCardViewModel
-        // projection the wishlist endpoint and the server-rendered grids emit.
-        private readonly ShopProductCardAssembler $cards,
         // Same anonymous-media URL authority ShopCatalogController uses — see its ctor note.
         private readonly ?MediaUrlResolver $mediaUrls = null,
     ) {
@@ -84,48 +73,6 @@ final class ShopBlockDataController
             $coverRow = $rows[0] ?? null;
         }
         return $this->mediaUrl($coverRow);
-    }
-
-    /** `GET /_shop/blocks/product-grid` — page 1 only (spec §9: never query-paginated here). */
-    public function productGrid(Request $request): Response
-    {
-        $tenant = $this->tenants->tenantUuid($this->context);
-        $source = $this->enumOrDefault(
-            (string) $request->query->get('source', 'newest'),
-            ['category', 'tag', 'manual', 'newest'],
-            'newest',
-        );
-        $pageSize = self::clampPageSize((int) $request->query->get('page_size', 24));
-        $viewAllUrl = $this->urls->shopIndex();
-
-        try {
-            [$rows, $viewAllUrl] = match ($source) {
-                'category' => $this->categoryRows($request, $tenant, $pageSize, $viewAllUrl),
-                'tag' => [$this->tagRows($request, $tenant, $pageSize), $viewAllUrl],
-                'manual' => [$this->manualRows($request, $tenant, $pageSize), $viewAllUrl],
-                default => [
-                    $this->products->listActive($this->context, $tenant, 1, $pageSize, null)['items'],
-                    $viewAllUrl,
-                ],
-            };
-        } catch (\InvalidArgumentException $e) {
-            return $this->noStore(new JsonResponse(
-                ['error' => $e->getMessage(), 'items' => [], 'view_all_url' => $viewAllUrl],
-                422,
-            ));
-        }
-
-        // The SAME batched card pipeline the shop grids and the wishlist endpoint use —
-        // shop.js paints these items via buildProductCard(), which consumes exactly the
-        // closed ProductCardViewModel allowlist (cart_mode/direct_variant_uuid/category_name
-        // included, nothing else leaked). Constant query budget in product count.
-        return $this->noStore(new JsonResponse([
-            'items' => array_map(
-                static fn (ProductCardViewModel $card): array => $card->toArray(),
-                $this->cards->cards($tenant, $rows),
-            ),
-            'view_all_url' => $viewAllUrl,
-        ]));
     }
 
     /** `GET /_shop/blocks/featured-product` — explicit slug, or the enriched entry's product. */
@@ -187,66 +134,6 @@ final class ShopBlockDataController
     }
 
     // ------------------------------------------------------------------
-    // product-grid source resolution
-    // ------------------------------------------------------------------
-
-    /** @return array{0: list<array<string,mixed>>, 1: string} rows + the resolved "view all" URL */
-    private function categoryRows(Request $request, string $tenant, int $pageSize, string $fallbackUrl): array
-    {
-        $slug = trim((string) $request->query->get('category_slug', ''));
-        if ($slug === '') {
-            return [[], $fallbackUrl];
-        }
-        $category = $this->categories->findBySlug($this->context, $tenant, $slug);
-        if ($category === null) {
-            return [[], $fallbackUrl];
-        }
-        $filters = new ResolvedProductFilters([(string) $category['uuid']]);
-        $rows = $this->products->listActive($this->context, $tenant, 1, $pageSize, $filters)['items'];
-
-        return [$rows, $this->urls->category($slug)];
-    }
-
-    /** @return list<array<string,mixed>> */
-    private function tagRows(Request $request, string $tenant, int $pageSize): array
-    {
-        $slug = trim((string) $request->query->get('tag_slug', ''));
-        if ($slug === '') {
-            return [];
-        }
-        $tag = $this->tags->findBySlug($this->context, $tenant, $slug);
-        if ($tag === null) {
-            return [];
-        }
-        $filters = new ResolvedProductFilters([], [(string) $tag['uuid']]);
-
-        return $this->products->listActive($this->context, $tenant, 1, $pageSize, $filters)['items'];
-    }
-
-    /**
-     * @return list<array<string,mixed>>
-     * @throws \InvalidArgumentException comma-delimited manual list input (task-11 brief)
-     */
-    private function manualRows(Request $request, string $tenant, int $pageSize): array
-    {
-        $raw = (string) $request->query->get('products', '');
-        $slugs = ManualProductListNormalizer::normalize($raw);
-
-        $items = [];
-        foreach ($slugs as $slug) {
-            if (count($items) >= $pageSize) {
-                break;
-            }
-            $product = $this->products->findBuyerAvailableBySlug($this->context, $tenant, $slug);
-            if ($product !== null && ($product['status'] ?? null) === 'active') {
-                $items[] = $product;
-            }
-        }
-
-        return $items;
-    }
-
-    // ------------------------------------------------------------------
     // featured-product / add-to-cart: explicit slug, or the enriched entry's linked product
     // ------------------------------------------------------------------
 
@@ -275,17 +162,6 @@ final class ShopBlockDataController
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
-
-    /** @param list<string> $allowed */
-    private function enumOrDefault(string $value, array $allowed, string $default): string
-    {
-        return in_array($value, $allowed, true) ? $value : $default;
-    }
-
-    private static function clampPageSize(int $requested): int
-    {
-        return max(1, min(self::MAX_PAGE_SIZE, $requested));
-    }
 
     private function noStore(Response $response): Response
     {

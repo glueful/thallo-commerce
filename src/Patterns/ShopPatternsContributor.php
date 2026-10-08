@@ -193,9 +193,12 @@ final class ShopPatternsContributor implements PatternContributor
         ];
     }
 
-    /** @return array<string,mixed> a Product grid on the newest products — works on any shop as inserted */
+    /** @return array<string,mixed> a Product grid of all products, newest first — works on any shop as inserted */
     private static function grid(int $limit): array
     {
-        return B::block(ShopBlockTypesContributor::SLUG_PRODUCT_GRID, ['source' => 'newest', 'limit' => $limit]);
+        return B::block(
+            ShopBlockTypesContributor::SLUG_PRODUCT_GRID,
+            ['source' => 'all', 'order_by' => 'newest', 'limit' => $limit],
+        );
     }
 }
