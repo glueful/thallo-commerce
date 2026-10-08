@@ -112,7 +112,7 @@ GET  /_shop/cart                           JSON cart view model (mini-cart hydra
 GET  /_shop/wishlist/items                 wishlist resolution for shop.js (no-store)
 POST /_shop/checkout/quote                 read-only checkout preview
 POST /_shop/checkout/place                 durable, idempotent order placement
-GET  /_shop/blocks/product-grid | featured-product | add-to-cart   block hydration data
+GET  /_shop/blocks/featured-product | add-to-cart   block hydration data
 GET  /_thallo/shop/{file}                  fingerprinted pack assets (shop.js)
 ```
 
