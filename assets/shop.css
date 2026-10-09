@@ -19,12 +19,17 @@
 }
 
 .shop-product {
-  /* Two-column detail page (approved Concept A artifact) — wider than the old single
-     column, same container width as the catalog pages. */
-  max-width: 64rem;
+  /* Two-column detail page (approved Concept A artifact), in the same box as the catalog pages:
+     the theme's page box — its width and side gutter, the header's — so the page starts where
+     the logo does. The fallbacks are the default theme's, for a theme without the tokens. */
+  max-width: var(--container, 72rem);
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem var(--space-4, 1.5rem) 3rem;
   line-height: 1.5;
+}
+/* A layout's Frame set to Full width (type layouts spec §6.4) releases the box; the gutter stays. */
+.layout--full :is(.shop-product, .shop-index, .shop-category) {
+  max-width: none;
 }
 
 /* The product layout (type layouts plan C1): the page's parts are blocks there, and the theme gives
@@ -406,9 +411,10 @@
 
 .shop-index,
 .shop-category {
-  max-width: 64rem;
+  /* The theme's page box, as the product page's. */
+  max-width: var(--container, 72rem);
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem var(--space-4, 1.5rem) 3rem;
   line-height: 1.5;
 }
 .shop-index h1,
@@ -1525,9 +1531,9 @@
 
 .shop-wishlist {
   /* Same centered page container as .shop-index/.shop-category. */
-  max-width: 64rem;
+  max-width: var(--container, 72rem);
   margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.5rem var(--space-4, 1.5rem) 3rem;
   line-height: 1.5;
   display: grid;
   gap: 1.25rem;
