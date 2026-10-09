@@ -61,7 +61,7 @@ final class ShopPageRenderer
         $context = [
             'site' => SiteContext::build($this->context, $locale),
             'current_path' => RenderPageCache::normalizePath($request->getPathInfo()),
-            'presentation' => FramePresentation::fixed($frame),
+            'presentation' => FramePresentation::fixed($frame, $this->extension->palette()),
         ] + $extra;
 
         $html = $this->extension->finish($env->render($template, $context));
