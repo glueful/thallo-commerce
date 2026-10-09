@@ -25,7 +25,11 @@ namespace Thallo\Commerce\Shop\ViewModels;
  */
 final class ProductCardViewModel
 {
-    /** @param array{average: float, count: int}|null $rating */
+    /**
+     * @param array{average: float, count: int}|null $rating
+     * @param list<array{name: string, slug: string}> $categories
+     * @param list<array{name: string, slug: string}> $tags
+     */
     private function __construct(
         public readonly string $uuid,
         public readonly string $name,
@@ -40,9 +44,15 @@ final class ProductCardViewModel
         public readonly bool $inStock,
         public readonly bool $onSale,
         public readonly ?string $createdAt,
+        public readonly array $categories,
+        public readonly array $tags,
     ) {
     }
 
+    /**
+     * @param list<array{name: string, slug: string}> $categories every category, for a card's Product tags
+     * @param list<array{name: string, slug: string}> $tags every tag, for a card's Product tags
+     */
     public static function fromProduct(
         ProductViewModel $product,
         ?string $categoryName,
@@ -50,6 +60,8 @@ final class ProductCardViewModel
         bool $inStock = true,
         bool $onSale = false,
         ?string $createdAt = null,
+        array $categories = [],
+        array $tags = [],
     ): self {
         $direct = $addToCart->available && $addToCart->mode === 'direct';
 
@@ -67,6 +79,8 @@ final class ProductCardViewModel
             inStock: $inStock,
             onSale: $onSale,
             createdAt: $createdAt,
+            categories: $categories,
+            tags: $tags,
         );
     }
 
@@ -79,7 +93,8 @@ final class ProductCardViewModel
      * @return array{
      *   uuid: string, name: string, url: string, coverUrl: ?string, rating: ?array<string,mixed>,
      *   priceFormatted: ?string, compareAtFormatted: ?string, categoryName: ?string, cartMode: string,
-     *   directVariantUuid: ?string,
+     *   directVariantUuid: ?string, inStock: bool, onSale: bool, createdAt: ?string,
+     *   categories: list<array{name: string, slug: string}>, tags: list<array{name: string, slug: string}>,
      * }
      */
     public function toCardItem(): array
@@ -100,6 +115,9 @@ final class ProductCardViewModel
             'inStock' => $this->inStock,
             'onSale' => $this->onSale,
             'createdAt' => $this->createdAt,
+            // What a card's Product tags block reads.
+            'categories' => $this->categories,
+            'tags' => $this->tags,
         ];
     }
 

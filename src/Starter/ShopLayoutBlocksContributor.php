@@ -19,8 +19,10 @@ use Thallo\Contracts\Style\StyleTargets;
  * adaptive grid until someone arranges them (its `cards` target declares the shop stylesheet's
  * tracks as its defaults, so the inspector and the emitter both know). **Product tile** is the
  * card's smart block: the picture, the category chip and the quick actions, with fixed internals —
- * the grid's cart honesty stays in one place (`shop/_product_tile.twig`). **Add to cart button** is the
- * card's labelled button — the Product grid's, made a block: Add to cart, Choose options, or Sold out.
+ * the grid's cart honesty stays in one place (`shop/_product_tile.twig`). **Product tags** is the
+ * card's row of tags — and its categories, when asked — as the Product grid card's labels. **Add
+ * to cart button** is the card's labelled button — the Product grid's, made a block: Add to cart,
+ * Choose options, or Sold out.
  *
  * Contributed definitions carry no starter data, so an inserted block starts empty: every option
  * that is on by default is named for turning it off (`hide_count`), and an absent value is always
@@ -29,7 +31,9 @@ use Thallo\Contracts\Style\StyleTargets;
 final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
 {
     /** @var list<string> in the order the shop pages show them */
-    public const SLUGS = ['shop_title', 'category_rail', 'product_loop', 'product_tile', 'product_add_to_cart'];
+    public const SLUGS = [
+        'shop_title', 'category_rail', 'product_loop', 'product_tile', 'product_tags', 'product_add_to_cart',
+    ];
 
     /** The shop stylesheet's `.shop-grid`, as the Product list's cards are before anyone arranges them. */
     public const CARD_DEFAULTS = [
@@ -58,7 +62,7 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
     /** A round icon button on the picture: the quick add, the heart. */
     private const ICON_BUTTON = ['colors', 'border', 'radius', 'opacity', 'hover'];
 
-    /** A small label on the picture: the category chip, a badge. */
+    /** A small label: the category chip and a badge on the picture, a tag under the name. */
     private const LABEL = ['colors.surface', 'colors.text', 'radius', 'typography'];
 
     /** @return list<StarterBlockTypeDefinition> */
@@ -175,6 +179,18 @@ final class ShopLayoutBlocksContributor implements StarterBlockTypeContributor
                     'wishlist' => ['label' => 'Wishlist', 'capabilities' => self::ICON_BUTTON],
                     'chip' => ['label' => 'Category chip', 'capabilities' => self::LABEL],
                     'badge' => ['label' => 'Badge', 'capabilities' => self::LABEL],
+                ]],
+            ),
+            $this->definition(
+                'product_tags',
+                'Product tags',
+                'i-lucide-tags',
+                'The product\'s tags, and its categories if you like, as small labels.',
+                [['name' => 'with_categories', 'type' => 'boolean', 'label' => 'Show the categories too']],
+                self::BOX,
+                // The block is the row; every label takes the Label part's styles.
+                StyleTargets::root('box', self::BOX) + ['parts' => [
+                    'label' => ['label' => 'Label', 'capabilities' => self::LABEL],
                 ]],
             ),
             $this->definition(

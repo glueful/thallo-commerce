@@ -51,12 +51,13 @@ final class ShopProductCardAssembler
     }
 
     /**
-     * One closed card per product row, INPUT order preserved.
+     * One closed card per product row, INPUT order preserved. `$labels` adds every category and
+     * tag (one batched read each), which the shop layouts' Product tags block shows.
      *
      * @param list<array<string,mixed>> $products decoded product rows (already buyer-available)
      * @return list<ProductCardViewModel>
      */
-    public function cards(string $tenant, array $products): array
+    public function cards(string $tenant, array $products, bool $labels = false): array
     {
         $productUuids = array_map(static fn (array $p): string => (string) $p['uuid'], $products);
         $variantsByProduct = $this->variants->forProducts($this->context, $tenant, $productUuids);
@@ -71,6 +72,10 @@ final class ShopProductCardAssembler
         );
         $currency = CommerceSettings::currency($this->context);
         $stocked = $this->stockedVariants($tenant, $variantsByProduct);
+        $categories = $labels
+            ? $this->categories->categoryProjectionsForProducts($this->context, $tenant, $productUuids)
+            : [];
+        $tags = $labels ? $this->tags->tagProjectionsForProducts($this->context, $tenant, $productUuids) : [];
 
         $items = [];
         foreach ($products as $product) {
@@ -103,6 +108,8 @@ final class ShopProductCardAssembler
                 $inStock,
                 $onSale,
                 is_string($product['created_at'] ?? null) ? $product['created_at'] : null,
+                $categories[$uuid] ?? [],
+                $tags[$uuid] ?? [],
             );
         }
 
@@ -110,33 +117,23 @@ final class ShopProductCardAssembler
     }
 
     /**
-     * The Product grid's cards (product grid spec §5, §6): {@see self::cards()} (stock and sale
-     * included) plus every category and tag (one batched read each) and new (created within
-     * `$newBadgeDays`).
+     * The Product grid's cards (product grid spec §5, §6): {@see self::cards()} with every category
+     * and tag (stock and sale included), and new (created within `$newBadgeDays`).
      *
      * @param list<array<string,mixed>> $products
      * @return list<ProductGridCard>
      */
     public function gridCards(string $tenant, array $products, int $newBadgeDays, \DateTimeImmutable $now): array
     {
-        $uuids = array_map(static fn (array $p): string => (string) $p['uuid'], $products);
-        $cards = $this->cards($tenant, $products);
-        $categories = $this->categories->categoryProjectionsForProducts($this->context, $tenant, $uuids);
-        $tags = $this->tags->tagProjectionsForProducts($this->context, $tenant, $uuids);
+        $cards = $this->cards($tenant, $products, labels: true);
         $newSince = $now->modify('-' . $newBadgeDays . ' days');
 
         $items = [];
         foreach ($products as $i => $product) {
-            $uuid = (string) $product['uuid'];
             $created = is_string($product['created_at'] ?? null)
                 ? new \DateTimeImmutable($product['created_at'])
                 : null;
-            $items[] = new ProductGridCard(
-                $cards[$i],
-                $categories[$uuid] ?? [],
-                $tags[$uuid] ?? [],
-                $created !== null && $created >= $newSince,
-            );
+            $items[] = new ProductGridCard($cards[$i], $created !== null && $created >= $newSince);
         }
         return $items;
     }

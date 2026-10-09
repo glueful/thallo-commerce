@@ -25,7 +25,7 @@ abstract class ShopPageSurface implements LayoutSurface, LayoutSampleContext
 
     /** @var list<string> */
     public const CARD_BLOCKS = [
-        'product_tile', 'product_name', 'product_rating', 'product_price', 'product_add_to_cart',
+        'product_tile', 'product_name', 'product_rating', 'product_price', 'product_tags', 'product_add_to_cart',
     ];
 
     public function __construct(

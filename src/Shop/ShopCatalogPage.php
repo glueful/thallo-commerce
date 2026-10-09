@@ -165,7 +165,8 @@ final class ShopCatalogPage
      */
     private function buildGrid(string $tenant, array $result, int $page, callable $pathFor): GridViewModel
     {
-        $items = $this->cards->cards($tenant, $result['items']);
+        // With every category and tag: a layout card's Product tags block shows them.
+        $items = $this->cards->cards($tenant, $result['items'], labels: true);
 
         $total = $result['total'];
         $totalPages = max(1, (int) ceil($total / self::PER_PAGE));

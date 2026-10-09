@@ -1,0 +1,16 @@
+{# product_tags — Product tags (shop layouts' card): the card's product's tags as small labels, as
+   the Product grid card shows them (`shop-grid__labels`); `with_categories` puts every category
+   first. The Label part styles every label. Nothing to show: nothing on the site, a placeholder on
+   the stage. It reads the card's product, so it has something to show only inside a card. #}
+{% set product = layout_context.product|default(null) %}
+{% set label_class = style_classes('label') %}
+{% set categories = data.with_categories|default(false) ? product.categories|default([]) : [] %}
+{% set tags = product.tags|default([]) %}
+{% if product and (categories is not empty or tags is not empty) %}
+<div class="thallo-block thallo-block-product_tags shop-grid__labels{{ style_classes('root') }}"{{ style_attrs('root') }}>
+  {%- for c in categories %}<span class="shop-grid__label shop-grid__label--category{{ label_class }}">{{ c.name }}</span>{% endfor -%}
+  {%- for t in tags %}<span class="shop-grid__label shop-grid__label--tag{{ label_class }}">{{ t.name }}</span>{% endfor -%}
+</div>
+{% elseif product and is_canvas() %}
+<div class="thallo-block thallo-block-product_tags thallo-field-empty">Tags — this product has none</div>
+{% endif %}
